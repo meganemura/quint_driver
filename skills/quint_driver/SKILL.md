@@ -30,6 +30,8 @@ curl -sSL https://github.com/quint-co/quint/releases/download/evaluator/v0.7.0/q
   | tar xz -C ~/.quint/rust-evaluator-v0.7.0
 ```
 
+With that evaluator in place, `Quint.simulate` runs it directly and skips node; the same seed gives the same traces as `quint run`. Set `QUINT_EVALUATOR` to another copy of evaluator v0.7.0, or to an empty string to go through `quint run`.
+
 ## 1. Shape the spec
 
 Each move of `step` must name the action that a driver runs.
@@ -137,4 +139,4 @@ Quint.simulate("spec.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", 
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
-| `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, or `QUINT` is unset and npx could not fetch quint. |
+| `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, `QUINT` is unset and npx could not fetch quint, or the `QUINT_EVALUATOR` evaluator cannot run or answers in a format other than v0.7.0's. |

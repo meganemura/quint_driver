@@ -36,6 +36,15 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 ファイルの中身が変わると、もう一度コンパイルします。
 仕様が import するファイルの変更は、プロセスを起動し直すまで反映されません。
 
+`Quint.simulate` は、Quint の Rust 評価器が見つかれば、node を通さずに直接実行します。
+探すのは、quint が `QUINT_HOME/rust-evaluator-v0.7.0/` にダウンロードしたものです(`QUINT_HOME` の指定がなければ `~/.quint`)。
+別の評価器を使うときは `QUINT_EVALUATOR` にそのパスを指定します。
+空の文字列を指定すると、代わりに `quint run` を実行します。
+どちらの方法でも、同じシードからは同じトレースができます。
+この gem が読めるのは、quint 0.33.0 が使う評価器 v0.7.0 の入出力の形だけです。
+別の形で答える評価器では `QuintDriver::QuintFailed` を投げます。
+評価器が見つからないとき、または `step:` がモジュールのアクションを指していないときは、`quint run` を実行します。
+
 ### エージェント向けのスキル
 
 [quint_driver スキル](skills/quint_driver/SKILL.md)は、仕様の形、ドライバー、トレース再生、モデルの確認、Hegel の順にコーディングエージェントを案内します。

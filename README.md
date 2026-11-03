@@ -26,6 +26,8 @@ The gem calls the `quint` command line. Set `QUINT` to the command to use, for e
 
 `Spec.new` compiles a file once per process and quint command, and compiles it again when the file's text changes. A change to a file the spec imports is not seen until the process starts again.
 
+`Quint.simulate` runs Quint's Rust evaluator directly, without node, when it finds one: the copy quint downloaded into `QUINT_HOME/rust-evaluator-v0.7.0/` (`~/.quint` when `QUINT_HOME` is unset). Set `QUINT_EVALUATOR` to the evaluator to use another copy, or to an empty string to run `quint run` instead. The same seed gives the same traces on both ways. The gem reads only the input and output format of evaluator v0.7.0, the one quint 0.33.0 runs; an evaluator that answers in another format raises `QuintDriver::QuintFailed`. Without an evaluator, or with a `step:` that names no action of the module, `Quint.simulate` runs `quint run`.
+
 ### The agent skill
 
 The [quint_driver skill](skills/quint_driver/SKILL.md) takes a coding agent through the spec shape, the driver, trace replay, the model check, and Hegel. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.

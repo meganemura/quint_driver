@@ -23,6 +23,79 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_the_rust_evaluator_writes_the_states_quint_run_writes
+    through_quint_run = with_env("QUINT_EVALUATOR" => "") { simulated_states }
+    evaluator = QuintDriver::Quint.evaluator
+    skip "quint has not downloaded its Rust evaluator #{QuintDriver::Quint::EVALUATOR_VERSION}" unless evaluator
+
+    Dir.mktmpdir do |dir|
+      # The evaluator through a wrapper that counts its calls, so the states
+      # are known to come from it and not from `quint run`.
+      counting = File.join(dir, "counting-evaluator")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{evaluator} \"$@\"\n")
+      File.chmod(0o755, counting)
+
+      assert_equal through_quint_run, with_env("QUINT_EVALUATOR" => counting) { simulated_states }
+      assert_equal "simulate-from-stdin\n" * 4, File.read(File.join(dir, "ran"))
+    end
+  end
+
+  def test_an_evaluator_that_answers_in_another_format_raises
+    Dir.mktmpdir do |dir|
+      other = File.join(dir, "other-evaluator")
+      File.write(other, "#!/bin/sh\ncat > /dev/null\necho '{\"traces\": []}'\n")
+      File.chmod(0o755, other)
+
+      error = with_env("QUINT_EVALUATOR" => other) do
+        assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "1") { flunk } }
+      end
+      assert_match(/answered in a format quint_driver does not read; it reads the v0\.7\.0 evaluator/, error.message)
+      assert_match(/QUINT_EVALUATOR/, error.message)
+    end
+  end
+
+  def test_an_evaluator_that_fails_or_reports_an_error_raises_with_its_reason
+    Dir.mktmpdir do |dir|
+      { "echo 'evaluator crashed' >&2; exit 1" => /failed:\nevaluator crashed/,
+        %(echo '{"status": "error", "errors": [{"code": "QNT503", "message": "division by zero"}], "bestTraces": []}') => /\Aquint run failed:\nError \[QNT503\]: division by zero\z/ }
+        .each do |script, reason|
+          evaluator = File.join(dir, "evaluator")
+          File.write(evaluator, "#!/bin/sh\ncat > /dev/null\n#{script}\n")
+          File.chmod(0o755, evaluator)
+
+          error = with_env("QUINT_EVALUATOR" => evaluator) do
+            assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "1") { flunk } }
+          end
+          assert_match(reason, error.message)
+        end
+    end
+  end
+
+  def test_a_seed_that_is_not_an_integer_raises
+    error = assert_raises(QuintDriver::QuintFailed) do
+      QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "one") { flunk }
+    end
+    assert_match(/seed/, error.message)
+  end
+
+  def test_the_typescript_backend_runs_quint_not_the_evaluator
+    states = with_env("QUINT_EVALUATOR" => "/nonexistent/quint_evaluator") do
+      list = []
+      QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 2, seed: "1", backend: "typescript") do |path|
+        list << QuintDriver::Trace.steps(path).map(&:expected)
+      end
+      list
+    end
+    assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ], states
+  end
+
+  def test_an_evaluator_that_is_not_installed_raises
+    error = with_env("QUINT_EVALUATOR" => "/nonexistent/quint_evaluator") do
+      assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "1") { flunk } }
+    end
+    assert_match(%r{\Aquint: cannot run the Rust evaluator /nonexistent/quint_evaluator; set QUINT_EVALUATOR}, error.message)
+  end
+
   def test_a_spec_compiles_once_until_its_text_changes
     Dir.mktmpdir do |dir|
       counting = File.join(dir, "counting-quint")
@@ -137,4 +210,25 @@ class QuintTest < Minitest::Test
       %w[QUINT npm_config_registry npm_config_cache npm_config_fetch_retries].each { ENV[_1] = previous[_1] }
     end
   end
+
+  private
+    # Each step of every trace, from specs that cover each kind of value.
+    def simulated_states
+      [ [ LoansDriver::SPEC, nil, 200, 30, "7" ], [ OPERATORS, nil, 100, 20, "3" ],
+        [ OPERATORS, "countdown", 3, 2, "1" ], [ OPERATORS, "painting", 20, 10, "5" ] ].map do |path, main, traces, max_steps, seed|
+        states = []
+        QuintDriver::Quint.simulate(path, main:, traces:, max_steps:, seed:) do |trace|
+          states << QuintDriver::Trace.steps(trace).map(&:to_a)
+        end
+        states
+      end
+    end
+
+    def with_env(values)
+      previous = ENV.to_h.slice(*values.keys)
+      ENV.update(values)
+      yield
+    ensure
+      values.each_key { ENV[_1] = previous[_1] }
+    end
 end
