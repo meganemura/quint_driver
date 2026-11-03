@@ -31,6 +31,40 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 使うコマンドは `QUINT` で指定します(手元にインストールしたものなど)。
 指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js が必要です。
 
+### エージェント向けのスキル
+
+[quint_driver スキル](skills/quint_driver/SKILL.md)は、仕様の形、ドライバー、トレース再生、モデルの確認、Hegel の順にコーディングエージェントを案内します。
+[`skills`](https://github.com/vercel-labs/skills) CLI(Node.js 22.20 以降)でインストールします。
+このリポジトリは非公開なので、次のコマンドには GitHub へのアクセスが必要です。
+
+```sh
+npx skills add meganemura/quint_driver
+```
+
+```sh
+npx skills add meganemura/quint_driver --skill quint_driver
+```
+
+```sh
+npx skills add meganemura/quint_driver -g
+```
+
+```sh
+npx skills add meganemura/quint_driver -a claude-code
+```
+
+`--skill` はこのスキルを選び、`-g` はすべてのプロジェクトに入れ、`-a` は 1 つのエージェントを対象にします。
+`-y` を付けると確認を省きます。
+
+コピーやシンボリックリンクで入れることもできます。
+
+```sh
+mkdir -p .agents/skills
+ln -s /path/to/quint_driver/skills/quint_driver .agents/skills/quint_driver
+```
+
+`.claude/skills/` と `.cursor/skills/` でも同じです。
+
 ## ドライバーを書く
 
 ドライバーは、仕様のアクションをシステムで動かし、システムの状態を仕様の言葉で読み戻します。

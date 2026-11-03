@@ -24,6 +24,37 @@ The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 
 
 The gem calls the `quint` command line. Set `QUINT` to the command to use, for example a local install. Without it, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js.
 
+### The agent skill
+
+The [quint_driver skill](skills/quint_driver/SKILL.md) takes a coding agent through the spec shape, the driver, trace replay, the model check, and Hegel. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.
+
+```sh
+npx skills add meganemura/quint_driver
+```
+
+```sh
+npx skills add meganemura/quint_driver --skill quint_driver
+```
+
+```sh
+npx skills add meganemura/quint_driver -g
+```
+
+```sh
+npx skills add meganemura/quint_driver -a claude-code
+```
+
+`--skill` selects this skill, `-g` installs it for every project, and `-a` targets one agent. Add `-y` to skip prompts.
+
+To copy or symlink it instead:
+
+```sh
+mkdir -p .agents/skills
+ln -s /path/to/quint_driver/skills/quint_driver .agents/skills/quint_driver
+```
+
+`.claude/skills/` and `.cursor/skills/` work the same way.
+
 ## Write a driver
 
 A driver runs the spec's actions on your system and reads the system back in the spec's terms.

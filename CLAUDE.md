@@ -13,6 +13,7 @@ The spec is evaluated in the Ruby process (`Model`), and the model is held to Qu
 
 - `lib/quint_driver/quint.rb` is the one place that runs the `quint` command.
 - `trace.rb` reads ITF traces and replays them on a driver. `spec.rb` reads one module of the JSON IR and the rules of a step action. `model.rb` evaluates the IR. `hegel.rb` is the Hegel adapter, loaded only by `require "quint_driver/hegel"`.
+- `skills/quint_driver/` is the agent skill that ships with the repository.
 - `examples/loans/` is a small spec, a system, a broken system, and their driver. The tests use it.
 - `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework. The Hegel tests are in `test/hegel/` and `spec/hegel/`; the rest is the core.
 
@@ -38,3 +39,4 @@ Do not reference private tools, private repositories, or internal working docume
 - `bundle exec rspec` runs the RSpec suite.
 - Both run `quint`. Set `QUINT` to a local command; without it the library runs `npx --yes @informalsystems/quint@0.33.0`.
 - The core (everything but `hegel.rb`) keeps Ruby 3.3 as its floor: `BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb` on Ruby 3.3. The Hegel adapter needs Ruby 3.4, as hegeltest does.
+- `skills/quint_driver/SKILL.md` is the usage skill for an agent. A change to the API, a spec shape rule, or a failure message changes it in the same commit. Run every command and code block in it before you change it, and paste failure output from a real run.
