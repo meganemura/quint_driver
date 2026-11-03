@@ -1,0 +1,54 @@
+PATH
+  remote: .
+  specs:
+    quint_connect_hegel (0.1.0)
+      hegeltest (= 0.1.1)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    drb (2.2.3)
+    ffi (1.17.4)
+    ffi (1.17.4-aarch64-linux-gnu)
+    ffi (1.17.4-arm64-darwin)
+    ffi (1.17.4-x86_64-linux-gnu)
+    hegeltest (0.1.1)
+      ffi (~> 1.17, >= 1.17.4)
+    hegeltest (0.1.1-aarch64-linux)
+      ffi (~> 1.17, >= 1.17.4)
+    hegeltest (0.1.1-arm64-darwin)
+      ffi (~> 1.17, >= 1.17.4)
+    hegeltest (0.1.1-x86_64-linux)
+      ffi (~> 1.17, >= 1.17.4)
+    minitest (6.0.6)
+      drb (~> 2.0)
+      prism (~> 1.5)
+    prism (1.9.0)
+
+PLATFORMS
+  aarch64-linux
+  arm64-darwin
+  ruby
+  x86_64-linux
+
+DEPENDENCIES
+  minitest (= 6.0.6)
+  quint_connect_hegel!
+
+CHECKSUMS
+  bundler (4.0.18) sha256=02d9a17429de1847b4e0c9f27a9ee4b20c0a74c0a641b4e77195d6019e3618ac
+  drb (2.2.3) sha256=0b00d6fdb50995fe4a45dea13663493c841112e4068656854646f418fda13373
+  ffi (1.17.4) sha256=bcd1642e06f0d16fc9e09ac6d49c3a7298b9789bcb58127302f934e437d60acf
+  ffi (1.17.4-aarch64-linux-gnu) sha256=b208f06f91ffd8f5e1193da3cae3d2ccfc27fc36fba577baf698d26d91c080df
+  ffi (1.17.4-arm64-darwin) sha256=19071aaf1419251b0a46852abf960e77330a3b334d13a4ab51d58b31a937001b
+  ffi (1.17.4-x86_64-linux-gnu) sha256=9d3db14c2eae074b382fa9c083fe95aec6e0a1451da249eab096c34002bc752d
+  hegeltest (0.1.1) sha256=3dd742ea68c08e2df569d275c0e98d74918806eb11f4885b1097846075e19898
+  hegeltest (0.1.1-aarch64-linux) sha256=9a52c25200b09930cac91a2056005cbdb778962aa07049f5e1e9dd7b74e88891
+  hegeltest (0.1.1-arm64-darwin) sha256=885c9b16fb3aaee5f2c5c6ab3d2b2d990c536334f78f3c21ebd456defa4115e0
+  hegeltest (0.1.1-x86_64-linux) sha256=1d16acb3841db1f1fc06ff00ce3af045c7861c92f7641f9f22c765e2c23d74ab
+  minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1
+  prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
+  quint_connect_hegel (0.1.0)
+
+BUNDLED WITH
+  4.0.18
