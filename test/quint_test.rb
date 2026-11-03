@@ -14,6 +14,15 @@ class QuintTest < Minitest::Test
     assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ] * 3, states
   end
 
+  def test_a_spec_reads_its_module_from_a_file_named_after_none_of_them
+    Dir.mktmpdir do |dir|
+      several = File.join(dir, "several.qnt")
+      File.write(several, File.read(OPERATORS))
+
+      assert_equal %w[tick], QuintDriver::Spec.new(several, main: "countdown").rules("step").map(&:action)
+    end
+  end
+
   def test_the_quint_command_is_the_one_quint_names_when_it_runs
     Dir.mktmpdir do |dir|
       fake = File.join(dir, "fake-quint")

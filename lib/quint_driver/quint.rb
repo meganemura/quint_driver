@@ -8,12 +8,13 @@ module QuintDriver
     # Read on every call, so a caller can set QUINT after requiring the gem.
     def self.command = ENV.fetch("QUINT", "npx --yes @informalsystems/quint@0.33.0")
 
-    # The spec's JSON IR.
-    def self.compile(path)
+    # The spec's JSON IR. +main+ names the module quint checks; without it,
+    # quint checks the module named after the file, and fails when none is.
+    def self.compile(path, main: nil)
       Dir.mktmpdir("quint") do |dir|
         # Into a file: through a pipe, quint exits before its 64 KB of JSON is out.
         out = File.join(dir, "ir.json")
-        output, status = capture("compile --target json #{path} --out #{out}")
+        output, status = capture("compile --target json #{path} --out #{out}#{" --main #{main}" if main}")
         ir = File.exist?(out) ? JSON.parse(File.read(out)) : {}
         return ir if status.success? && ir.key?("modules")
 

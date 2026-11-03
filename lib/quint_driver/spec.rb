@@ -9,7 +9,7 @@ module QuintDriver
     attr_reader :declarations
 
     def initialize(path, main:)
-      @declarations = Quint.compile(path).fetch("modules").find { _1["name"] == main }.fetch("declarations")
+      @declarations = Quint.compile(path, main:).fetch("modules").find { _1["name"] == main }.fetch("declarations")
     end
 
     def model(step = "step") = Model.new(declarations, rules(step))
