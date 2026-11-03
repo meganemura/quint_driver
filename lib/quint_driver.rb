@@ -11,7 +11,15 @@ require "set"
 # a Hash with string keys, a sum type its tag, or [tag, value] when it carries
 # one.
 module QuintDriver
+  # The system and the spec disagree.
   class Mismatch < StandardError; end
+
+  # The quint command failed. The message holds its output.
+  class QuintFailed < StandardError; end
+
+  # The spec uses an operator the model does not evaluate, or a shape no
+  # driver can run, such as a step arm that names no action.
+  class Unsupported < StandardError; end
 
   # Raises Mismatch naming each variable where +actual+ differs from
   # +expected+. Compares only the variables +actual+ reports.

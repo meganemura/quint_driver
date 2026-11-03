@@ -31,7 +31,7 @@ module QuintDriver
         elsif node["kind"] == "app" && actions.key?(node["opcode"])
           [ Rule.new(node["opcode"], node["args"], domains) ]
         else
-          raise "quint: #{step} holds a #{node['kind']} #{node['opcode']} that names no action; name every action in step"
+          raise Unsupported, "quint: #{step} holds a #{node['kind']} #{node['opcode']} that names no action; name every action in step"
         end
       end
       walk.(actions.fetch(step)["expr"], {})

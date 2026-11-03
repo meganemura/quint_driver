@@ -21,19 +21,37 @@ class QuintTest < Minitest::Test
       File.chmod(0o755, fake)
       previous, ENV["QUINT"] = ENV["QUINT"], fake
 
-      assert_raises(RuntimeError) { QuintDriver::Quint.compile(OPERATORS) }
+      assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(OPERATORS) }
       assert_equal "compile\n", File.read(File.join(dir, "ran"))
     ensure
       ENV["QUINT"] = previous
     end
   end
 
-  def test_compiling_a_spec_quint_rejects_raises
-    assert_raises(RuntimeError) { QuintDriver::Quint.compile(MISSING) }
+  def test_a_quint_command_that_is_not_installed_raises
+    previous, ENV["QUINT"] = ENV["QUINT"], "quint-is-not-installed-here"
+
+    error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(OPERATORS) }
+    assert_match(/set QUINT/, error.message)
+  ensure
+    ENV["QUINT"] = previous
+  end
+
+  def test_compiling_a_spec_quint_rejects_raises_with_quints_reason
+    error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(MISSING) }
+    assert_match(/at the loading stage/, error.message)
+
+    Dir.mktmpdir do |dir|
+      invalid = File.join(dir, "invalid.qnt")
+      File.write(invalid, "module invalid {\n  var n: int\n  action init = n = 1\n}\n")
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(invalid) }
+      assert_match(/unexpected '='/, error.message)
+    end
   end
 
   def test_simulating_a_spec_quint_rejects_raises
-    assert_raises(RuntimeError) do
+    assert_raises(QuintDriver::QuintFailed) do
       QuintDriver::Quint.simulate(MISSING, traces: 1, max_steps: 1, seed: "1") { flunk "no trace for a missing spec" }
     end
   end

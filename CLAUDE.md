@@ -27,7 +27,7 @@ Do not reference private tools, private repositories, or internal working docume
 
 - The gem has no runtime dependency. `hegeltest` is in the Gemfile's `hegel` group, pinned exactly, and only `lib/quint_driver/hegel.rb` requires it. Add a dependency only with the owner's approval, pinned exactly, at least 7 days past its release.
 - `lib/` refers to no test framework. A disagreement raises `QuintDriver::Mismatch`.
-- An IR operator the model does not know raises `Model::Unsupported`. Never guess an operator's meaning.
+- An IR operator the model does not know, or a step shape no driver can run, raises `QuintDriver::Unsupported`. Never guess an operator's meaning. A failed `quint` command raises `QuintDriver::QuintFailed`.
 - Comments say why: the constraint, or the alternative that was refused. Each module starts with its responsibility.
 - Tests prove behavior by running Quint and the example system. A test never greps source.
 - A release or a change of the repository's visibility is the owner's to run.

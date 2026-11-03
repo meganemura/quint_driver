@@ -44,8 +44,8 @@ class TraceTest < Minitest::Test
   def test_a_step_that_names_no_action_is_refused
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
 
-    assert_raises(RuntimeError) { spec.rules("step") }
-    error = assert_raises(RuntimeError) do
+    assert_raises(QuintDriver::Unsupported) { spec.rules("step") }
+    error = assert_raises(QuintDriver::Unsupported) do
       QuintDriver::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
         QuintDriver::Trace.replay(path, QuintDriver::Model.new(spec.declarations, []))
       end

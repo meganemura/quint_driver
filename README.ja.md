@@ -89,6 +89,7 @@ machine 自体には不要です。
 `Quint.simulate` は、ファイル名と同じ名前のモジュールを動かします。
 同じファイルの別のモジュールを動かすときは `main:` を渡します。
 `Spec.new` に渡すのと同じ名前です。
+quint が失敗したときや見つからないときは、`Spec.new` と `Quint.simulate` が quint の理由を添えて `QuintDriver::QuintFailed` を投げます。
 
 `QuintDriver.machine` のオプションは次のとおりです。
 
@@ -114,7 +115,8 @@ end
 
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
 集合、マップ、レコード、タプル、`match` 付きの直和型、整数、真偽値です。
-それ以外の演算子は `QuintDriver::Model::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+アクションを名指ししない step の枝も同じです。
 
 ## 開発
 

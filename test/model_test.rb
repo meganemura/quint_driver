@@ -27,13 +27,13 @@ class ModelTest < Minitest::Test
   def test_the_model_refuses_an_operator_it_does_not_evaluate
     model = unsupported
 
-    assert_raises(QuintDriver::Model::Unsupported) { model.step("double", {}) }
+    assert_raises(QuintDriver::Unsupported) { model.step("double", {}) }
   end
 
   def test_the_model_refuses_an_action_that_leaves_a_variable_unassigned
     model = unsupported
 
-    assert_raises(QuintDriver::Model::Unsupported) { model.try("bump") }
+    assert_raises(QuintDriver::Unsupported) { model.try("bump") }
   end
 
   def test_the_model_knows_which_actions_are_enabled

@@ -74,7 +74,7 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 
 Both raise `QuintDriver::Mismatch` with each variable that differs. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
 
-`Quint.simulate` runs the module named after the file. Pass `main:` to run another module of that file, the same name `Spec.new` takes.
+`Quint.simulate` runs the module named after the file. Pass `main:` to run another module of that file, the same name `Spec.new` takes. When quint fails or is not installed, `Spec.new` and `Quint.simulate` raise `QuintDriver::QuintFailed` with quint's reason.
 
 `QuintDriver.machine` takes these options:
 
@@ -94,7 +94,7 @@ QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") 
 end
 ```
 
-The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Model::Unsupported`, so a spec that needs more fails loudly.
+The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action.
 
 ## Development
 

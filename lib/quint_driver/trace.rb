@@ -16,7 +16,7 @@ module QuintDriver
     def self.replay(path, driver)
       steps(path).each do |step|
         # An unnamed action names no command for the driver to run.
-        raise "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
+        raise Unsupported, "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
 
         driver.step(step.action, step.picks)
         QuintDriver.compare!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",

@@ -8,8 +8,6 @@ module QuintDriver
   class Model
     Variant = Struct.new(:tag, :value)
 
-    class Unsupported < StandardError; end
-
     Closure = Struct.new(:params, :body, :env)
 
     def initialize(declarations, rules)
