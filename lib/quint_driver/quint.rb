@@ -8,14 +8,29 @@ module QuintDriver
     # Read on every call, so a caller can set QUINT after requiring the gem.
     def self.command = ENV.fetch("QUINT", "npx --yes @informalsystems/quint@0.33.0")
 
-    # The spec's JSON IR. +main+ names the module quint checks; without it,
-    # quint checks the module named after the file, and fails when none is.
+    # The spec's JSON IR, frozen. +main+ names the module quint checks;
+    # without it, quint checks the module named after the file, and fails when
+    # none is. A file compiles once per process and quint command, until its
+    # text changes: one compile costs a second of node, and every Spec.new
+    # asks for one.
     def self.compile(path, main: nil)
+      key = [ command, File.expand_path(path), main ]
+      source = File.read(path) if File.file?(path)
+      cached_source, ir = @compiled[key]
+      return ir if source && source == cached_source
+
+      ir = compile_now(path, main)
+      @compiled[key] = [ source, ir ] if source
+      ir
+    end
+    @compiled = {}
+
+    def self.compile_now(path, main)
       Dir.mktmpdir("quint") do |dir|
         # Into a file: through a pipe, quint exits before its 64 KB of JSON is out.
         out = File.join(dir, "ir.json")
         output, status = capture("compile --target json #{path} --out #{out}#{" --main #{main}" if main}")
-        ir = File.exist?(out) ? JSON.parse(File.read(out)) : {}
+        ir = File.exist?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 
         # With --out, quint writes its errors into the file and prints nothing;
@@ -64,6 +79,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :capture
+    private_class_method :capture, :compile_now
   end
 end

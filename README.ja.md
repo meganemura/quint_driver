@@ -32,6 +32,10 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js と、初回は npm レジストリへの接続が必要です。
 オフラインなどで npx が quint を取得できないときは、そのことを伝えて `QUINT` の指定を促す `QuintDriver::QuintFailed` を投げます。
 
+`Spec.new` は、1 つのプロセスの中で、ファイルと quint コマンドの組ごとに 1 回だけコンパイルします。
+ファイルの中身が変わると、もう一度コンパイルします。
+仕様が import するファイルの変更は、プロセスを起動し直すまで反映されません。
+
 ### エージェント向けのスキル
 
 [quint_driver スキル](skills/quint_driver/SKILL.md)は、仕様の形、ドライバー、トレース再生、モデルの確認、Hegel の順にコーディングエージェントを案内します。

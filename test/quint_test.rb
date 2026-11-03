@@ -23,6 +23,27 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_spec_compiles_once_until_its_text_changes
+    Dir.mktmpdir do |dir|
+      counting = File.join(dir, "counting-quint")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+      File.chmod(0o755, counting)
+      spec = File.join(dir, "countdown.qnt")
+      File.write(spec, "module countdown {\n  var n: int\n  action init = n' = 2\n  action tick = n' = n - 1\n  action step = any { tick }\n}\n")
+      previous, ENV["QUINT"] = ENV["QUINT"], counting
+
+      2.times { assert_equal %w[tick], QuintDriver::Spec.new(spec, main: "countdown").rules("step").map(&:action) }
+      assert_equal "compile\n", File.read(File.join(dir, "ran"))
+
+      File.write(spec, File.read(spec).gsub("tick", "tock"))
+      assert_equal %w[tock], QuintDriver::Spec.new(spec, main: "countdown").rules("step").map(&:action)
+      assert_equal "compile\ncompile\n", File.read(File.join(dir, "ran"))
+      assert_raises(FrozenError) { QuintDriver::Quint.compile(spec, main: "countdown")["modules"] << {} }
+    ensure
+      ENV["QUINT"] = previous
+    end
+  end
+
   def test_the_quint_command_is_the_one_quint_names_when_it_runs
     Dir.mktmpdir do |dir|
       fake = File.join(dir, "fake-quint")

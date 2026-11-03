@@ -24,6 +24,8 @@ The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 
 
 The gem calls the `quint` command line. Set `QUINT` to the command to use, for example a local install. Without it, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js and, the first time, the npm registry. When npx cannot fetch quint, for example offline, the gem raises `QuintDriver::QuintFailed` that says so and asks you to set `QUINT`.
 
+`Spec.new` compiles a file once per process and quint command, and compiles it again when the file's text changes. A change to a file the spec imports is not seen until the process starts again.
+
 ### The agent skill
 
 The [quint_driver skill](skills/quint_driver/SKILL.md) takes a coding agent through the spec shape, the driver, trace replay, the model check, and Hegel. Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.
