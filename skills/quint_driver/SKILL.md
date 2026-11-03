@@ -98,7 +98,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 200, max_steps: 3
 end
 ```
 
-`spec.model` is the one way to build a model. An operator the model does not evaluate raises `QuintDriver::Unsupported`. Go on to step 5 only when this passes. `model.moves(rule)` lists the `[action, picks, next state]` moves a rule of `spec.rules("step")` allows now, and `model.enter(next_state)` takes one.
+`spec.model` is the one way to build a model. An operator the model does not evaluate raises `QuintDriver::Unsupported`, and the message names the action or definition that holds it, such as `quint: no evaluation for operator foldr in summed`. Go on to step 5 only when this passes. `model.moves(rule)` lists the `[action, picks, next state]` moves a rule of `spec.rules("step")` allows now, and `model.enter(next_state)` takes one.
 
 ## 5. Let Hegel choose and shrink
 

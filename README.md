@@ -129,7 +129,7 @@ QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") 
 end
 ```
 
-The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action.
+The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action. The message names the action or definition that holds the operator, such as `quint: no evaluation for operator foldr in summed`.
 
 `Spec#model` is the one way to build a model; `Model.new` is private, because the model trusts the shape of quint's compiled IR. A trace gives each pick as a plain value, and the model takes the value of the pick's domain that reads the same, so a pick of a sum type works in `match`.
 

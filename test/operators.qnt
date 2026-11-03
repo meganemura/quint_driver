@@ -104,7 +104,8 @@ module unsupported {
   var m: int
 
   action init = all { n' = 1, m' = 1 }
-  action double = all { n' = n * 2, m' = m }
+  pure def doubled(v: int): int = v * 2
+  action double = all { n' = doubled(n), m' = m }
   // Quint drops a variable an action leaves unassigned from the next state.
   action bump = n' = n + 1
   action step = double

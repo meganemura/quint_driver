@@ -8,18 +8,21 @@ module QuintDriver
   class Model
     Variant = Struct.new(:tag, :value)
 
-    Closure = Struct.new(:params, :body, :env)
+    # +within+ names the definition that holds the lambda, so an operator its
+    # body cannot evaluate is reported where the spec writes it.
+    Closure = Struct.new(:params, :body, :env, :within)
 
     # Spec#model is the one way to build a model: the evaluator trusts the
     # shape of quint's compiled IR and checks none of it.
     private_class_method :new
 
-    def initialize(declarations, rules)
+    def initialize(declarations, rules, step)
       @defs = declarations.select { _1["kind"] == "def" }.to_h { [ _1["name"], _1 ] }
       @vars = declarations.select { _1["kind"] == "var" }.map { _1["name"] }
       @rules = rules.to_h { [ _1.action, _1 ] }
       @state = {}
       @constant = {}
+      @within = step
     end
 
     # The driver protocol. Picks from a trace are plain values; each one
@@ -55,7 +58,7 @@ module QuintDriver
         expr = expr["expr"]
       end
       @next = {}
-      return nil unless eval(expr, env)
+      return nil unless within(name) { eval(expr, env) }
 
       missing = @vars - @next.keys
       raise Unsupported, "quint: #{name} leaves #{missing.join(', ')} unassigned" if missing.any?
@@ -102,12 +105,12 @@ module QuintDriver
         case node["kind"]
         when "str", "int", "bool" then node["value"]
         when "name" then lookup(node["name"], env)
-        when "lambda" then Closure.new(node["params"].map { _1["name"] }, node["expr"], env)
+        when "lambda" then Closure.new(node["params"].map { _1["name"] }, node["expr"], env, @within)
         when "let"
           definition = node["opdef"]
           eval(node["expr"], env.merge(definition["name"] => eval(definition["expr"], env)))
         when "app" then apply(node["opcode"], node["args"], env)
-        else raise Unsupported, "quint: no evaluation for IR kind #{node['kind']}"
+        else refuse("IR kind #{node['kind']}")
         end
       end
 
@@ -115,7 +118,7 @@ module QuintDriver
         return env[name] if env.key?(name)
         return @state.fetch(name) if @vars.include?(name)
 
-        defined(name) { raise Unsupported, "quint: unknown name #{name}" }
+        defined(name) { refuse("the name #{name}", "no definition, variable or parameter has it") }
       end
 
       # A pure val or pure def reads no variable, and a lambda reads none
@@ -124,14 +127,25 @@ module QuintDriver
       def defined(name, &missing)
         @constant.fetch(name) do
           definition = @defs.fetch(name, &missing)
-          value = eval(definition["expr"], {})
+          value = within(name) { eval(definition["expr"], {}) }
           constant = %w[pureval puredef].include?(definition["qualifier"]) || definition["expr"]["kind"] == "lambda"
           constant ? @constant[name] = value.freeze : value
         end
       end
 
       def call(closure, args)
-        eval(closure.body, closure.env.merge(closure.params.zip(args).to_h))
+        within(closure.within) { eval(closure.body, closure.env.merge(closure.params.zip(args).to_h)) }
+      end
+
+      def within(name)
+        outer, @within = @within, name
+        yield
+      ensure
+        @within = outer
+      end
+
+      def refuse(what, why = nil)
+        raise Unsupported, "quint: no evaluation for #{what} in #{@within}#{"; #{why}" if why}"
       end
 
       def apply(op, args, env)
@@ -173,7 +187,7 @@ module QuintDriver
         when "map" then a.to_set { call(b, [ _1 ]) }
         when "Map" then values.to_h
         when "put", "with" then a.merge(b => c)
-        when "get" then a.fetch(b) { raise Unsupported, "quint: key #{b.inspect} is not in the map" }
+        when "get" then a.fetch(b) { refuse("get(_, #{b.inspect})", "the map has no such key") }
         when "keys" then a.keys.to_set
         when "Tup" then values
         when "item" then a.fetch(b - 1)
@@ -185,7 +199,7 @@ module QuintDriver
           call(arm[1], [ a.value ])
         else
           # A definition is a lambda, or another operator's name (`def doubleOf = twice`).
-          call(defined(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }, values)
+          call(defined(op) { refuse("operator #{op}") }, values)
         end
       end
   end

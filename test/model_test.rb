@@ -24,10 +24,10 @@ class ModelTest < Minitest::Test
     assert_equal 100, count
   end
 
-  def test_the_model_refuses_an_operator_it_does_not_evaluate
-    model = unsupported
+  def test_the_model_refuses_an_operator_it_does_not_evaluate_and_names_the_definition_that_holds_it
+    error = assert_raises(QuintDriver::Unsupported) { unsupported.step("double", {}) }
 
-    assert_raises(QuintDriver::Unsupported) { model.step("double", {}) }
+    assert_equal "quint: no evaluation for operator imul in doubled", error.message
   end
 
   def test_the_model_refuses_an_action_that_leaves_a_variable_unassigned

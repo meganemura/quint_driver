@@ -170,6 +170,8 @@ end
 集合、マップ、レコード、タプル、`match` 付きの直和型、整数、真偽値です。
 それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
+メッセージには、その演算子を書いたアクションか定義の名前が入ります。
+例えば `quint: no evaluation for operator foldr in summed` です。
 
 モデルは `Spec#model` で作ります。
 モデルは quint がコンパイルした IR の形を信用するので、`Model.new` は private です。
