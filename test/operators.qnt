@@ -13,12 +13,16 @@ module operators {
   var shape: Shape
   var facts: {
     lt: bool, lte: bool, gt: bool, gte: bool, both: bool, either: bool, implied: bool, same: bool,
-    within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int,
+    within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int, grown: int,
   }
+
+  pure def twice(v: int): int = v + v
+  // An operator defined as another operator's name.
+  pure def doubleOf = twice
 
   pure def factsOf(a: int, total: int, picked: Set[int], last: int -> int): {
     lt: bool, lte: bool, gt: bool, gte: bool, both: bool, either: bool, implied: bool, same: bool,
-    within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int,
+    within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int, grown: int,
   } = {
     val after = a + 1
     {
@@ -32,6 +36,7 @@ module operators {
       shared: picked.intersect(Set(a, after)),
       seen: last.keys(),
       after: after,
+      grown: doubleOf(a),
     }
   }
 

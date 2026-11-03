@@ -142,11 +142,8 @@ module QuintConnectHegel
           call(eval(arm[1], env), [ target.value ])
         else
           definition = @defs.fetch(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }
-          values = args.map { eval(_1, env) }
-          expr = definition["expr"]
-          return eval(expr, {}, action:) if expr["kind"] != "lambda"
-
-          eval(expr["expr"], expr["params"].map { _1["name"] }.zip(values).to_h, action:)
+          # A definition is a lambda, or another operator's name (`def doubleOf = twice`).
+          call(eval(definition["expr"], {}), args.map { eval(_1, env) })
         end
       end
   end
