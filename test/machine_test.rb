@@ -11,6 +11,13 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
+    define_method(:"test_#{choose}_draws_no_pick_from_an_empty_set") do
+      spec = QuintConnectHegel::Spec.new(File.expand_path("operators.qnt", __dir__), main: "operators")
+      machine = QuintConnectHegel.machine(spec, driver: -> { spec.model }, choose:)
+
+      Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
     define_method(:"test_#{choose}_shrinks_a_broken_system_to_two_moves") do
       machine = machine(BrokenLoans, choose)
       report = StringIO.new
@@ -23,6 +30,20 @@ class MachineTest < Minitest::Test
       assert_equal %w[borrow borrow_refused], moves
       assert_match(/outcome: model \["Refused", "limit_reached"\], driver "Done"/, error.message)
     end
+  end
+
+  def test_the_system_runs_a_sequence_it_agreed_on_only_once
+    runs = []
+    recording = Class.new(LoansDriver) do
+      define_method(:initialize) { |*args| super(*args); runs << (@moves = []) }
+      define_method(:step) { |action, picks| @moves << [ action, picks ]; super(action, picks) }
+    end
+    machine = QuintConnectHegel.machine(LoansDriver.spec, driver: -> { recording.new })
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+
+    assert_operator runs.size, :>, 1
+    assert_equal runs.uniq, runs
   end
 
   def test_an_invariant_holds_on_every_state_hegel_reaches

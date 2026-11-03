@@ -1,6 +1,8 @@
 require_relative "test_helper"
 
 class TraceTest < Minitest::Test
+  ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
+
   def test_decodes_itf_values_to_plain_ruby_values
     itf = {
       "set" => { "#set" => [ "a", "b" ] },
@@ -31,6 +33,24 @@ class TraceTest < Minitest::Test
 
     assert_match(/`borrow_refused`/, error.message)
     assert_match(/outcome: trace \["Refused", "limit_reached"\], driver "Done"/, error.message)
+  end
+
+  def test_a_driver_is_held_only_to_the_variables_it_reports
+    holder_only = Class.new(LoansDriver) { def state = super.slice("holder") }
+
+    assert_equal 40, replay(holder_only.new)
+  end
+
+  def test_a_step_that_names_no_action_is_refused
+    spec = QuintConnectHegel::Spec.new(ANONYMOUS, main: "anonymous")
+
+    assert_raises(RuntimeError) { spec.rules("step") }
+    error = assert_raises(RuntimeError) do
+      QuintConnectHegel::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
+        QuintConnectHegel::Trace.replay(path, QuintConnectHegel::Model.new(spec.declarations, []))
+      end
+    end
+    assert_match(/anonymous action/, error.message)
   end
 
   private

@@ -1,5 +1,8 @@
 // Uses each operator the Ruby model evaluates that loans.qnt does not, so
 // replaying Quint's traces through the model checks those operators too.
+// Its step names actions without arguments, nests an `any`, and draws from
+// sets that can be empty. `count` has a field named `value`, a key ITF also
+// gives a variant.
 module operators {
   type Shape = Circle(int) | Square(int) | Dot
 
@@ -8,7 +11,7 @@ module operators {
   var total: int
   var picked: Set[int]
   var last: int -> int
-  var count: { n: int, full: bool }
+  var count: { value: int, full: bool }
   var pair: (int, str)
   var shape: Shape
   var facts: {
@@ -44,7 +47,7 @@ module operators {
     total' = 0,
     picked' = Set(),
     last' = Map(),
-    count' = { n: 0, full: false },
+    count' = { value: 0, full: false },
     pair' = (0, ""),
     shape' = Dot,
     facts' = factsOf(0, 0, Set(), Map()),
@@ -55,7 +58,7 @@ module operators {
     total' = total + a,
     picked' = picked.union(Set(a)),
     last' = last.put(a, total),
-    count' = count.with("n", count.n + 1),
+    count' = count.with("value", count.value + 1),
     pair' = (a, pair._2),
     shape' = if (a > total) Circle(a) else Square(a),
     facts' = factsOf(a, total, picked, last),
@@ -66,7 +69,7 @@ module operators {
     total' = total - a,
     picked' = picked.exclude(Set(a)),
     last' = last,
-    count' = { n: count.n, full: picked.size() >= 3 },
+    count' = { value: count.value, full: picked.size() >= 3 },
     pair' = (pair._1, "dropped"),
     shape' = match shape {
       | Circle(n) => Square(n + 1)
@@ -75,10 +78,24 @@ module operators {
     facts' = factsOf(a, total, picked, last),
   }
 
-  action step = {
-    nondet a = NUMS.oneOf()
-    any { add(a), drop(a) }
+  action reset = all {
+    total' = 0,
+    picked' = Set(),
+    last' = last,
+    count' = count,
+    pair' = pair,
+    shape' = Dot,
+    facts' = facts,
   }
+
+  action moves = any {
+    nondet a = NUMS.exclude(picked).oneOf()
+    add(a),
+    nondet b = picked.oneOf()
+    drop(b),
+  }
+
+  action step = any { moves, reset }
 }
 
 // What the Ruby model refuses to evaluate, rather than guess at.
