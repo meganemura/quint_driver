@@ -21,7 +21,7 @@ module QuintDriver
 
         driver.step(step.action, step.picks)
         ran << [ step.action, step.picks ]
-        QuintDriver.compare!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",
+        Agreement.check!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",
                              step.expected, driver.state, by: "trace", steps: ran)
       end
     end

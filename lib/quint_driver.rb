@@ -21,21 +21,26 @@ module QuintDriver
   # driver can run, such as a step arm that names no action.
   class Unsupported < StandardError; end
 
-  # Raises Mismatch naming each variable where +actual+ differs from
-  # +expected+, and the [action, picks] +steps+ the driver ran from init, so
-  # the failure can be run again without the trace file. Compares only the
-  # variables +actual+ reports.
-  def self.compare!(after, expected, actual, by:, steps:)
-    expected = expected.slice(*actual.keys)
-    return if expected == actual
+  # The one check Trace.replay and the Hegel machine share. It is private, so
+  # the gem's API stays the driver protocol and the errors.
+  module Agreement
+    # Raises Mismatch naming each variable where +actual+ differs from
+    # +expected+, and the [action, picks] +steps+ the driver ran from init, so
+    # the failure can be run again without the trace file. Compares only the
+    # variables +actual+ reports.
+    def self.check!(after, expected, actual, by:, steps:)
+      expected = expected.slice(*actual.keys)
+      return if expected == actual
 
-    diff = actual.keys.reject { expected[_1] == actual[_1] }
-                 .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
-    ran = steps.map { |action, picks| "  #{action} #{picks.inspect}" }
-    raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\nsteps:\n#{ran.join("\n")}"
+      diff = actual.keys.reject { expected[_1] == actual[_1] }
+                   .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
+      ran = steps.map { |action, picks| "  #{action} #{picks.inspect}" }
+      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\nsteps:\n#{ran.join("\n")}"
+    end
+
+    def self.show(value) = value.is_a?(Set) ? "{#{value.map { show(_1) }.sort.join(', ')}}" : value.inspect
   end
-
-  def self.show(value) = value.is_a?(Set) ? "{#{value.map { show(_1) }.sort.join(', ')}}" : value.inspect
+  private_constant :Agreement
 end
 
 require_relative "quint_driver/version"

@@ -89,6 +89,10 @@ class ModelTest < Minitest::Test
     assert_match(/private method .new. called/, error.message)
   end
 
+  def test_checking_states_is_not_part_of_the_api
+    refute_respond_to QuintDriver, :compare!
+    assert_equal %i[Mismatch Model Quint QuintFailed Spec Trace Unsupported VERSION], QuintDriver.constants.sort
+  end
 
   private
     def unsupported
