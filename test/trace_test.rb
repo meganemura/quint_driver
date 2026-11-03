@@ -90,6 +90,14 @@ class TraceTest < Minitest::Test
     assert_nil error.cause
   end
 
+  def test_a_mismatch_your_own_code_raises_takes_only_its_message_and_the_gem_names_the_trace
+    error = QuintDriver::Mismatch.new("quint: the ledger lost a loan")
+
+    assert_equal [ "quint: the ledger lost a loan", nil, nil, nil ], [ error.message, error.trace, error.seed, error.simulate ]
+    assert_raises(ArgumentError) { QuintDriver::Mismatch.new("quint: the ledger lost a loan", trace: "elsewhere.itf.json") }
+    refute_respond_to error, :reason
+  end
+
   def test_a_mismatch_your_own_code_raises_inside_simulate_keeps_its_class_and_cause
     lost = Class.new(QuintDriver::Mismatch)
     error = assert_raises(lost) do

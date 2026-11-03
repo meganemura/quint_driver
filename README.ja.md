@@ -142,6 +142,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 同じ事柄を `trace`、`seed`、`simulate` としても持っています。
 ブロックの中で自分のコードが投げた `Mismatch` も、ブロックを出るときに同じ `trace:` の行を得ます。
 例えば、再生のあとに自分で確かめた結果です。
+投げるときはメッセージだけを渡します（`raise QuintDriver::Mismatch, "..."`）。
+実際に走ったトレースは gem が示すので、`Mismatch.new` はトレース、シード、呼び出しを受け取りません。
 自分で用意したトレースファイルを再生したときは、そのパスを示します。
 再生の様子を見るときは `Trace.replay` に `log: $stdout` を渡します。
 ドライバーが動かす前に、`step 1 borrow {"b" => "b1", "m" => "m2"}` のように各ステップを書き出します。

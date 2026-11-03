@@ -15,13 +15,12 @@ module QuintDriver
   # trace. Under Quint.simulate that file is gone once the block returns, so
   # +seed+ and +simulate+ hold the seed and the call that write it again, and
   # the message names the trace by those instead of by its path.
+  #
+  # A driver or a check of the caller's own raises one with a message alone,
+  # as `raise QuintDriver::Mismatch, "..."`; replay and simulate fill in the
+  # trace, so a caller cannot name a trace that disagrees with the one that ran.
   class Mismatch < StandardError
-    attr_reader :reason, :trace, :seed, :simulate
-
-    def initialize(reason = nil, trace: nil, seed: nil, simulate: nil)
-      @reason, @trace, @seed, @simulate = reason, trace, seed, simulate
-      super(reason)
-    end
+    attr_reader :trace, :seed, :simulate
 
     def to_s
       return super unless trace
