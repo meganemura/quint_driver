@@ -113,7 +113,7 @@ Both raise `QuintDriver::Mismatch` with each variable that differs and the steps
 
 `QuintDriver.machine` takes these options:
 
-- `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`.
+- `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`. A `step:` that is no action of the module raises `ArgumentError` with the actions it has, such as `quint: no action is named steps; the module has counting, init, step`.
 - `invariants:` names `val`s of the spec that must hold after every move.
 - `choose:` is how Hegel draws a move. `:rule` (the default) picks an action and rejects it when the spec disables it. It shrinks to the shortest sequence. `:rotate` passes a disabled action's turn to the next enabled one. It reaches deep states with fewer test cases, but a shrunk sequence can keep extra moves. Hegel's failure report names each draw after the nondet pick it chose, or `rule` and `move` under `:rotate`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 

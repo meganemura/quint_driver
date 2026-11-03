@@ -158,7 +158,7 @@ quint が失敗したときや見つからないときは、`Spec.new` と `Quin
 
 `QuintDriver.machine` のオプションは次のとおりです。
 
-- `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。
+- `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。モジュールにないアクションを `step:` に渡すと、モジュールのアクションを並べた `ArgumentError` を投げます（`quint: no action is named steps; the module has counting, init, step`）。
 - `invariants:` は、毎手のあとに成り立つべき仕様の `val` の名前です。
 - `choose:` は Hegel が手を引く方法です。`:rule`(既定)はアクションを選び、仕様が許さなければ捨てます。最短の手順まで縮みます。`:rotate` は許されないアクションの番を次の許されるアクションに回します。少ないテストケースで深い状態に届きますが、縮めた手順に余分な手が残ることがあります。
 Hegel の失敗の報告は、引いた値を nondet の選択値の名前で示します。

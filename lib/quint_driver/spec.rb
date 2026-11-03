@@ -43,7 +43,8 @@ module QuintDriver
           raise Unsupported, "quint: #{within} #{arm} in an arm that names no action; name every action in #{step}"
         end
       end
-      walk.(actions.fetch(step)["expr"], {}, step)
+      top = actions.fetch(step) { raise ArgumentError, "quint: no action is named #{step}; the module has #{actions.keys.sort.join(', ')}" }
+      walk.(top["expr"], {}, step)
     end
 
     private

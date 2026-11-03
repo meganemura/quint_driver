@@ -169,6 +169,12 @@ class TraceTest < Minitest::Test
     assert_equal "quint: counting assigns n' in an arm that names no action; name every action in step", error.message
   end
 
+  def test_a_step_that_is_no_action_of_the_module_lists_the_actions_it_has
+    error = assert_raises(ArgumentError) { QuintDriver::Spec.new(ANONYMOUS, main: "nested").rules("steps") }
+
+    assert_equal "quint: no action is named steps; the module has counting, init, step", error.message
+  end
+
   def test_a_replay_prints_each_step_before_the_driver_runs_it
     log = StringIO.new
     error = assert_raises(QuintDriver::Mismatch) do
