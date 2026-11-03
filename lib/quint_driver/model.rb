@@ -135,50 +135,57 @@ module QuintDriver
       end
 
       def apply(op, args, env)
-        v = ->(i) { eval(args[i], env) }
         case op
         when "actionAll", "and" then args.all? { eval(_1, env) }
-        when "assign" then @next[args[0]["name"]] = v.(1); true
         when "or" then args.any? { eval(_1, env) }
-        when "not" then !v.(0)
-        when "implies" then !v.(0) || v.(1)
-        when "eq", "iff" then v.(0) == v.(1)
-        when "neq" then v.(0) != v.(1)
-        when "ite" then v.(0) ? eval(args[1], env) : eval(args[2], env)
-        when "igt" then v.(0) > v.(1)
-        when "igte" then v.(0) >= v.(1)
-        when "ilt" then v.(0) < v.(1)
-        when "ilte" then v.(0) <= v.(1)
-        when "iadd" then v.(0) + v.(1)
-        when "isub" then v.(0) - v.(1)
-        when "Set" then args.to_set { eval(_1, env) }
-        when "contains" then v.(0).include?(v.(1))
-        when "in" then v.(1).include?(v.(0))
-        when "union" then v.(0) | v.(1)
-        when "intersect" then v.(0) & v.(1)
-        when "exclude" then v.(0) - v.(1)
-        when "subseteq" then v.(0).subset?(v.(1))
-        when "size" then v.(0).size
-        when "exists" then (fn = v.(1); v.(0).any? { call(fn, [ _1 ]) })
-        when "forall" then (fn = v.(1); v.(0).all? { call(fn, [ _1 ]) })
-        when "filter" then (fn = v.(1); v.(0).select { call(fn, [ _1 ]) }.to_set)
-        when "map" then (fn = v.(1); v.(0).to_set { call(fn, [ _1 ]) })
-        when "Map" then args.to_h { eval(_1, env) }
-        when "put", "with" then v.(0).merge(v.(1) => v.(2))
-        when "get" then v.(0).fetch(v.(1)) { raise Unsupported, "quint: key #{v.(1).inspect} is not in the map" }
-        when "keys" then v.(0).keys.to_set
-        when "Tup" then args.map { eval(_1, env) }
-        when "item" then v.(0).fetch(v.(1) - 1)
-        when "Rec" then args.each_slice(2).to_h { |k, x| [ eval(k, env), eval(x, env) ] }
-        when "field" then v.(0).fetch(v.(1))
-        when "variant" then Variant.new(v.(0), v.(1))
+        when "implies" then !eval(args[0], env) || eval(args[1], env)
+        when "ite" then eval(args[eval(args[0], env) ? 1 : 2], env)
+        when "assign" then @next[args[0]["name"]] = eval(args[1], env); true
+        else operate(op, args.map { eval(_1, env) })
+        end
+      end
+
+      # Every other operator reads all of its arguments, so they are evaluated
+      # once, before it runs.
+      def operate(op, values)
+        a, b, c = values
+        case op
+        when "not" then !a
+        when "eq", "iff" then a == b
+        when "neq" then a != b
+        when "igt" then a > b
+        when "igte" then a >= b
+        when "ilt" then a < b
+        when "ilte" then a <= b
+        when "iadd" then a + b
+        when "isub" then a - b
+        when "Set" then values.to_set
+        when "contains" then a.include?(b)
+        when "in" then b.include?(a)
+        when "union" then a | b
+        when "intersect" then a & b
+        when "exclude" then a - b
+        when "subseteq" then a.subset?(b)
+        when "size" then a.size
+        when "exists" then a.any? { call(b, [ _1 ]) }
+        when "forall" then a.all? { call(b, [ _1 ]) }
+        when "filter" then a.select { call(b, [ _1 ]) }.to_set
+        when "map" then a.to_set { call(b, [ _1 ]) }
+        when "Map" then values.to_h
+        when "put", "with" then a.merge(b => c)
+        when "get" then a.fetch(b) { raise Unsupported, "quint: key #{b.inspect} is not in the map" }
+        when "keys" then a.keys.to_set
+        when "Tup" then values
+        when "item" then a.fetch(b - 1)
+        when "Rec" then values.each_slice(2).to_h
+        when "field" then a.fetch(b)
+        when "variant" then Variant.new(a, b)
         when "matchVariant"
-          target = v.(0)
-          arm = args.drop(1).each_slice(2).find { |label, _| [ target.tag, "_" ].include?(eval(label, env)) }
-          call(eval(arm[1], env), [ target.value ])
+          arm = values.drop(1).each_slice(2).find { |label, _| [ a.tag, "_" ].include?(label) }
+          call(arm[1], [ a.value ])
         else
           # A definition is a lambda, or another operator's name (`def doubleOf = twice`).
-          call(defined(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }, args.map { eval(_1, env) })
+          call(defined(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }, values)
         end
       end
   end
