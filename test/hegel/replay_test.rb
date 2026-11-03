@@ -30,7 +30,7 @@ class ReplayPropertyTest < Minitest::Test
       error = assert_raises(QuintDriver::DriverFailed) { QuintDriver::Trace.replay(trace, failing.new) }
       first, *rest = error.message.lines
       assert first.start_with?("quint: at step #{at} `#{steps[at].action}` "), first
-      assert first.end_with?("the driver raised IndexError: call #{at}\n"), first
+      assert first.end_with?("the step raised IndexError: call #{at}\n"), first
       assert_equal steps.first(at + 1).map(&:action), rest[1..at + 1].map { _1.split.first }
       assert_equal "trace: #{trace}", rest.last
       assert_equal IndexError, error.cause.class

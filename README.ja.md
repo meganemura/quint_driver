@@ -151,12 +151,15 @@ Minitest のテストでも RSpec の example でも同じコードで動きま�
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。
 
-ドライバー自身のコードが投げたエラーは、`Mismatch` ではなく `QuintDriver::DriverFailed` になります。
-例えば、選んだ値の名前が `p` なのに `picks.fetch("person")` と書いたときの `KeyError` です。
+ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::DriverFailed` になります。
+エラーはドライバー自身のコードからも、その下のシステムからも来ます。
+ドライバーの例は、選んだ値の名前が `p` なのに `picks.fetch("person")` と書いたときの `KeyError` です。
 このとき、仕様とシステムはまだ比べられていません。
-メッセージは ``quint: at step 2 `take` {"p" => "ann"}, the driver raised KeyError: key not found: "person"`` のようにステップとエラーを示し、`init` からの手順を並べます。
+メッセージは ``quint: at step 2 `take` {"p" => "ann"}, the step raised KeyError: key not found: "person"`` のようにステップとエラーを示します。
+投げたフレームがドライバーとは別のファイル、例えばシステム自身のメソッドにあるときは、`raised in: lib/desk.rb:9:in 'Desk#take'` のような `raised in:` の行がそのフレームを示します。
+そのあとに `init` からの手順を並べます。
 再生では、最後に同じ `trace:` の行が付きます。
-バックトレースはドライバーの中から始まり、`cause` はドライバーが投げたエラーです。
+バックトレースはそのエラーのもので、`cause` はそのエラーです。
 
 `Quint.simulate` は、ファイル名と同じ名前のモジュールを動かします。
 同じファイルの別のモジュールを動かすときは `main:` を渡します。

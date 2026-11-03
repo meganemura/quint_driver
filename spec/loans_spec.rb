@@ -19,9 +19,20 @@ RSpec.describe "a lending shelf held to loans.qnt" do
         QuintDriver::Trace.replay(path, misspelled.new)
       end
     end.to raise_error(QuintDriver::DriverFailed) { |error|
-      expect(error.message).to match(/\Aquint: at step \d+ `give_back` \{"b" => "b\d"\}, the driver raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n/)
+      expect(error.message).to match(/\Aquint: at step \d+ `give_back` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n/)
       expect(error.message.lines.last).to match(/\Atrace: trace_\d+\.itf\.json of Quint\.simulate\(/)
       expect(error.cause).to be_a(KeyError)
     }
+  end
+
+  it "names the system's frame when the system beneath the driver raised" do
+    unfinished = Class.new(Loans) { def give_back(book) = normalize(book) }
+    line = __LINE__ - 1
+
+    expect do
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 20, max_steps: 20, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, LoansDriver.new(unfinished))
+      end
+    end.to raise_error(QuintDriver::DriverFailed, /, the step raised NoMethodError: .*\nraised in: #{Regexp.escape(__FILE__)}:#{line}:in .*give_back'\nsteps:\n/)
   end
 end

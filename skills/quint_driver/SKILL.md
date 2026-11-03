@@ -133,10 +133,10 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
 - Every value prints with a set's elements and a hash's keys sorted, so the two sides of a line, a replay and the machine, and Ruby 3.3 and 3.4 print the same value the same way.
 - `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `simulate:`, because the gem fills them with the trace that ran.
-- An error the driver's own code raises is a `QuintDriver::DriverFailed`, not a `Mismatch`: the two sides were never compared. Fix the driver first. A domain error the driver lets through, such as `Loans::Refused` on a `_refused` step, lands here too; rescue it into the spec's refusal value, as step 2 does. The first line names the step and the error, the backtrace starts at the driver's line, and `cause` is the original error:
+- An error a step raises, in the driver's own code or in the system beneath it, is a `QuintDriver::DriverFailed`, not a `Mismatch`: the two sides were never compared. Fix the code the message points at first. A domain error the driver lets through, such as `Loans::Refused` on a `_refused` step, lands here too; rescue it into the spec's refusal value, as step 2 does. The first line names the step and the error. When the frame that raised is outside the driver's file, a `raised in:` line names it: that is the system's line to fix, not the driver's. The backtrace is the error's, and `cause` is the original error:
 
   ```text
-  quint: at step 2 `take` {"p" => "ann"}, the driver raised KeyError: key not found: "person"
+  quint: at step 2 `take` {"p" => "ann"}, the step raised KeyError: key not found: "person"
   steps:
     init {}
     serve_refused {}
@@ -150,7 +150,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 | Error | Cause |
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
-| `QuintDriver::DriverFailed` | The driver's own `step` or `state` raised, or the `driver:` lambda did. `cause` holds the error. |
+| `QuintDriver::DriverFailed` | The driver's `step` or `state`, the system it called, or the `driver:` lambda raised. `raised in:` names the system's frame. `cause` holds the error. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
 | `ArgumentError` | `QuintDriver.machine`'s `step:`, or `spec.rules`, names no action of the module. The message lists the actions it has. |
 | `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, `QUINT` is unset and npx could not fetch quint, or the `QUINT_EVALUATOR` evaluator cannot run or answers in a format other than v0.7.0's. |

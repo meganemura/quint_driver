@@ -131,7 +131,7 @@ class MachineTest < Minitest::Test
     end
 
     first, *steps = error.message.lines
-    assert_match(/\Aquint: at `(give_back\S*)` \{"b" => "b\d"\}, the driver raised KeyError: key not found: "book"$/, first)
+    assert_match(/\Aquint: at `(give_back\S*)` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"$/, first)
     assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
     assert_equal KeyError, error.cause.class
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
@@ -144,7 +144,7 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
-    assert_equal "quint: at init, the driver raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
+    assert_equal "quint: at init, the step raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
   end
 
   def test_the_adapter_adds_only_the_machine_to_quint_driver

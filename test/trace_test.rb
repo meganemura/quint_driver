@@ -118,7 +118,7 @@ class TraceTest < Minitest::Test
     error = assert_raises(QuintDriver::DriverFailed) { replay(misspelled.new) }
 
     first, *rest = error.message.lines
-    assert_match(/\Aquint: at step (\d+) `give_back` (\{"b" => "b\d"\}), the driver raised KeyError: key not found: "book"$/, first)
+    assert_match(/\Aquint: at step (\d+) `give_back` (\{"b" => "b\d"\}), the step raised KeyError: key not found: "book"$/, first)
     step, picks = first.match(/step (\d+) `give_back` (\{.*\}),/).captures
     steps = rest.take_while { !_1.start_with?("trace:") }
     assert_equal [ "steps:\n", "  init {}\n" ], steps.first(2)
@@ -130,11 +130,22 @@ class TraceTest < Minitest::Test
     assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts in the driver"
   end
 
+  def test_an_error_the_system_raises_names_the_system_frame_it_came_from
+    unfinished = Class.new(Loans) { def give_back(book) = normalize(book) }
+    line = __LINE__ - 1
+    error = assert_raises(QuintDriver::DriverFailed) { replay(LoansDriver.new(unfinished)) }
+
+    first, raised_in, steps = error.message.lines
+    assert_match(/\Aquint: at step \d+ `give_back` \{"b" => "b\d"\}, the step raised NoMethodError: undefined method .normalize. /, first)
+    assert_match(/\Araised in: #{Regexp.escape(__FILE__)}:#{line}:in .*give_back'\n\z/, raised_in, "the system's frame, not the driver's")
+    assert_equal "steps:\n", steps
+  end
+
   def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
     stateless = Class.new(LoansDriver) { def state = raise("no state yet") }
     error = assert_raises(QuintDriver::DriverFailed) { replay(stateless.new) }
 
-    assert_equal "quint: at step 0 `init` {}, the driver raised RuntimeError: no state yet\nsteps:\n  init {}\n", error.message.lines.first(3).join
+    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\nsteps:\n  init {}\n", error.message.lines.first(3).join
   end
 
   def test_a_mismatch_the_driver_raises_stays_a_mismatch
