@@ -74,6 +74,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 
 Both raise `QuintDriver::Mismatch` with each variable that differs. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
 
+`Quint.simulate` runs the module named after the file. Pass `main:` to run another module of that file, the same name `Spec.new` takes.
+
 `QuintDriver.machine` takes these options:
 
 - `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`.

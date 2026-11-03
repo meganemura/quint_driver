@@ -2,6 +2,16 @@ require_relative "test_helper"
 
 class QuintTest < Minitest::Test
   MISSING = File.expand_path("missing.qnt", __dir__)
+  OPERATORS = File.expand_path("operators.qnt", __dir__)
+
+  def test_simulating_runs_the_module_it_names
+    states = []
+    QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 3, max_steps: 2, seed: "1") do |path|
+      states << QuintDriver::Trace.steps(path).map(&:expected)
+    end
+
+    assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ] * 3, states
+  end
 
   def test_compiling_a_spec_quint_rejects_raises
     assert_raises(RuntimeError) { QuintDriver::Quint.compile(MISSING) }

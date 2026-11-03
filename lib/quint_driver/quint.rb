@@ -20,10 +20,13 @@ module QuintDriver
     end
 
     # Writes +traces+ traces of the spec's +step+ action and yields each file.
-    def self.simulate(path, traces:, max_steps:, seed:, step: "step", backend: "rust")
+    # +main+ names the module to run; without it, quint runs the module named
+    # after the file.
+    def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust")
       Dir.mktmpdir("quint") do |dir|
         command = "#{COMMAND} run #{path} --mbt --backend #{backend} --max-steps #{max_steps} --max-samples #{traces} " \
                   "--n-traces #{traces} --seed #{seed} --step #{step} --out-itf #{dir}/trace_{seq}.itf.json --verbosity 0"
+        command += " --main #{main}" if main
         output, status = Open3.capture2e(command)
         raise "quint run failed:\n#{output}" unless status.success?
 

@@ -86,6 +86,10 @@ Minitest のテストでも RSpec の example でも同じコードで動きま�
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。
 
+`Quint.simulate` は、ファイル名と同じ名前のモジュールを動かします。
+同じファイルの別のモジュールを動かすときは `main:` を渡します。
+`Spec.new` に渡すのと同じ名前です。
+
 `QuintDriver.machine` のオプションは次のとおりです。
 
 - `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。
