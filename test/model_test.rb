@@ -83,6 +83,13 @@ class ModelTest < Minitest::Test
     assert_match(/"Green"/, error.message)
   end
 
+  def test_a_model_comes_only_from_a_spec
+    error = assert_raises(NoMethodError) { QuintDriver::Model.new([ { "kind" => "def", "name" => "init" } ], []) }
+
+    assert_match(/private method .new. called/, error.message)
+  end
+
+
   private
     def unsupported
       QuintDriver::Spec.new(OPERATORS, main: "unsupported").model.tap { _1.step("init", {}) }

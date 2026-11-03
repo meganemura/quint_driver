@@ -127,6 +127,8 @@ end
 
 The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action.
 
+`Spec#model` is the one way to build a model; `Model.new` is private, because the model trusts the shape of quint's compiled IR.
+
 ## Development
 
 ```sh

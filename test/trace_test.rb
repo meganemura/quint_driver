@@ -66,11 +66,12 @@ class TraceTest < Minitest::Test
 
   def test_a_step_that_names_no_action_is_refused
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
+    silent = Class.new { def step(*) = nil; def state = {} }.new # reports no variable, so only the refusal fails
 
     assert_raises(QuintDriver::Unsupported) { spec.rules("step") }
     error = assert_raises(QuintDriver::Unsupported) do
       QuintDriver::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
-        QuintDriver::Trace.replay(path, QuintDriver::Model.new(spec.declarations, []))
+        QuintDriver::Trace.replay(path, silent)
       end
     end
     assert_match(/anonymous action/, error.message)

@@ -156,6 +156,9 @@ end
 それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
 
+モデルは `Spec#model` で作ります。
+モデルは quint がコンパイルした IR の形を信用するので、`Model.new` は private です。
+
 ## 開発
 
 ```sh

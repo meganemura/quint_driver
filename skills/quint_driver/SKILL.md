@@ -96,7 +96,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 200, max_steps: 3
 end
 ```
 
-An operator the model does not evaluate raises `QuintDriver::Unsupported`. Go on to step 5 only when this passes.
+`spec.model` is the one way to build a model. An operator the model does not evaluate raises `QuintDriver::Unsupported`. Go on to step 5 only when this passes.
 
 ## 5. Let Hegel choose and shrink
 

@@ -12,7 +12,7 @@ module QuintDriver
       @declarations = Quint.compile(path, main:).fetch("modules").find { _1["name"] == main }.fetch("declarations")
     end
 
-    def model(step = "step") = Model.new(declarations, rules(step))
+    def model(step = "step") = Model.send(:new, declarations, rules(step))
 
     # Walks +step+: `any` splits into rules, `nondet x = S.oneOf()` adds a
     # domain, and a call of a declared action ends a rule. A parameterless

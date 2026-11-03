@@ -10,6 +10,10 @@ module QuintDriver
 
     Closure = Struct.new(:params, :body, :env)
 
+    # Spec#model is the one way to build a model: the evaluator trusts the
+    # shape of quint's compiled IR and checks none of it.
+    private_class_method :new
+
     def initialize(declarations, rules)
       @defs = declarations.select { _1["kind"] == "def" }.to_h { [ _1["name"], _1 ] }
       @vars = declarations.select { _1["kind"] == "var" }.map { _1["name"] }
