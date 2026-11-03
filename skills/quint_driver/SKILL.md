@@ -144,7 +144,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
   trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 5, max_steps: 5, seed: "1", main: "desk", step: "step", backend: "rust")
   ```
 
-  Under Hegel the line reads ``quint: at `take` {"p" => "ann"}, ...``, with no step number. A failure while the `driver:` lambda makes the driver, or at its first state, reads `quint: at init, ...`.
+  Under Hegel the line reads ``quint: at `take` {"p" => "ann"}, ...``, with no step number. A failure while the `driver:` lambda makes the driver, or at its first state, reads `quint: at init, ...`. The machine makes its driver when it starts, so Hegel's report for that failure lists no step.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
 | Error | Cause |

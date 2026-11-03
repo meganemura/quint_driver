@@ -137,14 +137,28 @@ class MachineTest < Minitest::Test
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
   end
 
-  def test_an_error_the_driver_raises_at_init_names_init
+  def test_an_error_the_driver_raises_at_init_fails_before_hegel_takes_a_step
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { Class.new(LoansDriver) { def state = raise("no state yet") }.new })
+    report = StringIO.new
 
     error = assert_raises(QuintDriver::DriverFailed) do
-      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+      Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
     assert_equal "quint: at init, the step raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
+    refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
+  end
+
+  def test_a_driver_that_disagrees_at_init_fails_before_hegel_takes_a_step
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { Class.new(LoansDriver) { def state = super.merge("outcome" => "Busy") }.new })
+    report = StringIO.new
+
+    error = assert_raises(QuintDriver::Mismatch) do
+      Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    assert_match(/\Aquint: after init, the driver differs from the model\n  outcome: model "Done", driver "Busy"\nsteps:\n  init \{\}\z/, error.message)
+    refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
   end
 
   def test_the_adapter_adds_only_the_machine_to_quint_driver

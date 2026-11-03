@@ -29,12 +29,29 @@ module QuintDriver
     # so it is evaluated and sorted once per machine, not once per draw.
     fixed = {}.compare_by_identity
 
+    init = [ "init", {} ].freeze
+
     Class.new(Hegel::StateMachine) do
+      # The driver starts with the machine, before Hegel's first step, so a
+      # failure at init is reported with no step Hegel took. Once init agreed,
+      # the empty sequence is kept like any other, and a later machine starts
+      # its driver only on a move that is not.
       define_method(:initialize) do
         @model = spec.model(step)
-        @model.step("init", {})
+        @model.step(*init)
         @moves = []
         @ran = 0 # how many of @moves the driver has run
+        next if agreed.include?(@moves)
+
+        actual = Agreement.drive("init", steps: [ init ]) { start_driver.state }
+        Agreement.check!("init", @model.state, actual, by: "model", steps: [ init ])
+        agreed << []
+      end
+
+      define_method(:start_driver) do
+        @driver = driver.call
+        @driver.step(*init)
+        @driver
       end
 
       define_method(:move!) do |action, picks, after|
@@ -42,15 +59,7 @@ module QuintDriver
         @moves << [ action, Model.plain(picks) ]
         return if agreed.include?(@moves)
 
-        init = [ "init", {} ]
-        unless @driver
-          actual = Agreement.drive("init", steps: [ init ]) do
-            @driver = driver.call
-            @driver.step(*init)
-            @driver.state
-          end
-          Agreement.check!("init", spec.model(step).tap { _1.step(*init) }.state, actual, by: "model", steps: [ init ])
-        end
+        Agreement.drive("init", steps: [ init ]) { start_driver } unless @driver
         # Every move the driver has not run yet, which is more than the last
         # one when the driver skipped a sequence it agreed on.
         while @ran < @moves.size
