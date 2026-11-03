@@ -85,7 +85,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 50, max_steps: 20
 end
 ```
 
-Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it.
+Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it. An error the driver raises itself, such as a `KeyError` from `picks.fetch("person")` when the pick is named `p`, leaves the replay unchanged, with no step and no trace in its message; the last line `log:` printed is the step that raised it.
 
 ## 4. Check the Ruby model
 
@@ -134,7 +134,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
 - Every value prints with a set's elements and a hash's keys sorted, so the two sides of a line, a replay and the machine, and Ruby 3.3 and 3.4 print the same value the same way.
 - `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `simulate:`, because the gem fills them with the trace that ran.
-- Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, numbered per move (`m_1 = "m2"`); under `choose: :rotate`, it names the turn `rule_1` and the move `move_1`.
+- Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
 | Error | Cause |
 | --- | --- |
