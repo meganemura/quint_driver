@@ -62,18 +62,23 @@ module QuintDriver
           raise QuintFailed, "quint run failed:\n#{output}" unless status.success?
         end
 
-        # The trace files go with dir, so a mismatch names the trace by its
-        # seed instead of its path, and the call that writes it again.
+        # The trace files go with dir, so Trace.replay names a trace by the
+        # call that writes it again instead of by its path.
         call = "Quint.simulate(#{path.inspect}, " +
                { traces:, max_steps:, seed:, main:, step:, backend: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
+          @simulated[trace] = { seed:, simulate: call }
           yield trace
-        rescue Mismatch => mismatch
-          named = mismatch.message.sub(trace, "#{File.basename(trace)} (seed #{seed.inspect})")
-          raise Mismatch, "#{named}\n#{call} wrote this trace as #{File.basename(trace)}", mismatch.backtrace, cause: nil
+        ensure
+          @simulated.delete(trace)
         end
       end
     end
+    @simulated = {}
+
+    # The seed and the call of the simulate block that is yielding +trace+,
+    # or nil.
+    def self.simulated(trace) = @simulated[trace]
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
     # Its stdin format is not a documented interface, so the gem reads only

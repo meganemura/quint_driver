@@ -11,8 +11,24 @@ require "set"
 # Array, a record a Hash with string keys, a sum type its tag, or
 # [tag, value] when it carries one.
 module QuintDriver
-  # The system and the spec disagree.
-  class Mismatch < StandardError; end
+  # The system and the spec disagree. On a replay, +trace+ is the path of the
+  # trace. Under Quint.simulate that file is gone once the block returns, so
+  # +seed+ and +simulate+ hold the seed and the call that write it again, and
+  # the message names the trace by those instead of by its path.
+  class Mismatch < StandardError
+    attr_reader :reason, :trace, :seed, :simulate
+
+    def initialize(reason = nil, trace: nil, seed: nil, simulate: nil)
+      @reason, @trace, @seed, @simulate = reason, trace, seed, simulate
+      super(reason)
+    end
+
+    def to_s
+      return super unless trace
+
+      "#{super}\ntrace: #{simulate ? "#{File.basename(trace)} of #{simulate}" : trace}"
+    end
+  end
 
   # The quint command failed. The message holds its output.
   class QuintFailed < StandardError; end
