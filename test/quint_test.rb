@@ -1,4 +1,5 @@
 require_relative "test_helper"
+require "tmpdir"
 
 class QuintTest < Minitest::Test
   MISSING = File.expand_path("missing.qnt", __dir__)
@@ -11,6 +12,20 @@ class QuintTest < Minitest::Test
     end
 
     assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ] * 3, states
+  end
+
+  def test_the_quint_command_is_the_one_quint_names_when_it_runs
+    Dir.mktmpdir do |dir|
+      fake = File.join(dir, "fake-quint")
+      File.write(fake, "#!/bin/sh\necho \"$1\" > #{dir}/ran\nexit 1\n")
+      File.chmod(0o755, fake)
+      previous, ENV["QUINT"] = ENV["QUINT"], fake
+
+      assert_raises(RuntimeError) { QuintDriver::Quint.compile(OPERATORS) }
+      assert_equal "compile\n", File.read(File.join(dir, "ran"))
+    ensure
+      ENV["QUINT"] = previous
+    end
   end
 
   def test_compiling_a_spec_quint_rejects_raises
