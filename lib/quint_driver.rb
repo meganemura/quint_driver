@@ -11,15 +11,13 @@ require "set"
 # Array, a record a Hash with string keys, a sum type its tag, or
 # [tag, value] when it carries one.
 module QuintDriver
-  # The system and the spec disagree. On a replay, +trace+ is the path of the
-  # trace. Under Quint.simulate that file is gone once the block returns, so
-  # +seed+ and +simulate+ hold the seed and the call that write it again, and
-  # the message names the trace by those instead of by its path.
-  #
-  # A driver or a check of the caller's own raises one with a message alone,
-  # as `raise QuintDriver::Mismatch, "..."`; replay and simulate fill in the
-  # trace, so a caller cannot name a trace that disagrees with the one that ran.
-  class Mismatch < StandardError
+  # The trace a failure happened on. On a replay, +trace+ is its path. Under
+  # Quint.simulate that file is gone once the block returns, so +seed+ and
+  # +simulate+ hold the seed and the call that write it again, and the message
+  # names the trace by those instead of by its path. Replay and simulate fill
+  # these in, so a caller cannot name a trace that disagrees with the one that
+  # ran.
+  module NamedTrace
     attr_reader :trace, :seed, :simulate
 
     def to_s
@@ -30,6 +28,21 @@ module QuintDriver
 
     private
       def name_trace(trace, seed: nil, simulate: nil) = (@trace, @seed, @simulate = trace, seed, simulate)
+  end
+  private_constant :NamedTrace
+
+  # The system and the spec disagree. A driver or a check of the caller's own
+  # raises one with a message alone, as `raise QuintDriver::Mismatch, "..."`.
+  class Mismatch < StandardError
+    include NamedTrace
+  end
+
+  # The driver's own code raised while it ran a step or reported its state,
+  # so the spec and the system were never compared. The message names the
+  # step and the steps from init, the backtrace is the driver's, and +cause+
+  # is the error the driver raised.
+  class DriverFailed < StandardError
+    include NamedTrace
   end
 
   # The quint command failed. The message holds its output.
@@ -52,9 +65,25 @@ module QuintDriver
 
       diff = actual.keys.reject { expected[_1] == actual[_1] }
                    .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
-      ran = steps.map { |action, picks| "  #{action} #{show(picks)}" }
-      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\nsteps:\n#{ran.join("\n")}"
+      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\n#{ran(steps)}"
     end
+
+    # Runs the block, the driver's part of the step named +at+, and returns
+    # what it returns. An error the driver's own code raises comes out as
+    # DriverFailed with +steps+; the gem's own errors pass through.
+    def self.drive(at, steps:)
+      yield
+    rescue Mismatch, DriverFailed, Unsupported, QuintFailed
+      raise
+    rescue StandardError => error
+      # Hegel groups the failures it shrinks by the first frame of the
+      # backtrace, so the driver's frames have to stay Locations; Ruby 3.3
+      # sets a backtrace from Strings only.
+      backtrace = RUBY_VERSION >= "3.4" ? error.backtrace_locations || error.backtrace : error.backtrace
+      raise DriverFailed, "quint: at #{at}, the driver raised #{error.class}: #{error.message}\n#{ran(steps)}", backtrace
+    end
+
+    def self.ran(steps) = "steps:\n#{steps.map { |action, picks| "  #{action} #{show(picks)}" }.join("\n")}"
 
     # A plain value as a failure prints it: a set's elements and a hash's
     # keys sorted, so the spec's side and the driver's side, and a replay and

@@ -121,6 +121,32 @@ class MachineTest < Minitest::Test
     assert_equal "quint: the model broke `nothing_on_loan`", error.message
   end
 
+  def test_an_error_the_driver_raises_names_its_move_and_the_shrunk_steps
+    misspelled = Class.new(LoansDriver) { def step(action, picks) = action.start_with?("give_back") ? picks.fetch("book") : super }
+    line = __LINE__ - 1
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
+
+    error = assert_raises(QuintDriver::DriverFailed) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    first, *steps = error.message.lines
+    assert_match(/\Aquint: at `(give_back\S*)` \{"b" => "b\d"\}, the driver raised KeyError: key not found: "book"$/, first)
+    assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
+    assert_equal KeyError, error.cause.class
+    assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
+  end
+
+  def test_an_error_the_driver_raises_at_init_names_init
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { Class.new(LoansDriver) { def state = raise("no state yet") }.new })
+
+    error = assert_raises(QuintDriver::DriverFailed) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    assert_equal "quint: at init, the driver raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
+  end
+
   def test_the_adapter_adds_only_the_machine_to_quint_driver
     assert_equal %i[machine], QuintDriver.singleton_methods.sort
   end

@@ -74,8 +74,8 @@ module QuintDriver
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
           @simulated[trace] = { seed:, simulate: call }
           yield trace
-        rescue Mismatch => mismatch
-          name_trace(mismatch, trace)
+        rescue Mismatch, DriverFailed => failure
+          name_trace(failure, trace)
           raise
         ensure
           @simulated.delete(trace)
@@ -84,13 +84,13 @@ module QuintDriver
     end
     @simulated = {}
 
-    # Names +trace+ on a +mismatch+ that names none and, while a simulate
-    # block is yielding it, the seed and the call that write it again. The
-    # Mismatch keeps its class, backtrace and cause. Trace.replay calls it
-    # too, so a block that rescues a replay's Mismatch reads what the caller
+    # Names +trace+ on a +failure+ that names none and, while a simulate
+    # block is yielding it, the seed and the call that write it again. It
+    # keeps its class, backtrace and cause. Trace.replay calls it
+    # too, so a block that rescues a replay's failure reads what the caller
     # of simulate reads.
-    def self.name_trace(mismatch, trace)
-      mismatch.send(:name_trace, trace, **@simulated[trace].to_h) unless mismatch.trace
+    def self.name_trace(failure, trace)
+      failure.send(:name_trace, trace, **@simulated[trace].to_h) unless failure.trace
     end
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.

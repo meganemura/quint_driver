@@ -156,7 +156,7 @@ class ModelTest < Minitest::Test
 
   def test_checking_states_is_not_part_of_the_api
     refute_respond_to QuintDriver, :compare!
-    assert_equal %i[Mismatch Model Quint QuintFailed Spec Trace Unsupported VERSION], QuintDriver.constants.sort
+    assert_equal %i[DriverFailed Mismatch Model Quint QuintFailed Spec Trace Unsupported VERSION], QuintDriver.constants.sort
   end
 
   def test_which_trace_a_simulate_block_is_yielding_is_not_part_of_the_api

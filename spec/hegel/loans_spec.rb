@@ -19,4 +19,12 @@ RSpec.describe "a lending shelf held to loans.qnt by Hegel" do
       .to raise_error(QuintDriver::Mismatch, /outcome: model \["Refused", "limit_reached"\], driver "Done"/)
     expect(report.string.scan(/^\s+(borrow\S*|give_back\S*) \{/).flatten).to eq(%w[borrow borrow_refused])
   end
+
+  it "names the move and the shrunk steps where the driver's own code raised" do
+    misspelled = Class.new(LoansDriver) { def step(action, picks) = action.start_with?("give_back") ? picks.fetch("book") : super }
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
+
+    expect { Hegel.test(**settings, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
+      .to raise_error(QuintDriver::DriverFailed, /\Aquint: at `give_back\S*` \{"b" => "b\d"\}, the driver raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
+  end
 end

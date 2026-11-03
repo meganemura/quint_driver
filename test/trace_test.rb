@@ -112,6 +112,38 @@ class TraceTest < Minitest::Test
     assert_match(/\Atrace: trace_0\.itf\.json of /, error.message.lines.last)
   end
 
+  def test_an_error_the_driver_raises_names_its_step_the_steps_before_it_and_the_trace
+    misspelled = Class.new(LoansDriver) { def step(action, picks) = action == "give_back" ? picks.fetch("book") : super }
+    line = __LINE__ - 1
+    error = assert_raises(QuintDriver::DriverFailed) { replay(misspelled.new) }
+
+    first, *rest = error.message.lines
+    assert_match(/\Aquint: at step (\d+) `give_back` (\{"b" => "b\d"\}), the driver raised KeyError: key not found: "book"$/, first)
+    step, picks = first.match(/step (\d+) `give_back` (\{.*\}),/).captures
+    steps = rest.take_while { !_1.start_with?("trace:") }
+    assert_equal [ "steps:\n", "  init {}\n" ], steps.first(2)
+    assert_equal [ Integer(step) + 2, "  give_back #{picks}\n" ], [ steps.size, steps.last ]
+    call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
+    assert_equal [ "1", call ], [ error.seed, error.simulate ]
+    assert_equal "trace: #{File.basename(error.trace)} of #{call}", rest.last
+    assert_equal [ KeyError, "book" ], [ error.cause.class, error.cause.key ]
+    assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts in the driver"
+  end
+
+  def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
+    stateless = Class.new(LoansDriver) { def state = raise("no state yet") }
+    error = assert_raises(QuintDriver::DriverFailed) { replay(stateless.new) }
+
+    assert_equal "quint: at step 0 `init` {}, the driver raised RuntimeError: no state yet\nsteps:\n  init {}\n", error.message.lines.first(3).join
+  end
+
+  def test_a_mismatch_the_driver_raises_stays_a_mismatch
+    checking = Class.new(LoansDriver) { def step(*) = raise(QuintDriver::Mismatch, "quint: the ledger lost a loan") }
+    error = assert_raises(QuintDriver::Mismatch) { replay(checking.new) }
+
+    assert_equal "quint: the ledger lost a loan", error.message.lines.first.chomp
+  end
+
   def test_a_mismatch_on_a_trace_file_of_your_own_names_its_path
     kept = File.join(Dir.mktmpdir("kept"), "broken.itf.json")
     QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|

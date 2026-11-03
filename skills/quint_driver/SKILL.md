@@ -85,8 +85,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 50, max_steps: 20
 end
 ```
 
-Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it. An error the driver raises itself, such as a `KeyError` from `picks.fetch("person")` when the pick is named `p`, leaves the replay unchanged, with no step and no trace in its message; the last line `log:` printed is the step that raised it.
-
+Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it.
 ## 4. Check the Ruby model
 
 Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first:
@@ -134,11 +133,24 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
 - Every value prints with a set's elements and a hash's keys sorted, so the two sides of a line, a replay and the machine, and Ruby 3.3 and 3.4 print the same value the same way.
 - `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `simulate:`, because the gem fills them with the trace that ran.
+- An error the driver's own code raises is a `QuintDriver::DriverFailed`, not a `Mismatch`: the two sides were never compared. Fix the driver first. The first line names the step and the error, the backtrace starts at the driver's line, and `cause` is the original error:
+
+  ```text
+  quint: at step 2 `take` {"p" => "ann"}, the driver raised KeyError: key not found: "person"
+  steps:
+    init {}
+    serve_refused {}
+    take {"p" => "ann"}
+  trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 5, max_steps: 5, seed: "1", main: "desk", step: "step", backend: "rust")
+  ```
+
+  Under Hegel the line reads ``quint: at `take` {"p" => "ann"}, ...``, with no step number. A failure while the `driver:` lambda makes the driver, or at its first state, reads `quint: at init, ...`.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
 | Error | Cause |
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
+| `QuintDriver::DriverFailed` | The driver's own `step` or `state` raised, or the `driver:` lambda did. `cause` holds the error. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
 | `ArgumentError` | `QuintDriver.machine`'s `step:`, or `spec.rules`, names no action of the module. The message lists the actions it has. |
 | `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, `QUINT` is unset and npx could not fetch quint, or the `QUINT_EVALUATOR` evaluator cannot run or answers in a format other than v0.7.0's. |

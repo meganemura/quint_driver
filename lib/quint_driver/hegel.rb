@@ -42,16 +42,25 @@ module QuintDriver
         @moves << [ action, Model.plain(picks) ]
         return if agreed.include?(@moves)
 
+        init = [ "init", {} ]
         unless @driver
-          @driver = driver.call
-          @driver.step("init", {})
-          Agreement.check!("init", spec.model(step).tap { _1.step("init", {}) }.state, @driver.state, by: "model",
-                               steps: [ [ "init", {} ] ])
+          actual = Agreement.drive("init", steps: [ init ]) do
+            @driver = driver.call
+            @driver.step(*init)
+            @driver.state
+          end
+          Agreement.check!("init", spec.model(step).tap { _1.step(*init) }.state, actual, by: "model", steps: [ init ])
         end
-        @moves[@ran..].each { |move| @driver.step(*move) }
-        @ran = @moves.size
-        Agreement.check!("`#{action}` #{Agreement.show(@moves.last.last)}", @model.state, @driver.state, by: "model",
-                             steps: [ [ "init", {} ], *@moves ])
+        # Every move the driver has not run yet, which is more than the last
+        # one when the driver skipped a sequence it agreed on.
+        while @ran < @moves.size
+          move = @moves[@ran]
+          Agreement.drive("`#{move[0]}` #{Agreement.show(move[1])}", steps: [ init, *@moves[..@ran] ]) { @driver.step(*move) }
+          @ran += 1
+        end
+        at = "`#{action}` #{Agreement.show(@moves.last.last)}"
+        actual = Agreement.drive(at, steps: [ init, *@moves ]) { @driver.state }
+        Agreement.check!(at, @model.state, actual, by: "model", steps: [ init, *@moves ])
         agreed << @moves.dup
       end
 
