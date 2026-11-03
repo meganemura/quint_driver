@@ -1,6 +1,6 @@
 require "hegel"
 
-module QuintConnectHegel
+module QuintDriver
   # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,
   # the model takes it, the driver runs the same command on the system, and
   # the two states have to be equal afterwards. Hegel owns every choice, so a
@@ -39,11 +39,11 @@ module QuintConnectHegel
         unless @driver
           @driver = driver.call
           @driver.step("init", {})
-          QuintConnectHegel.compare!("init", spec.model(step).tap { _1.step("init", {}) }.state, @driver.state, by: "model")
+          QuintDriver.compare!("init", spec.model(step).tap { _1.step("init", {}) }.state, @driver.state, by: "model")
         end
         @moves[@ran..].each { |move| @driver.step(*move) }
         @ran = @moves.size
-        QuintConnectHegel.compare!("`#{action}` #{@moves.last.last.inspect}", @model.state, @driver.state, by: "model")
+        QuintDriver.compare!("`#{action}` #{@moves.last.last.inspect}", @model.state, @driver.state, by: "model")
         agreed << @moves.dup
       end
 
@@ -65,7 +65,7 @@ module QuintConnectHegel
       when :rotate
         rule(step) do |tc|
           start = tc.draw(integers(min_value: 0, max_value: rules.size - 1))
-          moves = rules.rotate(start).lazy.map { QuintConnectHegel.enabled_moves(@model, _1) }.find(&:any?)
+          moves = rules.rotate(start).lazy.map { QuintDriver.enabled_moves(@model, _1) }.find(&:any?)
           tc.assume(moves)
           action, picks, after = tc.draw(sampled_from(moves))
           tc.note { "#{action} #{Model.plain(picks)}" }

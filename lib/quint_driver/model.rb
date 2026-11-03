@@ -1,4 +1,4 @@
-module QuintConnectHegel
+module QuintDriver
   # Evaluates a spec's JSON IR inside the Ruby process, so a Hegel step costs
   # no call to another process. It covers the operators a command-per-action
   # spec uses and raises Unsupported on any other, so a spec that outgrows it

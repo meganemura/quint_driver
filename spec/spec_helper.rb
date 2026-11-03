@@ -1,4 +1,4 @@
-require "quint_connect_hegel"
+require "quint_driver"
 require_relative "../examples/loans/loans"
 
 RSpec.configure do |config|

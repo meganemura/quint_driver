@@ -38,7 +38,7 @@ class LoansDriver
   SPEC = File.expand_path("loans.qnt", __dir__)
   BOOKS = %w[b1 b2 b3].freeze
 
-  def self.spec = @spec ||= QuintConnectHegel::Spec.new(SPEC, main: "loans")
+  def self.spec = @spec ||= QuintDriver::Spec.new(SPEC, main: "loans")
 
   def initialize(system = Loans)
     @system = system

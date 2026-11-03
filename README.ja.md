@@ -1,4 +1,4 @@
-# quint-connect-hegel-ruby
+# quint_driver
 
 Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に照らしてテストします。
 仕様は各コマンドが何をすべきかを決めます。
@@ -16,7 +16,7 @@ Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に�
 
 ```ruby
 # Gemfile
-gem "quint_connect_hegel", github: "meganemura/quint-connect-hegel-ruby"
+gem "quint_driver", github: "meganemura/quint_driver"
 ```
 
 この gem には Ruby 3.4 以降が必要です。
@@ -61,24 +61,24 @@ Quint の集合は `Set`、マップは `Hash`、タプルは `Array`、レコ�
 ## 動かす
 
 ```ruby
-spec = QuintConnectHegel::Spec.new("loans.qnt", main: "loans")
+spec = QuintDriver::Spec.new("loans.qnt", main: "loans")
 
 # トレース再生: Quint が手順を選びます。
-QuintConnectHegel::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") do |path|
-  QuintConnectHegel::Trace.replay(path, LoansDriver.new)
+QuintDriver::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") do |path|
+  QuintDriver::Trace.replay(path, LoansDriver.new)
 end
 
 # Hegel が手順を選び、失敗を縮めます。
-machine = QuintConnectHegel.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
+machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ```
 
-どちらも、食い違った変数を並べて `QuintConnectHegel::Mismatch` を投げます。
+どちらも、食い違った変数を並べて `QuintDriver::Mismatch` を投げます。
 Minitest のテストでも RSpec の example でも同じコードで動きます。
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。
 
-`QuintConnectHegel.machine` のオプションは次のとおりです。
+`QuintDriver.machine` のオプションは次のとおりです。
 
 - `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。
 - `invariants:` は、毎手のあとに成り立つべき仕様の `val` の名前です。
@@ -95,14 +95,14 @@ Hegel のやり方は、仕様の Ruby での評価を信じています。
 モデルもドライバーと同じ受け答えをするので、Quint 自身のトレースに照らして確かめられます。
 
 ```ruby
-QuintConnectHegel::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|
-  QuintConnectHegel::Trace.replay(path, spec.model)
+QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|
+  QuintDriver::Trace.replay(path, spec.model)
 end
 ```
 
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
 集合、マップ、レコード、タプル、`match` 付きの直和型、整数、真偽値です。
-それ以外の演算子は `QuintConnectHegel::Model::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+それ以外の演算子は `QuintDriver::Model::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 
 ## 開発
 

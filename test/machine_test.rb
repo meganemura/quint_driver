@@ -12,15 +12,15 @@ class MachineTest < Minitest::Test
     end
 
     define_method(:"test_#{choose}_draws_no_pick_from_an_empty_set") do
-      spec = QuintConnectHegel::Spec.new(File.expand_path("operators.qnt", __dir__), main: "operators")
-      machine = QuintConnectHegel.machine(spec, driver: -> { spec.model }, choose:)
+      spec = QuintDriver::Spec.new(File.expand_path("operators.qnt", __dir__), main: "operators")
+      machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
 
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
     define_method(:"test_#{choose}_stops_a_sequence_where_no_move_is_enabled") do
-      spec = QuintConnectHegel::Spec.new(File.expand_path("operators.qnt", __dir__), main: "countdown")
-      machine = QuintConnectHegel.machine(spec, driver: -> { spec.model }, choose:)
+      spec = QuintDriver::Spec.new(File.expand_path("operators.qnt", __dir__), main: "countdown")
+      machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
 
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
@@ -29,7 +29,7 @@ class MachineTest < Minitest::Test
       machine = machine(BrokenLoans, choose)
       report = StringIO.new
 
-      error = assert_raises(QuintConnectHegel::Mismatch) do
+      error = assert_raises(QuintDriver::Mismatch) do
         Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
       end
 
@@ -45,7 +45,7 @@ class MachineTest < Minitest::Test
       define_method(:initialize) { |*args| super(*args); runs << (@moves = []) }
       define_method(:step) { |action, picks| @moves << [ action, picks ]; super(action, picks) }
     end
-    machine = QuintConnectHegel.machine(LoansDriver.spec, driver: -> { recording.new })
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { recording.new })
 
     Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
 
@@ -54,15 +54,15 @@ class MachineTest < Minitest::Test
   end
 
   def test_an_invariant_holds_on_every_state_hegel_reaches
-    machine = QuintConnectHegel.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 
     Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
   end
 
   def test_a_broken_invariant_fails_at_the_first_state_that_breaks_it
-    machine = QuintConnectHegel.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[nothing_on_loan])
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[nothing_on_loan])
 
-    error = assert_raises(QuintConnectHegel::Mismatch) do
+    error = assert_raises(QuintDriver::Mismatch) do
       Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
     assert_equal "quint: the model broke `nothing_on_loan`", error.message
@@ -70,6 +70,6 @@ class MachineTest < Minitest::Test
 
   private
     def machine(system, choose)
-      QuintConnectHegel.machine(LoansDriver.spec, driver: -> { LoansDriver.new(system) }, choose:)
+      QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new(system) }, choose:)
     end
 end

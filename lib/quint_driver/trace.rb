@@ -1,4 +1,4 @@
-module QuintConnectHegel
+module QuintDriver
   # A trace `quint run --mbt` wrote. Each state names the action the
   # simulator took and the values it picked, so a driver can run the same
   # command and be held to the next state.
@@ -19,8 +19,8 @@ module QuintConnectHegel
         raise "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
 
         driver.step(step.action, step.picks)
-        QuintConnectHegel.compare!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",
-                            step.expected, driver.state, by: "trace")
+        QuintDriver.compare!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",
+                             step.expected, driver.state, by: "trace")
       end
     end
 

@@ -1,3 +1,3 @@
 require "minitest/autorun"
-require "quint_connect_hegel"
+require "quint_driver"
 require_relative "../examples/loans/loans"

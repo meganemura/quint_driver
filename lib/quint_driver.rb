@@ -1,15 +1,15 @@
 require "set"
 
 # Tests a Ruby system against a Quint spec. Two ways share one driver: replay
-# the traces `quint run --mbt` writes (QuintConnectHegel::Trace.replay), or let Hegel
-# choose the steps from the spec's actions (QuintConnectHegel.machine). A driver
+# the traces `quint run --mbt` writes (QuintDriver::Trace.replay), or let Hegel
+# choose the steps from the spec's actions (QuintDriver.machine). A driver
 # answers #step(action, picks) by running that command on the system, and
 # #state with the spec's variables as plain Ruby values.
 #
 # Plain values: a Quint set is a Set, a map a Hash, a tuple an Array, a record
 # a Hash with string keys, a sum type its tag, or [tag, value] when it carries
 # one.
-module QuintConnectHegel
+module QuintDriver
   class Mismatch < StandardError; end
 
   # Raises Mismatch naming each variable where +actual+ differs from
@@ -26,9 +26,9 @@ module QuintConnectHegel
   def self.show(value) = value.is_a?(Set) ? "{#{value.map { show(_1) }.sort.join(', ')}}" : value.inspect
 end
 
-require_relative "quint_connect_hegel/version"
-require_relative "quint_connect_hegel/quint"
-require_relative "quint_connect_hegel/trace"
-require_relative "quint_connect_hegel/spec"
-require_relative "quint_connect_hegel/model"
-require_relative "quint_connect_hegel/machine"
+require_relative "quint_driver/version"
+require_relative "quint_driver/quint"
+require_relative "quint_driver/trace"
+require_relative "quint_driver/spec"
+require_relative "quint_driver/model"
+require_relative "quint_driver/machine"

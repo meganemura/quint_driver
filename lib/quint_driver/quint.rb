@@ -2,7 +2,7 @@ require "json"
 require "open3"
 require "tmpdir"
 
-module QuintConnectHegel
+module QuintDriver
   # The `quint` command line: the one place this library runs another process.
   module Quint
     COMMAND = ENV.fetch("QUINT", "npx --yes @informalsystems/quint@0.33.0").freeze

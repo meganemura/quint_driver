@@ -1,4 +1,4 @@
-# quint-connect-hegel-ruby
+# quint_driver
 
 Test a Ruby system against a [Quint](https://github.com/quint-co/quint) spec.
 The spec says what each command must do, and the tests run the same commands on the real system and compare the two after every step.
@@ -14,7 +14,7 @@ The spec is read from Quint's JSON IR and evaluated inside the Ruby process, so 
 
 ```ruby
 # Gemfile
-gem "quint_connect_hegel", github: "meganemura/quint-connect-hegel-ruby"
+gem "quint_driver", github: "meganemura/quint_driver"
 ```
 
 The gem needs Ruby 3.4 or later, as hegeltest 0.4 does.
@@ -54,21 +54,21 @@ Plain values: a Quint set is a `Set`, a map a `Hash`, a tuple an `Array`, a reco
 ## Run it
 
 ```ruby
-spec = QuintConnectHegel::Spec.new("loans.qnt", main: "loans")
+spec = QuintDriver::Spec.new("loans.qnt", main: "loans")
 
 # Trace replay: Quint picks the steps.
-QuintConnectHegel::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") do |path|
-  QuintConnectHegel::Trace.replay(path, LoansDriver.new)
+QuintDriver::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") do |path|
+  QuintDriver::Trace.replay(path, LoansDriver.new)
 end
 
 # Hegel picks the steps and shrinks a failure.
-machine = QuintConnectHegel.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
+machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ```
 
-Both raise `QuintConnectHegel::Mismatch` with each variable that differs. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
+Both raise `QuintDriver::Mismatch` with each variable that differs. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
 
-`QuintConnectHegel.machine` takes these options:
+`QuintDriver.machine` takes these options:
 
 - `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`.
 - `invariants:` names `val`s of the spec that must hold after every move.
@@ -81,12 +81,12 @@ Each test case starts a new system through the driver's `init`. A sequence of mo
 The Hegel way trusts the Ruby evaluation of the spec. The model answers the driver protocol, so you can hold it to Quint's own traces:
 
 ```ruby
-QuintConnectHegel::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|
-  QuintConnectHegel::Trace.replay(path, spec.model)
+QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|
+  QuintDriver::Trace.replay(path, spec.model)
 end
 ```
 
-The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintConnectHegel::Model::Unsupported`, so a spec that needs more fails loudly.
+The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Model::Unsupported`, so a spec that needs more fails loudly.
 
 ## Development
 

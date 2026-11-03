@@ -19,7 +19,7 @@ class TraceTest < Minitest::Test
       "carrying" => [ "Refused", "on_loan" ], "none" => nil, "some" => "b1"
     }
 
-    assert_equal plain, QuintConnectHegel::Trace.decode(itf)
+    assert_equal plain, QuintDriver::Trace.decode(itf)
   end
 
   def test_a_system_that_follows_the_spec_replays_every_trace
@@ -29,7 +29,7 @@ class TraceTest < Minitest::Test
   end
 
   def test_a_system_that_breaks_the_spec_fails_the_replay_at_the_step_it_breaks
-    error = assert_raises(QuintConnectHegel::Mismatch) { replay(LoansDriver.new(BrokenLoans)) }
+    error = assert_raises(QuintDriver::Mismatch) { replay(LoansDriver.new(BrokenLoans)) }
 
     assert_match(/`borrow_refused`/, error.message)
     assert_match(/outcome: trace \["Refused", "limit_reached"\], driver "Done"/, error.message)
@@ -42,12 +42,12 @@ class TraceTest < Minitest::Test
   end
 
   def test_a_step_that_names_no_action_is_refused
-    spec = QuintConnectHegel::Spec.new(ANONYMOUS, main: "anonymous")
+    spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
 
     assert_raises(RuntimeError) { spec.rules("step") }
     error = assert_raises(RuntimeError) do
-      QuintConnectHegel::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
-        QuintConnectHegel::Trace.replay(path, QuintConnectHegel::Model.new(spec.declarations, []))
+      QuintDriver::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, QuintDriver::Model.new(spec.declarations, []))
       end
     end
     assert_match(/anonymous action/, error.message)
@@ -56,8 +56,8 @@ class TraceTest < Minitest::Test
   private
     def replay(driver)
       count = 0
-      QuintConnectHegel::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
-        QuintConnectHegel::Trace.replay(path, driver)
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, driver)
         count += 1
       end
       count

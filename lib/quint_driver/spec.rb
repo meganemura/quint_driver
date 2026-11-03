@@ -1,4 +1,4 @@
-module QuintConnectHegel
+module QuintDriver
   # One module of a compiled Quint spec, and the rules a step action offers.
   class Spec
     # A move the step action can take: +action+ called with +args+ (IR nodes),
