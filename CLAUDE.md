@@ -1,0 +1,39 @@
+# AGENTS.md
+
+Context for agents that work in this repository.
+
+## What this is
+
+quint-connect-hegel-ruby tests a Ruby system against a Quint spec.
+A driver runs the spec's actions on the system and reports the spec's variables as plain values.
+Two ways share that driver: `Trace.replay` runs traces `quint run --mbt` wrote, and `QuintConnectHegel.machine` builds a `Hegel::StateMachine` so Hegel picks the steps and shrinks a failure.
+The spec is evaluated in the Ruby process (`Model`), and the model is held to Quint by replaying Quint's own traces through it.
+
+## Layout
+
+- `lib/quint_connect_hegel/quint.rb` is the one place that runs the `quint` command.
+- `trace.rb` reads ITF traces and replays them on a driver. `spec.rb` reads one module of the JSON IR and the rules of a step action. `model.rb` evaluates the IR. `machine.rb` is the Hegel adapter.
+- `examples/loans/` is a small spec, a system, a broken system, and their driver. The tests use it.
+- `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework.
+
+## Visibility
+
+This repository is intended for public release.
+Write all committed text in English: code, comments, docs, commit messages.
+`README.ja.md` is the one Japanese file. It follows `README.md` in the same commit, in natural Japanese, one sentence per line, with no em dash.
+Do not reference private tools, private repositories, or internal working documents in committed content.
+
+## Rules
+
+- The runtime dependency is `hegeltest`, pinned exactly. Add a dependency only with the owner's approval, pinned exactly, at least 7 days past its release.
+- `lib/` refers to no test framework. A disagreement raises `QuintConnectHegel::Mismatch`.
+- An IR operator the model does not know raises `Model::Unsupported`. Never guess an operator's meaning.
+- Comments say why: the constraint, or the alternative that was refused. Each module starts with its responsibility.
+- Tests prove behavior by running Quint and the example system. A test never greps source.
+- A release or a change of the repository's visibility is the owner's to run.
+
+## Commands
+
+- `bundle exec bin/test` runs the Minitest suite.
+- `bundle exec rspec` runs the RSpec suite.
+- Both run `quint`. Set `QUINT` to a local command; without it the library runs `npx --yes @informalsystems/quint@0.33.0`.
