@@ -35,7 +35,8 @@ module QuintDriver
         elsif node["kind"] == "app" && actions.key?(node["opcode"])
           [ Rule.new(node["opcode"], node["args"], domains, within) ]
         else
-          raise Unsupported, "quint: #{step} holds a #{node['kind']} #{node['opcode']} that names no action; name every action in step"
+          arm = node["opcode"] == "assign" ? "assigns #{node['args'][0]['name']}'" : "holds #{node['opcode'] || node['kind']}"
+          raise Unsupported, "quint: #{within} #{arm} in an arm that names no action; name every action in #{step}"
         end
       end
       walk.(actions.fetch(step)["expr"], {}, step)

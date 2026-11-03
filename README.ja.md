@@ -194,6 +194,8 @@ Quint の二つの評価器はゼロに向けて切り捨て（`-7 % 2` は `-1`
 ただし `slice(l, l.length(), l.length())` は、Quint の二つの評価器と同じく `[]` です。
 `powerset` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
+そのメッセージには、その枝を持つアクションの名前が入ります。
+例えば `step` が `counting` をその場で開くときは、`quint: counting assigns n' in an arm that names no action; name every action in step` です。
 メッセージには、その演算子を書いたアクションか定義の名前が入ります。
 例えば `quint: no evaluation for operator powerset in subsets` です。
 nondet の定義域にある演算子では、それを選ぶアクションを示します。

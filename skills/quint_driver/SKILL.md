@@ -39,7 +39,7 @@ Each move of `step` must name the action that a driver runs.
 - Write `step` as `any { ... }` whose arms call named actions, even for one action: `action step = any { tick }`. Without `any`, Quint names every move `step`, so a driver cannot tell the moves apart, and replay through the model raises `QuintDriver::Unsupported`.
 - Take arguments only from `nondet x = S.oneOf()` before the call: `nondet b = BOOKS.oneOf() any { give_back(b), give_back_refused(b) }`.
 - A parameterless action whose body is `any { ... }` opens in place, so `action step = any { lending, returning }` works.
-- Do not assign inline in an arm of `step` (`any { n' = n + 1 }`). The move names no action, and quint_driver raises `QuintDriver::Unsupported`.
+- Do not assign inline in an arm of `step` (`any { n' = n + 1 }`). The move names no action, and `spec.rules` raises `QuintDriver::Unsupported` with the action that holds the arm: `quint: counting assigns n' in an arm that names no action; name every action in step`.
 - Give each command a refused twin that holds when the command is disabled and records why, such as `borrow_refused`. Traces then check refusals too.
 - Assign every variable in `init` and in every action.
 

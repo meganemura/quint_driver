@@ -145,13 +145,20 @@ class TraceTest < Minitest::Test
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
     silent = Class.new { def step(*) = nil; def state = {} }.new # reports no variable, so only the refusal fails
 
-    assert_raises(QuintDriver::Unsupported) { spec.rules("step") }
+    listed = assert_raises(QuintDriver::Unsupported) { spec.rules("step") }
+    assert_equal "quint: step assigns n' in an arm that names no action; name every action in step", listed.message
     error = assert_raises(QuintDriver::Unsupported) do
       QuintDriver::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
         QuintDriver::Trace.replay(path, silent)
       end
     end
     assert_match(/anonymous action/, error.message)
+  end
+
+  def test_an_arm_that_names_no_action_is_reported_in_the_action_that_holds_it
+    error = assert_raises(QuintDriver::Unsupported) { QuintDriver::Spec.new(ANONYMOUS, main: "nested").rules("step") }
+
+    assert_equal "quint: counting assigns n' in an arm that names no action; name every action in step", error.message
   end
 
   def test_a_replay_prints_each_step_before_the_driver_runs_it
