@@ -35,6 +35,39 @@ class ModelPropertyTest < Minitest::Test
   end
 end
 
+class FixedDomainPropertyTest < Minitest::Test
+  include Hegel::Syntax::Methods
+  SETTINGS = { test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow] }.freeze
+  OPERATORS = File.expand_path("../operators.qnt", __dir__)
+
+  # The machine evaluates a fixed domain once, so it must be the same set in
+  # every state a model reaches and after every pick drawn before it.
+  [ [ LoansDriver::SPEC, "loans" ], [ OPERATORS, "operators" ], [ OPERATORS, "painting" ], [ OPERATORS, "pairing" ] ].each do |path, main|
+    define_method(:"test_a_fixed_domain_of_#{main}_is_one_set_in_every_state_and_after_every_pick") do
+      spec = QuintDriver::Spec.new(path, main:)
+      rules = spec.rules("step")
+      first = spec.model.tap { _1.step("init", {}) }
+      fixed = rules.to_h { |rule| [ rule, rule.fixed.to_h { [ _1, first.value(rule.domains[_1], {}, within: rule.within) ] } ] }
+
+      Hegel.test(**SETTINGS) do |tc|
+        model = spec.model
+        model.step("init", {})
+        tc.draw(integers(min_value: 0, max_value: 20)).times do
+          moves = rules.flat_map { model.moves(_1) }
+          break if moves.empty?
+
+          rules.each do |rule|
+            model.moves(rule).each do |_, picks, _|
+              fixed[rule].each { |name, set| assert_equal set, model.value(rule.domains[name], picks.except(name), within: rule.within) }
+            end
+          end
+          model.enter(tc.draw(sampled_from(moves)).last)
+        end
+      end
+    end
+  end
+end
+
 class ListPropertyTest < Minitest::Test
   include Hegel::Syntax::Methods
 

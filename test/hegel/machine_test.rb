@@ -65,6 +65,25 @@ class MachineTest < Minitest::Test
     assert_equal runs.uniq, runs
   end
 
+  def test_the_machine_evaluates_a_domain_that_reads_no_variable_and_no_pick_once
+    reads = Hash.new(0)
+    spec = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "pairing")
+    domains = spec.rules("step").flat_map { |rule| rule.domains.map { |name, domain| [ domain, "#{rule.action} #{name}" ] } }.to_h.compare_by_identity
+    counted = spec.clone
+    counted.define_singleton_method(:model) do |step|
+      super(step).tap do |model|
+        model.define_singleton_method(:value) { |node, *rest, **options| reads[domains[node]] += 1 if domains.key?(node); super(node, *rest, **options) }
+      end
+    end
+    machine = QuintDriver.machine(counted, driver: -> { spec.model })
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+
+    assert_equal 1, reads["pair a"]
+    assert_operator reads["pair b"], :>, 100
+    assert_operator reads["unpair p"], :>, 100
+  end
+
   def test_an_invariant_holds_on_every_state_hegel_reaches
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 

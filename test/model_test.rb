@@ -24,6 +24,14 @@ class ModelTest < Minitest::Test
     assert_equal 100, count
   end
 
+  def test_a_rule_names_the_domains_that_read_no_variable_and_no_earlier_pick
+    fixed = ->(main) { QuintDriver::Spec.new(OPERATORS, main:).rules("step").to_h { [ _1.action, _1.fixed.sort ] } }
+
+    assert_equal({ "pair" => %w[a], "unpair" => [] }, fixed.("pairing"))
+    assert_equal({ "add" => [], "drop" => [], "reset" => [] }, fixed.("operators"))
+    assert_equal [ %w[b m] ] * 2 + [ %w[b] ] * 2, LoansDriver.spec.rules("step").map { _1.fixed.sort }
+  end
+
   def test_the_model_refuses_an_operator_it_does_not_evaluate_and_names_the_definition_that_holds_it
     error = assert_raises(QuintDriver::Unsupported) { unsupported.step("double", {}) }
 

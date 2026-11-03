@@ -208,3 +208,23 @@ module unassigned {
   action bump = n' = n + 1
   action step = any { bump }
 }
+
+// One domain is the same in every state, one reads an earlier pick, and one
+// reads a variable, so only the first can be evaluated once.
+module pairing {
+  pure val NUMS = Set(1, 2, 3)
+
+  var pairs: Set[(int, int)]
+
+  action init = pairs' = Set()
+  action pair(a: int, b: int): bool = pairs' = pairs.union(Set((a, b)))
+  action unpair(p: (int, int)): bool = pairs' = pairs.exclude(Set(p))
+
+  action step = any {
+    nondet a = NUMS.oneOf()
+    nondet b = NUMS.exclude(Set(a)).oneOf()
+    pair(a, b),
+    nondet p = pairs.oneOf()
+    unpair(p),
+  }
+}

@@ -25,6 +25,9 @@ module QuintDriver
     # runs on the system every time, so the failure reported is one it
     # reproduced.
     agreed = Set.new
+    # A fixed domain (Spec::Rule#fixed) is the same list in every test case,
+    # so it is evaluated and sorted once per machine, not once per draw.
+    fixed = {}.compare_by_identity
 
     Class.new(Hegel::StateMachine) do
       define_method(:initialize) do
@@ -57,7 +60,10 @@ module QuintDriver
         rules.each do |rule|
           rule(rule.action) do |tc|
             picks = rule.domains.each_with_object({}) do |(name, domain), chosen|
-              choices = @model.value(domain, chosen, within: rule.within).to_a.sort_by(&:to_s)
+              choices = fixed.fetch(domain) do
+                sorted = @model.value(domain, chosen, within: rule.within).to_a.sort_by(&:to_s).freeze
+                rule.fixed.include?(name) ? fixed[domain] = sorted : sorted
+              end
               tc.assume(choices.any?)
               chosen[name] = tc.draw(sampled_from(choices), label: name)
             end

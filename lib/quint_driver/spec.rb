@@ -4,16 +4,20 @@ module QuintDriver
     # A move the step action can take: +action+ called with +args+ (IR nodes),
     # whose free names are the nondet picks drawn from +domains+ (name => IR
     # node of a set), in order, since a later set may read an earlier pick.
-    # +within+ names the action whose body calls +action+.
-    Rule = Struct.new(:action, :args, :domains, :within)
+    # +within+ names the action whose body calls +action+. +fixed+ names the
+    # domains that are the same set in every state and after every earlier
+    # pick, so a caller can evaluate each of them once.
+    Rule = Struct.new(:action, :args, :domains, :within, :fixed)
 
     attr_reader :declarations
 
     # The q:: definitions are what quint adds for --main, so only the module
     # a file compiled for first would have them.
     def initialize(path, main:)
-      @declarations = Quint.compile(path, main:).fetch("modules").find { _1["name"] == main }.fetch("declarations")
-                           .reject { _1["name"].to_s.start_with?("q::") }
+      ir = Quint.compile(path, main:)
+      @declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
+                        .reject { _1["name"].to_s.start_with?("q::") }
+      @effects = ir.fetch("effects")
     end
 
     def model(step = "step") = Model.send(:new, declarations, rules(step))
@@ -31,9 +35,9 @@ module QuintDriver
           walk.(node["expr"], domains.merge(node["opdef"]["name"] => node["opdef"]["expr"]["args"].first), within)
         elsif actions.key?(node["name"])
           body = actions[node["name"]]["expr"]
-          choice.(body) ? walk.(body, domains, node["name"]) : [ Rule.new(node["name"], [], domains, within) ]
+          choice.(body) ? walk.(body, domains, node["name"]) : [ Rule.new(node["name"], [], domains, within, fixed(domains)) ]
         elsif node["kind"] == "app" && actions.key?(node["opcode"])
-          [ Rule.new(node["opcode"], node["args"], domains, within) ]
+          [ Rule.new(node["opcode"], node["args"], domains, within, fixed(domains)) ]
         else
           arm = node["opcode"] == "assign" ? "assigns #{node['args'][0]['name']}'" : "holds #{node['opcode'] || node['kind']}"
           raise Unsupported, "quint: #{within} #{arm} in an arm that names no action; name every action in #{step}"
@@ -41,5 +45,25 @@ module QuintDriver
       end
       walk.(actions.fetch(step)["expr"], {}, step)
     end
+
+    private
+      # Quint's effect of a set says which variables it reads, and a pick is
+      # not a variable, so a set also has to name no earlier pick. A lambda
+      # parameter that shadows a pick counts as the pick: one evaluation too
+      # many is only slower.
+      def fixed(domains)
+        domains.each_with_index.filter_map do |(name, domain), index|
+          reads_none = @effects.dig(domain["id"].to_s, "effect") == { "kind" => "concrete", "components" => [] }
+          name if reads_none && !names_in(domain).intersect?(domains.keys.take(index))
+        end.to_set
+      end
+
+      def names_in(node)
+        case node
+        when Hash then [ node["kind"] == "name" ? node["name"] : node["opcode"], *node.each_value.flat_map { names_in(_1) } ].compact
+        when Array then node.flat_map { names_in(_1) }
+        else []
+        end
+      end
   end
 end
