@@ -28,7 +28,6 @@ module QuintConnectHegel
         @model = spec.model(step)
         @model.step("init", {})
         @moves = []
-        @driver = nil
         @ran = 0 # how many of @moves the driver has run
       end
 

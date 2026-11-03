@@ -6,9 +6,7 @@ module QuintConnectHegel
   # protocol too, which is how it is held to Quint: replay Quint's own traces
   # through it.
   class Model
-    Variant = Struct.new(:tag, :value) do
-      def to_s = value == [] ? tag : "#{tag}(#{value})"
-    end
+    Variant = Struct.new(:tag, :value)
 
     class Unsupported < StandardError; end
 
@@ -41,7 +39,7 @@ module QuintConnectHegel
         expr = expr["expr"]
       end
       @next = {}
-      return nil unless eval(expr, env, action: true)
+      return nil unless eval(expr, env)
 
       missing = @vars - @next.keys
       raise Unsupported, "quint: #{name} leaves #{missing.join(', ')} unassigned" if missing.any?
@@ -67,15 +65,15 @@ module QuintConnectHegel
     end
 
     private
-      def eval(node, env, action: false)
+      def eval(node, env)
         case node["kind"]
         when "str", "int", "bool" then node["value"]
         when "name" then lookup(node["name"], env)
         when "lambda" then Closure.new(node["params"].map { _1["name"] }, node["expr"], env)
         when "let"
           definition = node["opdef"]
-          eval(node["expr"], env.merge(definition["name"] => eval(definition["expr"], env)), action:)
-        when "app" then apply(node["opcode"], node["args"], env, action)
+          eval(node["expr"], env.merge(definition["name"] => eval(definition["expr"], env)))
+        when "app" then apply(node["opcode"], node["args"], env)
         else raise Unsupported, "quint: no evaluation for IR kind #{node['kind']}"
         end
       end
@@ -93,19 +91,17 @@ module QuintConnectHegel
         eval(closure.body, closure.env.merge(closure.params.zip(args).to_h))
       end
 
-      def apply(op, args, env, action)
+      def apply(op, args, env)
         v = ->(i) { eval(args[i], env) }
         case op
-        when "actionAll" then args.all? { eval(_1, env, action: true) }
+        when "actionAll", "and" then args.all? { eval(_1, env) }
         when "assign" then @next[args[0]["name"]] = v.(1); true
-        when "and" then args.all? { eval(_1, env) }
         when "or" then args.any? { eval(_1, env) }
         when "not" then !v.(0)
         when "implies" then !v.(0) || v.(1)
-        when "iff" then v.(0) == v.(1)
-        when "eq" then v.(0) == v.(1)
+        when "eq", "iff" then v.(0) == v.(1)
         when "neq" then v.(0) != v.(1)
-        when "ite" then v.(0) ? eval(args[1], env, action:) : eval(args[2], env, action:)
+        when "ite" then v.(0) ? eval(args[1], env) : eval(args[2], env)
         when "igt" then v.(0) > v.(1)
         when "igte" then v.(0) >= v.(1)
         when "ilt" then v.(0) < v.(1)
@@ -125,14 +121,13 @@ module QuintConnectHegel
         when "filter" then (fn = v.(1); v.(0).select { call(fn, [ _1 ]) }.to_set)
         when "map" then (fn = v.(1); v.(0).to_set { call(fn, [ _1 ]) })
         when "Map" then args.to_h { eval(_1, env) }
-        when "put" then v.(0).merge(v.(1) => v.(2))
+        when "put", "with" then v.(0).merge(v.(1) => v.(2))
         when "get" then v.(0).fetch(v.(1)) { raise Unsupported, "quint: key #{v.(1).inspect} is not in the map" }
         when "keys" then v.(0).keys.to_set
         when "Tup" then args.map { eval(_1, env) }
         when "item" then v.(0).fetch(v.(1) - 1)
         when "Rec" then args.each_slice(2).to_h { |k, x| [ eval(k, env), eval(x, env) ] }
         when "field" then v.(0).fetch(v.(1))
-        when "with" then v.(0).merge(v.(1) => v.(2))
         when "variant" then Variant.new(v.(0), v.(1))
         when "matchVariant"
           target = v.(0)
