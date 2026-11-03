@@ -61,6 +61,28 @@ class MachineTest < Minitest::Test
     Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
   end
 
+  def test_an_invariant_is_checked_on_every_state_a_move_reaches
+    events = []
+    spec = LoansDriver.spec.clone
+    spec.define_singleton_method(:model) do |step|
+      super(step).tap do |model|
+        model.define_singleton_method(:enter) { |after| events << [ model, :move ]; super(after) }
+        model.define_singleton_method(:value) { |name, *rest| events << [ model, :check ] if name == "one_book_each"; super(name, *rest) }
+      end
+    end
+    machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+
+    # The model that gives the driver's first state takes init and is never checked.
+    after_moves = events.group_by(&:first).values.select { _1.size > 1 }.flat_map do |model_events|
+      kinds = model_events.map(&:last)
+      kinds.each_index.select { kinds[_1] == :move }.map { kinds[_1 + 1] }
+    end
+    assert_operator after_moves.size, :>, 100
+    assert_equal [ :check ], after_moves.uniq
+  end
+
   def test_a_broken_invariant_fails_at_the_first_state_that_breaks_it
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[nothing_on_loan])
 
