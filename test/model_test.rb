@@ -27,7 +27,15 @@ class ModelTest < Minitest::Test
   def test_the_model_refuses_an_operator_it_does_not_evaluate_and_names_the_definition_that_holds_it
     error = assert_raises(QuintDriver::Unsupported) { unsupported.step("double", {}) }
 
-    assert_equal "quint: no evaluation for operator imul in doubled", error.message
+    assert_equal "quint: no evaluation for operator foldr in summed", error.message
+  end
+
+  def test_the_model_refuses_an_operation_quint_leaves_undefined_and_names_the_action_that_holds_it
+    halve = assert_raises(QuintDriver::Unsupported) { unsupported.try("halve") }
+    first = assert_raises(QuintDriver::Unsupported) { unsupported.try("first") }
+
+    assert_equal "quint: no evaluation for -1 / 2 in halve; Quint documents no rounding for a negative operand", halve.message
+    assert_equal "quint: no evaluation for head of an empty list in first; Quint leaves it undefined", first.message
   end
 
   def test_the_model_refuses_an_action_that_leaves_a_variable_unassigned

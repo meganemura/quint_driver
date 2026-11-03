@@ -73,7 +73,7 @@ end
 - `step("init", {})` comes first in every sequence. Make a new system there.
 - `picks` holds the nondet values by name.
 - A refused twin runs the same command. Rescue the domain error into the spec's refusal value.
-- `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one.
+- `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one.
 
 ## 3. Replay Quint's traces
 
@@ -98,7 +98,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 200, max_steps: 3
 end
 ```
 
-`spec.model` is the one way to build a model. An operator the model does not evaluate raises `QuintDriver::Unsupported`, and the message names the action or definition that holds it, such as `quint: no evaluation for operator foldr in summed`. Go on to step 5 only when this passes. `model.moves(rule)` lists the `[action, picks, next state]` moves a rule of `spec.rules("step")` allows now, and `model.enter(next_state)` takes one.
+`spec.model` is the one way to build a model. It evaluates sets, maps, records, tuples, lists (`append`, `concat`, `head`, `tail`, `length`, `nth`, `indices`, `replaceAt`, `slice`, `range`, `select`, `foldl`), sum types, integers (`/` only on non-negative operands), and booleans. An operation Quint's docs leave undefined, such as `head` of an empty list, raises `QuintDriver::Unsupported` too. An operator the model does not evaluate raises `QuintDriver::Unsupported`, and the message names the action or definition that holds it, such as `quint: no evaluation for operator foldr in summed`. Go on to step 5 only when this passes. `model.moves(rule)` lists the `[action, picks, next state]` moves a rule of `spec.rules("step")` allows now, and `model.enter(next_state)` takes one.
 
 ## 5. Let Hegel choose and shrink
 

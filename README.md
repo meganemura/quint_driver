@@ -85,7 +85,7 @@ class LoansDriver
 end
 ```
 
-Plain values: a Quint set is a `Set`, a map a `Hash`, a tuple an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries a value.
+Plain values: a Quint set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries a value.
 
 [examples/loans](examples/loans) has the whole example: the spec, the system, and the driver.
 
@@ -129,7 +129,7 @@ QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") 
 end
 ```
 
-The model evaluates the operators a command-per-action spec uses: sets, maps, records, tuples, sum types with `match`, integers, and booleans. Any other operator raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action. The message names the action or definition that holds the operator, such as `quint: no evaluation for operator foldr in summed`.
+The model evaluates the operators a command-per-action spec uses: sets (with `fold` and `i.to(j)`), maps, records, tuples, lists, sum types with `match`, integers, and booleans. A list is a Ruby Array, and the model evaluates `List`, `append`, `concat`, `head`, `tail`, `length`, `nth`, `indices`, `replaceAt`, `slice`, `range`, `select`, and `foldl`. On integers it evaluates `+`, `-`, `*`, unary `-`, and the comparisons, and `/` only on non-negative operands, because Quint documents no rounding for a negative one. Where Quint's docs leave an operation undefined, such as `head` of an empty list or `nth` past the end, the model raises `QuintDriver::Unsupported` instead of picking an answer; `slice(l, l.length(), l.length())` is `[]`, as both of Quint's evaluators give it. Any other operator, such as `foldr` or `%`, raises `QuintDriver::Unsupported`, so a spec that needs more fails loudly. So does a step arm that names no action. The message names the action or definition that holds the operator, such as `quint: no evaluation for operator foldr in summed`.
 
 `Spec#model` is the one way to build a model; `Model.new` is private, because the model trusts the shape of quint's compiled IR. A trace gives each pick as a plain value, and the model takes the value of the pick's domain that reads the same, so a pick of a sum type works in `match`.
 

@@ -106,7 +106,7 @@ end
 ```
 
 素の値の対応は次のとおりです。
-Quint の集合は `Set`、マップは `Hash`、タプルは `Array`、レコードは文字列のキーを持つ `Hash` です。
+Quint の集合は `Set`、マップは `Hash`、タプルとリストは `Array`、レコードは文字列のキーを持つ `Hash` です。
 直和型はタグになり、値を持つときは `[タグ, 値]` になります。
 
 仕様、システム、ドライバーをそろえた例は [examples/loans](examples/loans) にあります。
@@ -167,8 +167,15 @@ end
 ```
 
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
-集合、マップ、レコード、タプル、`match` 付きの直和型、整数、真偽値です。
-それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+集合 (`fold` と `i.to(j)` を含む)、マップ、レコード、タプル、リスト、`match` 付きの直和型、整数、真偽値です。
+リストは Ruby の Array になります。
+リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl` を評価します。
+整数では `+`、`-`、`*`、単項の `-`、比較を評価します。
+`/` は両辺が負でないときだけ評価します。
+Quint は負の値を割ったときの丸めを決めていないからです。
+空のリストの `head` や、末尾より先の `nth` のように、Quint のドキュメントが未定義とする演算では、モデルは答えを選ばずに `QuintDriver::Unsupported` を投げます。
+ただし `slice(l, l.length(), l.length())` は、Quint の二つの評価器と同じく `[]` です。
+`foldr` や `%` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
 メッセージには、その演算子を書いたアクションか定義の名前が入ります。
 例えば `quint: no evaluation for operator foldr in summed` です。

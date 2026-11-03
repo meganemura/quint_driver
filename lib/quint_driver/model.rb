@@ -148,6 +148,27 @@ module QuintDriver
         raise Unsupported, "quint: no evaluation for #{what} in #{@within}#{"; #{why}" if why}"
       end
 
+      # Quint's builtin docs leave these undefined, and its two evaluators do
+      # not always agree on them (range(3, 1) is [] in one and [3, 2] in the
+      # other), so the model refuses them rather than pick an answer.
+      def undefined(what) = refuse(what, "Quint leaves it undefined")
+
+      def index!(list, i, op)
+        return i if i.between?(0, list.size - 1)
+
+        undefined("#{op}(_, #{i}) on a list of length #{list.size}")
+      end
+
+      def nonempty!(list, op) = list.empty? ? undefined("#{op} of an empty list") : list
+
+      # Quint documents no rounding: its evaluators truncate toward zero, and
+      # Ruby's Integer#/ floors, so only operands where the two agree are
+      # evaluated.
+      def divide(a, b)
+        refuse("#{a} / #{b}", "Quint documents no rounding for a negative operand") if a.negative? || b.negative?
+        b.zero? ? undefined("#{a} / 0") : a / b
+      end
+
       def apply(op, args, env)
         case op
         when "actionAll", "and" then args.all? { eval(_1, env) }
@@ -173,6 +194,30 @@ module QuintDriver
         when "ilte" then a <= b
         when "iadd" then a + b
         when "isub" then a - b
+        when "imul" then a * b
+        when "idiv" then divide(a, b)
+        when "iuminus" then -a
+        when "to" then a <= b ? (a..b).to_set : undefined("#{a}.to(#{b})")
+        # A set's fold order is unspecified, so Quint leaves a fold whose
+        # operator is not associative and commutative undefined.
+        when "fold", "foldl" then a.reduce(b) { |acc, x| call(c, [ acc, x ]) }
+        when "List", "Tup" then values
+        when "append" then a + [ b ]
+        when "concat" then a + b
+        when "head" then nonempty!(a, "head").first
+        when "tail" then nonempty!(a, "tail").drop(1)
+        when "length" then a.size
+        when "nth" then a[index!(a, b, "nth")]
+        when "indices" then (0...a.size).to_set
+        when "replaceAt" then a.dup.tap { _1[index!(a, b, "replaceAt")] = c }
+        when "slice"
+          # The docs also leave i == l.length() undefined, but both evaluators
+          # answer slice(l, l.length(), l.length()) with [], which the docs'
+          # own reading (from i inclusive to j exclusive) gives, and a spec
+          # that drops a list's last element needs it.
+          0 <= b && b <= c && c <= a.size ? a[b...c] : undefined("slice(_, #{b}, #{c}) on a list of length #{a.size}")
+        when "range" then a <= b ? (a...b).to_a : undefined("range(#{a}, #{b})")
+        when "select" then a.select { call(b, [ _1 ]) }
         when "Set" then values.to_set
         when "contains" then a.include?(b)
         when "in" then b.include?(a)
@@ -189,7 +234,6 @@ module QuintDriver
         when "put", "with" then a.merge(b => c)
         when "get" then a.fetch(b) { refuse("get(_, #{b.inspect})", "the map has no such key") }
         when "keys" then a.keys.to_set
-        when "Tup" then values
         when "item" then a.fetch(b - 1)
         when "Rec" then values.each_slice(2).to_h
         when "field" then a.fetch(b)

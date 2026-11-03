@@ -7,9 +7,9 @@ require "set"
 # by running that command on the system, and #state with the spec's variables
 # as plain Ruby values.
 #
-# Plain values: a Quint set is a Set, a map a Hash, a tuple an Array, a record
-# a Hash with string keys, a sum type its tag, or [tag, value] when it carries
-# one.
+# Plain values: a Quint set is a Set, a map a Hash, a tuple or a list an
+# Array, a record a Hash with string keys, a sum type its tag, or
+# [tag, value] when it carries one.
 module QuintDriver
   # The system and the spec disagree.
   class Mismatch < StandardError; end

@@ -1,5 +1,7 @@
 // Uses each operator the Ruby model evaluates that loans.qnt does not, so
 // replaying Quint's traces through the model checks those operators too.
+// `queue` keeps the order of the picks, so the list operators see lists of
+// every length up to the longest trace, the empty one included.
 // Its step names actions without arguments, nests an `any`, and draws from
 // sets that can be empty. `count` has a field named `value`, a key ITF also
 // gives a variant.
@@ -14,9 +16,41 @@ module operators {
   var count: { value: int, full: bool }
   var pair: (int, str)
   var shape: Shape
+  var queue: List[int]
+  var listed: ListFacts
   var facts: {
     lt: bool, lte: bool, gt: bool, gte: bool, both: bool, either: bool, implied: bool, same: bool,
     within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int, grown: int,
+  }
+
+type ListFacts = {
+    first: int, rest: List[int], len: int, last: int, positions: Set[int], replaced: List[int],
+    after: List[int], upTo: List[int], big: List[int], digits: int, joined: List[int], negated: int,
+    product: int, half: int, span: Set[int], weighed: int,
+  }
+  
+  // q.append(a) is never empty, so head, tail and nth are defined on it.
+  // foldl builds digits, which depends on the order it folds in.
+  pure def listFactsOf(a: int, q: List[int]): ListFacts = {
+    val l = q.append(a)
+    {
+      first: l.head(),
+      rest: l.tail(),
+      len: l.length(),
+      last: l.nth(l.length() - 1),
+      positions: l.indices(),
+      replaced: l.replaceAt(0, a * 3),
+      after: l.slice(1, l.length()),
+      upTo: range(0, a),
+      big: l.select(x => x > 1),
+      digits: l.foldl(0, (acc, x) => acc * 10 + x),
+      joined: q.concat([a, -a]),
+      negated: -a,
+      product: a * l.length(),
+      half: (a + l.length()) / 2,
+      span: (-a).to(a),
+      weighed: l.indices().fold(0, (acc, i) => acc + i * l.nth(i)),
+    }
   }
 
   pure def twice(v: int): int = v + v
@@ -50,6 +84,8 @@ module operators {
     count' = { value: 0, full: false },
     pair' = (0, ""),
     shape' = Dot,
+    queue' = [],
+    listed' = listFactsOf(0, []),
     facts' = factsOf(0, 0, Set(), Map()),
   }
 
@@ -61,6 +97,8 @@ module operators {
     count' = count.with("value", count.value + 1),
     pair' = (a, pair._2),
     shape' = if (a > total) Circle(a) else Square(a),
+    queue' = queue.append(a),
+    listed' = listFactsOf(a, queue),
     facts' = factsOf(a, total, picked, last),
   }
 
@@ -75,6 +113,8 @@ module operators {
       | Circle(n) => Square(n + 1)
       | _ => Dot
     },
+    queue' = queue.select(x => x != a),
+    listed' = listFactsOf(a, queue),
     facts' = factsOf(a, total, picked, last),
   }
 
@@ -85,6 +125,8 @@ module operators {
     count' = count,
     pair' = pair,
     shape' = Dot,
+    queue' = List(),
+    listed' = listed,
     facts' = facts,
   }
 
@@ -104,8 +146,13 @@ module unsupported {
   var m: int
 
   action init = all { n' = 1, m' = 1 }
-  pure def doubled(v: int): int = v * 2
-  action double = all { n' = doubled(n), m' = m }
+  // Quint's builtin docs leave foldr undocumented.
+  pure def summed(l: List[int]): int = l.foldr(0, (x, acc) => x + acc)
+  action double = all { n' = summed([n, n]), m' = m }
+  // Quint documents no rounding for a negative operand of /.
+  action halve = all { n' = (-n) / 2, m' = m }
+  // Quint leaves the head of an empty list undefined.
+  action first = all { n' = List().head(), m' = m }
   // Quint drops a variable an action leaves unassigned from the next state.
   action bump = n' = n + 1
   action step = double

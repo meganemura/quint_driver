@@ -34,3 +34,47 @@ class ModelPropertyTest < Minitest::Test
     end
   end
 end
+
+class ListPropertyTest < Minitest::Test
+  include Hegel::Syntax::Methods
+
+  # Each list operator gives what Quint's builtin docs say on any list, and is
+  # refused exactly where the docs leave it undefined. slice also takes
+  # i == l.length(), which both of Quint's evaluators answer with [].
+  def test_the_list_operators_agree_with_quints_docs_on_every_list
+    model = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "operators").model
+    ints = integers(min_value: -2, max_value: 9)
+
+    Hegel.test(test_cases: 300, seed: 1) do |tc|
+      list, other = tc.draw(arrays(ints, max_size: 6)), tc.draw(arrays(ints, max_size: 3))
+      i, j, x = tc.draw(integers(min_value: -1, max_value: 7)), tc.draw(integers(min_value: -1, max_value: 7)), tc.draw(ints)
+      inside = (0...list.size).cover?(i)
+      expected = {
+        app("length", l) => list.size,
+        app("indices", l) => Set.new(0...list.size),
+        app("append", l, int(x)) => [ *list, x ],
+        app("concat", l, ref("m")) => [ *list, *other ],
+        app("head", l) => list.empty? ? :undefined : list[0],
+        app("tail", l) => list.empty? ? :undefined : list[1..],
+        app("nth", l, int(i)) => inside ? list[i] : :undefined,
+        app("replaceAt", l, int(i), int(x)) => inside ? list.each_with_index.map { |e, k| k == i ? x : e } : :undefined,
+        app("slice", l, int(i), int(j)) => i >= 0 && i <= j && j <= list.size ? list.drop(i).take(j - i) : :undefined,
+        app("range", int(i), int(j)) => i <= j ? Array.new(j - i) { i + _1 } : :undefined
+      }
+      expected.each do |node, want|
+        got = begin
+          model.value(node, { "l" => list, "m" => other })
+        rescue QuintDriver::Unsupported
+          :undefined
+        end
+        assert_equal want, got, "#{node['opcode']} #{list.inspect} i=#{i} j=#{j} x=#{x}"
+      end
+    end
+  end
+
+  private
+    def app(opcode, *args) = { "kind" => "app", "opcode" => opcode, "args" => args }
+    def ref(name) = { "kind" => "name", "name" => name }
+    def int(value) = { "kind" => "int", "value" => value }
+    def l = ref("l")
+end
