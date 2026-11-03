@@ -141,6 +141,13 @@ class TraceTest < Minitest::Test
     assert_equal "steps:\n", steps
   end
 
+  def test_an_error_raised_with_a_backtrace_of_strings_still_names_its_step
+    pasted = Class.new(LoansDriver) { def state = raise(KeyError, "no holder", [ "lib/desk.rb:3:in 'Desk#holder'" ]) }
+    error = assert_raises(QuintDriver::DriverFailed) { replay(pasted.new) }
+
+    assert_equal "quint: at step 0 `init` {}, the step raised KeyError: no holder\nsteps:\n", error.message.lines.first(2).join
+  end
+
   def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
     stateless = Class.new(LoansDriver) { def state = raise("no state yet") }
     error = assert_raises(QuintDriver::DriverFailed) { replay(stateless.new) }
