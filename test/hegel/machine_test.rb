@@ -45,6 +45,8 @@ class MachineTest < Minitest::Test
       assert_equal %w[borrow borrow_refused], moves
       assert_match(/outcome: model \["Refused", "limit_reached"\], driver "Done"/, error.message)
       assert_equal [ "init", *moves ], error.message[/^steps:\n((?:  .*\n?)+)/, 1].to_s.lines.map { _1.split.first }
+      names = report.string.scan(/^\s+([a-z]+)_\d+ = /).flatten.uniq.sort
+      assert_equal(choose == :rule ? %w[b m] : %w[move rule], names)
     end
   end
 

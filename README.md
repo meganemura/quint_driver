@@ -115,7 +115,7 @@ Both raise `QuintDriver::Mismatch` with each variable that differs and the steps
 
 - `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`.
 - `invariants:` names `val`s of the spec that must hold after every move.
-- `choose:` is how Hegel draws a move. `:rule` (the default) picks an action and rejects it when the spec disables it. It shrinks to the shortest sequence. `:rotate` passes a disabled action's turn to the next enabled one. It reaches deep states with fewer test cases, but a shrunk sequence can keep extra moves.
+- `choose:` is how Hegel draws a move. `:rule` (the default) picks an action and rejects it when the spec disables it. It shrinks to the shortest sequence. `:rotate` passes a disabled action's turn to the next enabled one. It reaches deep states with fewer test cases, but a shrunk sequence can keep extra moves. Hegel's failure report names each draw after the nondet pick it chose, numbered per move (`m_1 = "m2"`), or `rule_1` and `move_1` under `:rotate`.
 
 Each test case starts a new system through the driver's `init`. A sequence of moves that the system already agreed on is not run again, because shrinking asks for the same sequence many times. This assumes that the system answers the same sequence the same way each time. A disagreement always runs on the system again.
 

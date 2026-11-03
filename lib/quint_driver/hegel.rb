@@ -59,7 +59,7 @@ module QuintDriver
             picks = rule.domains.each_with_object({}) do |(name, domain), chosen|
               choices = @model.value(domain, chosen, within: rule.within).to_a.sort_by(&:to_s)
               tc.assume(choices.any?)
-              chosen[name] = tc.draw(sampled_from(choices))
+              chosen[name] = tc.draw(sampled_from(choices), label: name)
             end
             after = @model.try(rule.action, rule.args.map { @model.value(_1, picks, within: rule.within) })
             tc.assume(after)
@@ -69,10 +69,10 @@ module QuintDriver
         end
       when :rotate
         rule(step) do |tc|
-          start = tc.draw(integers(min_value: 0, max_value: rules.size - 1))
+          start = tc.draw(integers(min_value: 0, max_value: rules.size - 1), label: "rule")
           moves = rules.rotate(start).lazy.map { @model.moves(_1) }.find(&:any?)
           tc.assume(moves)
-          action, picks, after = tc.draw(sampled_from(moves))
+          action, picks, after = tc.draw(sampled_from(moves), label: "move")
           tc.note { "#{action} #{Model.plain(picks)}" }
           move!(action, picks, after)
         end
