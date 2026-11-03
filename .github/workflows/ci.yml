@@ -25,3 +25,22 @@ jobs:
       - run: npm install --global @informalsystems/quint@0.33.0
       - run: bundle exec bin/test
       - run: bundle exec rspec
+
+  # Trace replay and the model on the core's floor, with no hegeltest installed.
+  core:
+    runs-on: ubuntu-latest
+    env:
+      QUINT: quint
+      BUNDLE_WITHOUT: hegel
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - run: npm install --global @informalsystems/quint@0.33.0
+      - run: bundle exec bin/test test/*_test.rb
+      - run: bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"

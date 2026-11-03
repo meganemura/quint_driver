@@ -12,9 +12,9 @@ The spec is evaluated in the Ruby process (`Model`), and the model is held to Qu
 ## Layout
 
 - `lib/quint_driver/quint.rb` is the one place that runs the `quint` command.
-- `trace.rb` reads ITF traces and replays them on a driver. `spec.rb` reads one module of the JSON IR and the rules of a step action. `model.rb` evaluates the IR. `machine.rb` is the Hegel adapter.
+- `trace.rb` reads ITF traces and replays them on a driver. `spec.rb` reads one module of the JSON IR and the rules of a step action. `model.rb` evaluates the IR. `hegel.rb` is the Hegel adapter, loaded only by `require "quint_driver/hegel"`.
 - `examples/loans/` is a small spec, a system, a broken system, and their driver. The tests use it.
-- `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework.
+- `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework. The Hegel tests are in `test/hegel/` and `spec/hegel/`; the rest is the core.
 
 ## Visibility
 
@@ -25,7 +25,7 @@ Do not reference private tools, private repositories, or internal working docume
 
 ## Rules
 
-- The runtime dependency is `hegeltest`, pinned exactly. Add a dependency only with the owner's approval, pinned exactly, at least 7 days past its release.
+- The gem has no runtime dependency. `hegeltest` is in the Gemfile's `hegel` group, pinned exactly, and only `lib/quint_driver/hegel.rb` requires it. Add a dependency only with the owner's approval, pinned exactly, at least 7 days past its release.
 - `lib/` refers to no test framework. A disagreement raises `QuintDriver::Mismatch`.
 - An IR operator the model does not know raises `Model::Unsupported`. Never guess an operator's meaning.
 - Comments say why: the constraint, or the alternative that was refused. Each module starts with its responsibility.
@@ -37,3 +37,4 @@ Do not reference private tools, private repositories, or internal working docume
 - `bundle exec bin/test` runs the Minitest suite.
 - `bundle exec rspec` runs the RSpec suite.
 - Both run `quint`. Set `QUINT` to a local command; without it the library runs `npx --yes @informalsystems/quint@0.33.0`.
+- The core (everything but `hegel.rb`) keeps Ruby 3.3 as its floor: `BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb` on Ruby 3.3. The Hegel adapter needs Ruby 3.4, as hegeltest does.

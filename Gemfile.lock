@@ -2,7 +2,6 @@ PATH
   remote: .
   specs:
     quint_driver (0.1.0)
-      hegeltest (= 0.4.1)
 
 GEM
   remote: https://rubygems.org/
@@ -46,6 +45,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  hegeltest (= 0.4.1)
   minitest (= 6.0.6)
   quint_driver!
   rspec (= 3.13.2)

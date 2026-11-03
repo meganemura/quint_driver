@@ -15,9 +15,12 @@ The spec is read from Quint's JSON IR and evaluated inside the Ruby process, so 
 ```ruby
 # Gemfile
 gem "quint_driver", github: "meganemura/quint_driver"
+gem "hegeltest", "= 0.4.1" # only for the Hegel adapter
 ```
 
-The gem needs Ruby 3.4 or later, as hegeltest 0.4 does.
+Trace replay and the model load with `require "quint_driver"`. They need Ruby 3.3 or later and no other gem.
+
+The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 0.4.1, which needs Ruby 3.4 or later. The gem does not depend on hegeltest, so add it to your own Gemfile.
 
 The gem calls the `quint` command line. Set `QUINT` to the command to use, for example a local install. Without it, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js.
 
@@ -54,6 +57,8 @@ Plain values: a Quint set is a `Set`, a map a `Hash`, a tuple an `Array`, a reco
 ## Run it
 
 ```ruby
+require "quint_driver"
+
 spec = QuintDriver::Spec.new("loans.qnt", main: "loans")
 
 # Trace replay: Quint picks the steps.
@@ -62,6 +67,7 @@ QuintDriver::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") d
 end
 
 # Hegel picks the steps and shrinks a failure.
+require "quint_driver/hegel"
 machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ```
@@ -94,6 +100,14 @@ The model evaluates the operators a command-per-action spec uses: sets, maps, re
 bundle install
 bundle exec bin/test    # Minitest
 bundle exec rspec       # RSpec
+```
+
+The Hegel tests are under `test/hegel/` and `spec/hegel/`. On Ruby 3.3, leave out hegeltest and run the rest:
+
+```sh
+BUNDLE_WITHOUT=hegel bundle install
+BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb
+BUNDLE_WITHOUT=hegel bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
 ```
 
 The tests run `quint`. Set `QUINT` to skip `npx`.

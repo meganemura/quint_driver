@@ -17,10 +17,15 @@ Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に�
 ```ruby
 # Gemfile
 gem "quint_driver", github: "meganemura/quint_driver"
+gem "hegeltest", "= 0.4.1" # Hegel アダプターを使うときだけ
 ```
 
-この gem には Ruby 3.4 以降が必要です。
-hegeltest 0.4 が Ruby 3.4 以降を必要とするためです。
+トレース再生とモデルは `require "quint_driver"` で読み込みます。
+必要なのは Ruby 3.3 以降だけで、ほかの gem は要りません。
+
+Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
+こちらには hegeltest 0.4.1 が必要で、hegeltest は Ruby 3.4 以降を必要とします。
+この gem は hegeltest に依存しないので、自分の Gemfile に追加してください。
 
 この gem は `quint` コマンドを呼びます。
 使うコマンドは `QUINT` で指定します(手元にインストールしたものなど)。
@@ -61,6 +66,8 @@ Quint の集合は `Set`、マップは `Hash`、タプルは `Array`、レコ�
 ## 動かす
 
 ```ruby
+require "quint_driver"
+
 spec = QuintDriver::Spec.new("loans.qnt", main: "loans")
 
 # トレース再生: Quint が手順を選びます。
@@ -69,6 +76,7 @@ QuintDriver::Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1") d
 end
 
 # Hegel が手順を選び、失敗を縮めます。
+require "quint_driver/hegel"
 machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])
 Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ```
@@ -110,6 +118,15 @@ end
 bundle install
 bundle exec bin/test    # Minitest
 bundle exec rspec       # RSpec
+```
+
+Hegel のテストは `test/hegel/` と `spec/hegel/` にあります。
+Ruby 3.3 では hegeltest を除き、残りを動かします。
+
+```sh
+BUNDLE_WITHOUT=hegel bundle install
+BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb
+BUNDLE_WITHOUT=hegel bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
 ```
 
 テストは `quint` を実行します。

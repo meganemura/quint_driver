@@ -1,4 +1,5 @@
-require_relative "test_helper"
+require_relative "../test_helper"
+require "quint_driver/hegel"
 require "stringio"
 
 class MachineTest < Minitest::Test
@@ -12,14 +13,14 @@ class MachineTest < Minitest::Test
     end
 
     define_method(:"test_#{choose}_draws_no_pick_from_an_empty_set") do
-      spec = QuintDriver::Spec.new(File.expand_path("operators.qnt", __dir__), main: "operators")
+      spec = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "operators")
       machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
 
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
     define_method(:"test_#{choose}_stops_a_sequence_where_no_move_is_enabled") do
-      spec = QuintDriver::Spec.new(File.expand_path("operators.qnt", __dir__), main: "countdown")
+      spec = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "countdown")
       machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
 
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }

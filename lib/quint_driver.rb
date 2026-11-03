@@ -2,9 +2,10 @@ require "set"
 
 # Tests a Ruby system against a Quint spec. Two ways share one driver: replay
 # the traces `quint run --mbt` writes (QuintDriver::Trace.replay), or let Hegel
-# choose the steps from the spec's actions (QuintDriver.machine). A driver
-# answers #step(action, picks) by running that command on the system, and
-# #state with the spec's variables as plain Ruby values.
+# choose the steps from the spec's actions (QuintDriver.machine, which
+# `require "quint_driver/hegel"` adds). A driver answers #step(action, picks)
+# by running that command on the system, and #state with the spec's variables
+# as plain Ruby values.
 #
 # Plain values: a Quint set is a Set, a map a Hash, a tuple an Array, a record
 # a Hash with string keys, a sum type its tag, or [tag, value] when it carries
@@ -31,4 +32,3 @@ require_relative "quint_driver/quint"
 require_relative "quint_driver/trace"
 require_relative "quint_driver/spec"
 require_relative "quint_driver/model"
-require_relative "quint_driver/machine"

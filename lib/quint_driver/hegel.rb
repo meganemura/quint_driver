@@ -1,4 +1,7 @@
+# The Hegel adapter. It is the one file that loads hegeltest, which needs
+# Ruby 3.4, so trace replay and the model run without it.
 require "hegel"
+require_relative "../quint_driver"
 
 module QuintDriver
   # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,
