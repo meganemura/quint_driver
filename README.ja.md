@@ -157,6 +157,7 @@ machine 自体には不要です。
 このとき、仕様とシステムはまだ比べられていません。
 メッセージは ``quint: at step 2 `take` {"p" => "ann"}, the step raised KeyError: key not found: "person"`` のようにステップとエラーを示します。
 投げたフレームがドライバーとは別のファイル、例えばシステム自身のメソッドにあるときは、`raised in: lib/desk.rb:9:in 'Desk#take'` のような `raised in:` の行がそのフレームを示します。
+Hegel のもとでは、ステップの番号は Hegel のレポートがその手に付けた番号（`Step 2: take` など）で、再生と同じく `init` はステップ 0 です。
 そのあとに `init` からの手順を並べます。
 再生では、最後に同じ `trace:` の行が付きます。
 バックトレースはそのエラーのもので、`cause` はそのエラーです。

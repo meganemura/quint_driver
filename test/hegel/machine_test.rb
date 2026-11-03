@@ -43,6 +43,8 @@ class MachineTest < Minitest::Test
 
       moves = report.string.scan(/^\s+(borrow\S*|give_back\S*) \{.*\}$/).flatten
       assert_equal %w[borrow borrow_refused], moves
+      step = error.message[/\Aquint: after step (\d+) `borrow_refused` /, 1]
+      assert_equal report.string.scan(/^  Step (\d+): /).flatten.last, step, "the message numbers the move as Hegel's report does"
       assert_match(/outcome: model \["Refused", "limit_reached"\], driver "Done"/, error.message)
       assert_equal [ "init", *moves ], error.message[/^steps:\n((?:  .*\n?)+)/, 1].to_s.lines.map { _1.split.first }
       assert_match(/^  borrow \{"b" => "b\d", "m" => "m\d"\}$/, error.message, "picks print in the order a replay prints them")
@@ -126,12 +128,13 @@ class MachineTest < Minitest::Test
     line = __LINE__ - 1
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
 
+    report = StringIO.new
     error = assert_raises(QuintDriver::DriverFailed) do
-      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+      Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
     first, *steps = error.message.lines
-    assert_match(/\Aquint: at `(give_back\S*)` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"$/, first)
+    assert_match(/\Aquint: at step #{report.string.scan(/^  Step (\d+): /).flatten.last} `(give_back\S*)` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"$/, first)
     assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
     assert_equal KeyError, error.cause.class
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
@@ -145,7 +148,7 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
-    assert_equal "quint: at init, the step raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
+    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
   end
 
@@ -157,7 +160,7 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
-    assert_match(/\Aquint: after init, the driver differs from the model\n  outcome: model "Done", driver "Busy"\nsteps:\n  init \{\}\z/, error.message)
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  outcome: model "Done", driver "Busy"\nsteps:\n  init \{\}\z/, error.message)
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
   end
 

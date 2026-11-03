@@ -25,15 +25,16 @@ RSpec.describe "a lending shelf held to loans.qnt by Hegel" do
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
 
     expect { Hegel.test(**settings, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
-      .to raise_error(QuintDriver::DriverFailed, /\Aquint: at `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
+      .to raise_error(QuintDriver::DriverFailed, /\Aquint: at step 1 `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
   end
+
   it "fails a driver that disagrees at init before Hegel takes a step" do
     busy = Class.new(LoansDriver) { def state = super.merge("outcome" => "Busy") }
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { busy.new })
     report = StringIO.new
 
     expect { Hegel.test(**settings, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) } }
-      .to raise_error(QuintDriver::Mismatch, /\Aquint: after init, /)
+      .to raise_error(QuintDriver::Mismatch, /\Aquint: after step 0 `init` \{\}, /)
     expect(report.string).not_to match(/Step \d/)
   end
 end

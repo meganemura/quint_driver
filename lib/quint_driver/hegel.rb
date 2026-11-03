@@ -30,6 +30,9 @@ module QuintDriver
     fixed = {}.compare_by_identity
 
     init = [ "init", {} ].freeze
+    # A replay names a step by its index in the trace, init being step 0; the
+    # machine names a move by the number Hegel's report gives it.
+    at = ->(number, (action, picks)) { "step #{number} `#{action}` #{Agreement.show(picks)}" }
 
     Class.new(Hegel::StateMachine) do
       # The driver starts with the machine, before Hegel's first step, so a
@@ -40,11 +43,13 @@ module QuintDriver
         @model = spec.model(step)
         @model.step(*init)
         @moves = []
+        @numbers = [] # the Hegel step of each move
+        @step = 0 # every rule Hegel ran, a rejected one too, as its report counts
         @ran = 0 # how many of @moves the driver has run
         next if agreed.include?(@moves)
 
-        actual = Agreement.drive("init", steps: [ init ]) { start_driver.state }
-        Agreement.check!("init", @model.state, actual, by: "model", steps: [ init ])
+        actual = Agreement.drive(at.(0, init), steps: [ init ]) { start_driver.state }
+        Agreement.check!(at.(0, init), @model.state, actual, by: "model", steps: [ init ])
         agreed << []
       end
 
@@ -57,19 +62,20 @@ module QuintDriver
       define_method(:move!) do |action, picks, after|
         @model.enter(after)
         @moves << [ action, Model.plain(picks) ]
+        @numbers << @step
         return if agreed.include?(@moves)
 
-        Agreement.drive("init", steps: [ init ]) { start_driver } unless @driver
+        Agreement.drive(at.(0, init), steps: [ init ]) { start_driver } unless @driver
         # Every move the driver has not run yet, which is more than the last
         # one when the driver skipped a sequence it agreed on.
         while @ran < @moves.size
           move = @moves[@ran]
-          Agreement.drive("`#{move[0]}` #{Agreement.show(move[1])}", steps: [ init, *@moves[..@ran] ]) { @driver.step(*move) }
+          Agreement.drive(at.(@numbers[@ran], move), steps: [ init, *@moves[..@ran] ]) { @driver.step(*move) }
           @ran += 1
         end
-        at = "`#{action}` #{Agreement.show(@moves.last.last)}"
-        actual = Agreement.drive(at, steps: [ init, *@moves ]) { @driver.state }
-        Agreement.check!(at, @model.state, actual, by: "model", steps: [ init, *@moves ])
+        last = at.(@numbers.last, @moves.last)
+        actual = Agreement.drive(last, steps: [ init, *@moves ]) { @driver.state }
+        Agreement.check!(last, @model.state, actual, by: "model", steps: [ init, *@moves ])
         agreed << @moves.dup
       end
 
@@ -77,6 +83,7 @@ module QuintDriver
       when :rule
         rules.each do |rule|
           rule(rule.action) do |tc|
+            @step += 1
             picks = rule.domains.each_with_object({}) do |(name, domain), chosen|
               choices = fixed.fetch(domain) do
                 sorted = @model.value(domain, chosen, within: rule.within).to_a.sort_by(&:to_s).freeze
@@ -93,6 +100,7 @@ module QuintDriver
         end
       when :rotate
         rule(step) do |tc|
+          @step += 1
           start = tc.draw(integers(min_value: 0, max_value: rules.size - 1), label: "rule")
           moves = rules.rotate(start).lazy.map { @model.moves(_1) }.find(&:any?)
           tc.assume(moves)
