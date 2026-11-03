@@ -19,6 +19,13 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
+    define_method(:"test_#{choose}_hands_a_driver_plain_picks_of_a_sum_type") do
+      spec = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "painting")
+      machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
+
+      Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
     define_method(:"test_#{choose}_stops_a_sequence_where_no_move_is_enabled") do
       spec = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "countdown")
       machine = QuintDriver.machine(spec, driver: -> { spec.model }, choose:)
