@@ -14,3 +14,11 @@ module nested {
   action counting = any { n' = n + 1 }
   action step = any { counting }
 }
+
+// An arm that is a conjunction of assignments, not a call of an action.
+module conjunction {
+  var n: int
+
+  action init = n' = 0
+  action step = any { all { n' = n + 1 } }
+}

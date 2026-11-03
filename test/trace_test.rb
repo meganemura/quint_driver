@@ -169,6 +169,12 @@ class TraceTest < Minitest::Test
     assert_equal "quint: counting assigns n' in an arm that names no action; name every action in step", error.message
   end
 
+  def test_an_arm_that_is_neither_a_call_nor_an_assignment_is_reported_by_its_operator
+    error = assert_raises(QuintDriver::Unsupported) { QuintDriver::Spec.new(ANONYMOUS, main: "conjunction").rules("step") }
+
+    assert_equal "quint: step holds actionAll in an arm that names no action; name every action in step", error.message
+  end
+
   def test_a_step_that_is_no_action_of_the_module_lists_the_actions_it_has
     error = assert_raises(ArgumentError) { QuintDriver::Spec.new(ANONYMOUS, main: "nested").rules("steps") }
 
