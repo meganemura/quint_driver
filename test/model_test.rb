@@ -30,6 +30,21 @@ class ModelTest < Minitest::Test
     assert_equal "quint: no evaluation for operator foldr in summed", error.message
   end
 
+  def test_the_model_names_the_action_that_draws_a_domain_it_cannot_evaluate
+    rule = QuintDriver::Spec.new(OPERATORS, main: "unsupported").rules("step").find { _1.action == "resize" }
+    stepped = assert_raises(QuintDriver::Unsupported) { unsupported.step("resize", { "s" => Set[1] }) }
+    listed = assert_raises(QuintDriver::Unsupported) { unsupported.moves(rule) }
+
+    assert_equal [ "quint: no evaluation for operator powerset in picking" ] * 2, [ stepped.message, listed.message ]
+  end
+
+  def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
+    error = assert_raises(QuintDriver::Unsupported) { unsupported.value({ "kind" => "name", "name" => "nowhere" }) }
+
+    assert_equal "quint: no evaluation for the name nowhere outside any definition; no definition, variable or parameter has it",
+                 error.message
+  end
+
   def test_the_model_refuses_an_operation_quint_leaves_undefined_and_names_the_action_that_holds_it
     halve = assert_raises(QuintDriver::Unsupported) { unsupported.try("halve") }
     first = assert_raises(QuintDriver::Unsupported) { unsupported.try("first") }

@@ -155,7 +155,13 @@ module unsupported {
   action first = all { n' = List().head(), m' = m }
   // Quint drops a variable an action leaves unassigned from the next state.
   action bump = n' = n + 1
-  action step = double
+  action resize(s: Set[int]): bool = all { n' = s.size(), m' = m }
+  // A move's domain is written in the action that draws it, not in step.
+  action picking = any {
+    nondet s = Set(n).powerset().oneOf()
+    resize(s),
+  }
+  action step = any { double, picking }
 }
 
 // After two ticks no move is enabled, so a sequence has to stop there.

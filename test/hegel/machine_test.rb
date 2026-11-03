@@ -74,7 +74,7 @@ class MachineTest < Minitest::Test
     spec.define_singleton_method(:model) do |step|
       super(step).tap do |model|
         model.define_singleton_method(:enter) { |after| events << [ model, :move ]; super(after) }
-        model.define_singleton_method(:value) { |name, *rest| events << [ model, :check ] if name == "one_book_each"; super(name, *rest) }
+        model.define_singleton_method(:value) { |name, *rest, **options| events << [ model, :check ] if name == "one_book_each"; super(name, *rest, **options) }
       end
     end
     machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: %i[one_book_each])

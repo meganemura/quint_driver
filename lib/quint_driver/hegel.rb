@@ -57,11 +57,11 @@ module QuintDriver
         rules.each do |rule|
           rule(rule.action) do |tc|
             picks = rule.domains.each_with_object({}) do |(name, domain), chosen|
-              choices = @model.value(domain, chosen).to_a.sort_by(&:to_s)
+              choices = @model.value(domain, chosen, within: rule.within).to_a.sort_by(&:to_s)
               tc.assume(choices.any?)
               chosen[name] = tc.draw(sampled_from(choices))
             end
-            after = @model.try(rule.action, rule.args.map { @model.value(_1, picks) })
+            after = @model.try(rule.action, rule.args.map { @model.value(_1, picks, within: rule.within) })
             tc.assume(after)
             tc.note { "#{rule.action} #{Model.plain(picks)}" }
             move!(rule.action, picks, after)

@@ -16,13 +16,13 @@ module QuintDriver
     # shape of quint's compiled IR and checks none of it.
     private_class_method :new
 
-    def initialize(declarations, rules, step)
+    def initialize(declarations, rules)
       @defs = declarations.select { _1["kind"] == "def" }.to_h { [ _1["name"], _1 ] }
       @vars = declarations.select { _1["kind"] == "var" }.map { _1["name"] }
       @rules = rules.to_h { [ _1.action, _1 ] }
       @state = {}
       @constant = {}
-      @within = step
+      @within = nil
     end
 
     # The driver protocol. Picks from a trace are plain values; each one
@@ -38,10 +38,10 @@ module QuintDriver
                end
                typed = rule.domains.each_with_object({}) do |(name, domain), chosen|
                  pick = picks.fetch(name) { raise Unsupported, "quint: #{action} needs a pick for #{name}, and the move gives none" }
-                 chosen[name] = value(domain, chosen).find { Model.plain(_1) == pick } ||
+                 chosen[name] = value(domain, chosen, within: rule.within).find { Model.plain(_1) == pick } ||
                                 raise(Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}")
                end
-               rule.args.map { value(_1, typed) }
+               rule.args.map { value(_1, typed, within: rule.within) }
              end
       enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{picks.inspect}"))
     end
@@ -58,7 +58,7 @@ module QuintDriver
         expr = expr["expr"]
       end
       @next = {}
-      return nil unless within(name) { eval(expr, env) }
+      return nil unless inside(name) { eval(expr, env) }
 
       missing = @vars - @next.keys
       raise Unsupported, "quint: #{name} leaves #{missing.join(', ')} unassigned" if missing.any?
@@ -72,15 +72,19 @@ module QuintDriver
     # now, in a fixed order, so the same draw means the same move from the
     # same state.
     def moves(rule)
-      picks_of(rule.domains.to_a, {}).filter_map do |picks|
-        after = try(rule.action, rule.args.map { value(_1, picks) })
+      picks_of(rule, rule.domains.to_a, {}).filter_map do |picks|
+        after = try(rule.action, rule.args.map { value(_1, picks, within: rule.within) })
         [ rule.action, picks, after ] if after
       end
     end
 
-    def value(node_or_name, env = {})
+    # +within+ names the definition that holds +node_or_name+, such as the
+    # Rule#within of a domain or an argument, so an operator it cannot
+    # evaluate is reported there; without it, the message says the node is
+    # outside any definition.
+    def value(node_or_name, env = {}, within: nil)
       node = node_or_name.is_a?(String) ? { "kind" => "name", "name" => node_or_name } : node_or_name
-      eval(node, env)
+      inside(within) { eval(node, env) }
     end
 
     def self.plain(value)
@@ -94,11 +98,11 @@ module QuintDriver
     end
 
     private
-      def picks_of(domains, picks)
+      def picks_of(rule, domains, picks)
         return [ picks ] if domains.empty?
 
         (name, domain), *rest = domains
-        value(domain, picks).to_a.sort_by(&:to_s).flat_map { picks_of(rest, picks.merge(name => _1)) }
+        value(domain, picks, within: rule.within).to_a.sort_by(&:to_s).flat_map { picks_of(rule, rest, picks.merge(name => _1)) }
       end
 
       def eval(node, env)
@@ -127,17 +131,17 @@ module QuintDriver
       def defined(name, &missing)
         @constant.fetch(name) do
           definition = @defs.fetch(name, &missing)
-          value = within(name) { eval(definition["expr"], {}) }
+          value = inside(name) { eval(definition["expr"], {}) }
           constant = %w[pureval puredef].include?(definition["qualifier"]) || definition["expr"]["kind"] == "lambda"
           constant ? @constant[name] = value.freeze : value
         end
       end
 
       def call(closure, args)
-        within(closure.within) { eval(closure.body, closure.env.merge(closure.params.zip(args).to_h)) }
+        inside(closure.within) { eval(closure.body, closure.env.merge(closure.params.zip(args).to_h)) }
       end
 
-      def within(name)
+      def inside(name)
         outer, @within = @within, name
         yield
       ensure
@@ -145,7 +149,7 @@ module QuintDriver
       end
 
       def refuse(what, why = nil)
-        raise Unsupported, "quint: no evaluation for #{what} in #{@within}#{"; #{why}" if why}"
+        raise Unsupported, "quint: no evaluation for #{what} #{@within ? "in #{@within}" : 'outside any definition'}#{"; #{why}" if why}"
       end
 
       # Quint's builtin docs leave these undefined, and its two evaluators do
