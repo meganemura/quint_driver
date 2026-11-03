@@ -42,11 +42,13 @@ module QuintDriver
         unless @driver
           @driver = driver.call
           @driver.step("init", {})
-          QuintDriver.compare!("init", spec.model(step).tap { _1.step("init", {}) }.state, @driver.state, by: "model")
+          QuintDriver.compare!("init", spec.model(step).tap { _1.step("init", {}) }.state, @driver.state, by: "model",
+                               steps: [ [ "init", {} ] ])
         end
         @moves[@ran..].each { |move| @driver.step(*move) }
         @ran = @moves.size
-        QuintDriver.compare!("`#{action}` #{@moves.last.last.inspect}", @model.state, @driver.state, by: "model")
+        QuintDriver.compare!("`#{action}` #{@moves.last.last.inspect}", @model.state, @driver.state, by: "model",
+                             steps: [ [ "init", {} ], *@moves ])
         agreed << @moves.dup
       end
 

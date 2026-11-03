@@ -37,6 +37,7 @@ class MachineTest < Minitest::Test
       moves = report.string.scan(/^\s+(borrow\S*|give_back\S*) \{.*\}$/).flatten
       assert_equal %w[borrow borrow_refused], moves
       assert_match(/outcome: model \["Refused", "limit_reached"\], driver "Done"/, error.message)
+      assert_equal [ "init", *moves ], error.message[/^steps:\n((?:  .*\n?)+)/, 1].to_s.lines.map { _1.split.first }
     end
   end
 
