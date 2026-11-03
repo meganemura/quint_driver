@@ -25,7 +25,7 @@ module QuintConnectHegel
           node["args"].flat_map { walk.(_1, domains) }
         elsif node["kind"] == "let" && node["opdef"]["qualifier"] == "nondet" && node["opdef"]["expr"]["opcode"] == "oneOf"
           walk.(node["expr"], domains.merge(node["opdef"]["name"] => node["opdef"]["expr"]["args"].first))
-        elsif node["kind"] == "name" && actions.key?(node["name"])
+        elsif actions.key?(node["name"])
           body = actions[node["name"]]["expr"]
           choice.(body) ? walk.(body, domains) : [ Rule.new(node["name"], [], domains) ]
         elsif node["kind"] == "app" && actions.key?(node["opcode"])

@@ -109,3 +109,12 @@ module unsupported {
   action bump = n' = n + 1
   action step = double
 }
+
+// After two ticks no move is enabled, so a sequence has to stop there.
+module countdown {
+  var n: int
+
+  action init = n' = 2
+  action tick = all { n > 0, n' = n - 1 }
+  action step = tick
+}

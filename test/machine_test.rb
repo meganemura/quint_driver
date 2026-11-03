@@ -18,6 +18,13 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
+    define_method(:"test_#{choose}_stops_a_sequence_where_no_move_is_enabled") do
+      spec = QuintConnectHegel::Spec.new(File.expand_path("operators.qnt", __dir__), main: "countdown")
+      machine = QuintConnectHegel.machine(spec, driver: -> { spec.model }, choose:)
+
+      Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
     define_method(:"test_#{choose}_shrinks_a_broken_system_to_two_moves") do
       machine = machine(BrokenLoans, choose)
       report = StringIO.new

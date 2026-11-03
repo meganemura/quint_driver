@@ -87,7 +87,6 @@ module QuintConnectHegel
       end
 
       def call(closure, args)
-        closure = closure.is_a?(Closure) ? closure : raise(Unsupported, "quint: #{closure.inspect} is not an operator")
         eval(closure.body, closure.env.merge(closure.params.zip(args).to_h))
       end
 
@@ -132,8 +131,6 @@ module QuintConnectHegel
         when "matchVariant"
           target = v.(0)
           arm = args.drop(1).each_slice(2).find { |label, _| [ target.tag, "_" ].include?(eval(label, env)) }
-          raise Unsupported, "quint: no match arm for #{target.tag}" unless arm
-
           call(eval(arm[1], env), [ target.value ])
         else
           definition = @defs.fetch(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }
