@@ -56,6 +56,27 @@ class QuintTest < Minitest::Test
 
       error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(invalid) }
       assert_match(/unexpected '='/, error.message)
+
+      mistyped = File.join(dir, "mistyped.qnt")
+      File.write(mistyped, "module mistyped {\n  var n: int\n  action init = n' = \"one\"\n}\n")
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(mistyped) }
+      assert_match(/at the typechecking stage/, error.message)
+      refute_match(/no module is named/, error.message)
+    end
+  end
+
+  def test_with_quint_set_its_failure_is_reported_as_it_printed
+    Dir.mktmpdir do |dir|
+      fake = File.join(dir, "fake-quint")
+      File.write(fake, "#!/bin/sh\necho 'npm error code E404'\nexit 1\n")
+      File.chmod(0o755, fake)
+      previous, ENV["QUINT"] = ENV["QUINT"], fake
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(OPERATORS) }
+      assert_match(/\Aquint compile failed for .* at the start stage\nnpm error code E404\z/, error.message)
+    ensure
+      ENV["QUINT"] = previous
     end
   end
 

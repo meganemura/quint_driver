@@ -13,11 +13,12 @@ class TraceTest < Minitest::Test
       "carrying" => { "tag" => "Refused", "value" => "on_loan" },
       "none" => { "tag" => "None", "value" => { "#tup" => [] } },
       "some" => { "tag" => "Some", "value" => "b1" },
+      "record" => { "value" => { "#bigint" => "2" }, "full" => false },
       "#meta" => { "index" => 0 }
     }
     plain = {
       "set" => Set["a", "b"], "map" => { "k" => 7 }, "tuple" => [ "a", 1 ], "bare" => "Done",
-      "carrying" => [ "Refused", "on_loan" ], "none" => nil, "some" => "b1"
+      "carrying" => [ "Refused", "on_loan" ], "none" => nil, "some" => "b1", "record" => { "value" => 2, "full" => false }
     }
 
     assert_equal plain, QuintDriver::Trace.decode(itf)
