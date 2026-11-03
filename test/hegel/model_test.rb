@@ -15,13 +15,13 @@ class ModelPropertyTest < Minitest::Test
       rules = spec.rules("step")
       names = spec.declarations.select { _1["kind"] == "def" && _1["qualifier"] != "action" && _1["expr"]["kind"] != "lambda" }
                   .map { _1["name"] }
-      read = ->(model) { [ names.map { model.value(_1) }, rules.map { QuintDriver.enabled_moves(model, _1) } ] }
+      read = ->(model) { [ names.map { model.value(_1) }, rules.map { model.moves(_1) } ] }
 
       Hegel.test(**SETTINGS) do |tc|
         model = spec.model
         model.step("init", {})
         tc.draw(integers(min_value: 0, max_value: 20)).times do
-          moves = rules.flat_map { QuintDriver.enabled_moves(model, _1) }
+          moves = rules.flat_map { model.moves(_1) }
           break if moves.empty?
 
           read.(model)

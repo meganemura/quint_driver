@@ -99,6 +99,10 @@ class MachineTest < Minitest::Test
     assert_equal "quint: the model broke `nothing_on_loan`", error.message
   end
 
+  def test_the_adapter_adds_only_the_machine_to_quint_driver
+    assert_equal %i[machine], QuintDriver.singleton_methods.sort
+  end
+
   private
     def machine(system, choose)
       QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new(system) }, choose:)

@@ -65,6 +65,16 @@ module QuintDriver
 
     def enter(state) = @state = state
 
+    # Every [action, picks, next state] that +rule+, a Spec::Rule, allows
+    # now, in a fixed order, so the same draw means the same move from the
+    # same state.
+    def moves(rule)
+      picks_of(rule.domains.to_a, {}).filter_map do |picks|
+        after = try(rule.action, rule.args.map { value(_1, picks) })
+        [ rule.action, picks, after ] if after
+      end
+    end
+
     def value(node_or_name, env = {})
       node = node_or_name.is_a?(String) ? { "kind" => "name", "name" => node_or_name } : node_or_name
       eval(node, env)
@@ -81,6 +91,13 @@ module QuintDriver
     end
 
     private
+      def picks_of(domains, picks)
+        return [ picks ] if domains.empty?
+
+        (name, domain), *rest = domains
+        value(domain, picks).to_a.sort_by(&:to_s).flat_map { picks_of(rest, picks.merge(name => _1)) }
+      end
+
       def eval(node, env)
         case node["kind"]
         when "str", "int", "bool" then node["value"]

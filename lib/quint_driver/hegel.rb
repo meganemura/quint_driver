@@ -70,7 +70,7 @@ module QuintDriver
       when :rotate
         rule(step) do |tc|
           start = tc.draw(integers(min_value: 0, max_value: rules.size - 1))
-          moves = rules.rotate(start).lazy.map { QuintDriver.enabled_moves(@model, _1) }.find(&:any?)
+          moves = rules.rotate(start).lazy.map { @model.moves(_1) }.find(&:any?)
           tc.assume(moves)
           action, picks, after = tc.draw(sampled_from(moves))
           tc.note { "#{action} #{Model.plain(picks)}" }
@@ -87,21 +87,5 @@ module QuintDriver
         end
       end
     end
-  end
-
-  # Every [action, picks, next state] +rule+ allows now, in a fixed order, so
-  # the same draw means the same move from the same state.
-  def self.enabled_moves(model, rule)
-    picks_of(model, rule.domains.to_a, {}).filter_map do |picks|
-      after = model.try(rule.action, rule.args.map { model.value(_1, picks) })
-      [ rule.action, picks, after ] if after
-    end
-  end
-
-  def self.picks_of(model, domains, picks)
-    return [ picks ] if domains.empty?
-
-    (name, domain), *rest = domains
-    model.value(domain, picks).to_a.sort_by(&:to_s).flat_map { picks_of(model, rest, picks.merge(name => _1)) }
   end
 end

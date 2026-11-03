@@ -56,6 +56,22 @@ class ModelTest < Minitest::Test
     assert_nil model.try("give_back", %w[b1])
   end
 
+  def test_the_model_lists_the_moves_each_rule_allows_now
+    spec = LoansDriver.spec
+    model = spec.model
+    model.step("init", {})
+    moves = spec.rules("step").to_h { |rule| [ rule.action, model.moves(rule).map { |action, picks, _| [ action, picks ] } ] }
+
+    lend = %w[m1 m2].product(%w[b1 b2 b3]).map { |m, b| [ "borrow", { "m" => m, "b" => b } ] }
+    refuse = %w[b1 b2 b3].map { [ "give_back_refused", { "b" => _1 } ] }
+    assert_equal({ "borrow" => lend, "borrow_refused" => [], "give_back" => [], "give_back_refused" => refuse }, moves)
+
+    action, picks, after = model.moves(spec.rules("step").first).first
+    model.enter(after)
+    assert_equal({ "b1" => "m1", "b2" => "", "b3" => "" }, model.state["holder"])
+    assert_equal [ "borrow", { "m" => "m1", "b" => "b1" } ], [ action, picks ]
+  end
+
   def test_the_model_refuses_a_disabled_step
     model = LoansDriver.spec.model
     model.step("init", {})

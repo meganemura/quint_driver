@@ -133,6 +133,8 @@ The model evaluates the operators a command-per-action spec uses: sets, maps, re
 
 `Spec#model` is the one way to build a model; `Model.new` is private, because the model trusts the shape of quint's compiled IR. A trace gives each pick as a plain value, and the model takes the value of the pick's domain that reads the same, so a pick of a sum type works in `match`.
 
+`model.moves(rule)` lists every move a rule of `spec.rules("step")` allows in the model's current state, as `[action, picks, next state]` in a fixed order. `model.enter(next_state)` takes one. The Hegel machine draws its moves this way.
+
 ## Development
 
 ```sh
