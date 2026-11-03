@@ -19,6 +19,9 @@ Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に�
 gem "quint_connect_hegel", github: "meganemura/quint-connect-hegel-ruby"
 ```
 
+この gem には Ruby 3.4 以降が必要です。
+hegeltest 0.4 が Ruby 3.4 以降を必要とするためです。
+
 この gem は `quint` コマンドを呼びます。
 使うコマンドは `QUINT` で指定します(手元にインストールしたものなど)。
 指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js が必要です。

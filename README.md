@@ -17,6 +17,8 @@ The spec is read from Quint's JSON IR and evaluated inside the Ruby process, so 
 gem "quint_connect_hegel", github: "meganemura/quint-connect-hegel-ruby"
 ```
 
+The gem needs Ruby 3.4 or later, as hegeltest 0.4 does.
+
 The gem calls the `quint` command line. Set `QUINT` to the command to use, for example a local install. Without it, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js.
 
 ## Write a driver

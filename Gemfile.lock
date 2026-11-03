@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     quint_connect_hegel (0.1.0)
-      hegeltest (= 0.1.1)
+      hegeltest (= 0.4.1)
 
 GEM
   remote: https://rubygems.org/
@@ -13,13 +13,13 @@ GEM
     ffi (1.17.4-aarch64-linux-gnu)
     ffi (1.17.4-arm64-darwin)
     ffi (1.17.4-x86_64-linux-gnu)
-    hegeltest (0.1.1)
+    hegeltest (0.4.1)
       ffi (~> 1.17, >= 1.17.4)
-    hegeltest (0.1.1-aarch64-linux)
+    hegeltest (0.4.1-aarch64-linux)
       ffi (~> 1.17, >= 1.17.4)
-    hegeltest (0.1.1-arm64-darwin)
+    hegeltest (0.4.1-arm64-darwin)
       ffi (~> 1.17, >= 1.17.4)
-    hegeltest (0.1.1-x86_64-linux)
+    hegeltest (0.4.1-x86_64-linux)
       ffi (~> 1.17, >= 1.17.4)
     minitest (6.0.6)
       drb (~> 2.0)
@@ -58,10 +58,10 @@ CHECKSUMS
   ffi (1.17.4-aarch64-linux-gnu) sha256=b208f06f91ffd8f5e1193da3cae3d2ccfc27fc36fba577baf698d26d91c080df
   ffi (1.17.4-arm64-darwin) sha256=19071aaf1419251b0a46852abf960e77330a3b334d13a4ab51d58b31a937001b
   ffi (1.17.4-x86_64-linux-gnu) sha256=9d3db14c2eae074b382fa9c083fe95aec6e0a1451da249eab096c34002bc752d
-  hegeltest (0.1.1) sha256=3dd742ea68c08e2df569d275c0e98d74918806eb11f4885b1097846075e19898
-  hegeltest (0.1.1-aarch64-linux) sha256=9a52c25200b09930cac91a2056005cbdb778962aa07049f5e1e9dd7b74e88891
-  hegeltest (0.1.1-arm64-darwin) sha256=885c9b16fb3aaee5f2c5c6ab3d2b2d990c536334f78f3c21ebd456defa4115e0
-  hegeltest (0.1.1-x86_64-linux) sha256=1d16acb3841db1f1fc06ff00ce3af045c7861c92f7641f9f22c765e2c23d74ab
+  hegeltest (0.4.1) sha256=22c879ead29e092182d4ae6bb7514a3013e564f245e91b568c1d7da968836fcb
+  hegeltest (0.4.1-aarch64-linux) sha256=fa9a8373f34f8488a4f9c35c5f55d549b777547f6402dbef3e2d6721083ce3c1
+  hegeltest (0.4.1-arm64-darwin) sha256=44ed3c9b861f562e2c7781741a58331b262651c8cf87ec4cebca8d0be30927d0
+  hegeltest (0.4.1-x86_64-linux) sha256=65791b3a601da9f3d8d8c060890276fd5368859f179656eff474fcfb55b9b68c
   minitest (6.0.6) sha256=153ea36d1d987a62942382b61075745042a2b3123b1cd48f4c3675af9cc7d6f1
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
   quint_connect_hegel (0.1.0)

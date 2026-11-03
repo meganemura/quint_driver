@@ -74,8 +74,10 @@ module QuintConnectHegel
       else raise ArgumentError, "quint: choose is :rule or :rotate"
       end
 
+      # Hegel samples an invariant between moves unless always_run is set;
+      # an invariant here holds after every move.
       invariants.each do |name|
-        invariant(name) do
+        invariant(name, always_run: true) do
           raise Mismatch, "quint: the model broke `#{name}`" unless @model.value(name.to_s) == true
         end
       end
