@@ -72,6 +72,29 @@ class ListPropertyTest < Minitest::Test
     end
   end
 
+  # Both of Quint's evaluators truncate / and % toward zero, Ruby floors, and
+  # Quint's docs define neither on a negative operand, so the model answers
+  # only where the operands are not negative and the divisor is not zero.
+  # Probed on quint 0.33.0: -7 % 2 is -1 under --backend rust and typescript,
+  # 7 % -2 is 1, and 7 % 0 is a runtime error.
+  def test_division_and_remainder_answer_only_on_operands_both_evaluators_agree_on
+    model = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "operators").model
+
+    Hegel.test(test_cases: 300, seed: 1) do |tc|
+      a, b = tc.draw(integers(min_value: -9, max_value: 9)), tc.draw(integers(min_value: -9, max_value: 9))
+      truncated = b.zero? ? nil : (a.abs / b.abs) * (a * b).then { _1.negative? ? -1 : 1 }
+      expected = { "idiv" => truncated, "imod" => truncated && a - b * truncated }
+      expected.each do |opcode, want|
+        got = begin
+          model.value(app(opcode, int(a), int(b)))
+        rescue QuintDriver::Unsupported
+          :refused
+        end
+        assert_equal(a.negative? || b.negative? || b.zero? ? :refused : want, got, "#{a} #{opcode} #{b}")
+      end
+    end
+  end
+
   private
     def app(opcode, *args) = { "kind" => "app", "opcode" => opcode, "args" => args }
     def ref(name) = { "kind" => "name", "name" => name }

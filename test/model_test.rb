@@ -47,9 +47,11 @@ class ModelTest < Minitest::Test
 
   def test_the_model_refuses_an_operation_quint_leaves_undefined_and_names_the_action_that_holds_it
     halve = assert_raises(QuintDriver::Unsupported) { unsupported.try("halve") }
+    parity = assert_raises(QuintDriver::Unsupported) { unsupported.try("parity") }
     first = assert_raises(QuintDriver::Unsupported) { unsupported.try("first") }
 
     assert_equal "quint: no evaluation for -1 / 2 in halve; Quint documents no rounding for a negative operand", halve.message
+    assert_equal "quint: no evaluation for -1 % 2 in parity; Quint documents no rounding for a negative operand", parity.message
     assert_equal "quint: no evaluation for head of an empty list in first; Quint leaves it undefined", first.message
   end
 

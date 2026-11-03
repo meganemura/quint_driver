@@ -26,7 +26,7 @@ module operators {
 type ListFacts = {
     first: int, rest: List[int], len: int, last: int, positions: Set[int], replaced: List[int],
     after: List[int], upTo: List[int], big: List[int], digits: int, joined: List[int], negated: int,
-    product: int, half: int, span: Set[int], weighed: int,
+    product: int, half: int, left: int, span: Set[int], weighed: int,
   }
   
   // q.append(a) is never empty, so head, tail and nth are defined on it.
@@ -48,6 +48,7 @@ type ListFacts = {
       negated: -a,
       product: a * l.length(),
       half: (a + l.length()) / 2,
+      left: (a + l.length()) % 3,
       span: (-a).to(a),
       weighed: l.indices().fold(0, (acc, i) => acc + i * l.nth(i)),
     }
@@ -149,8 +150,9 @@ module unsupported {
   // Quint's builtin docs leave foldr undocumented.
   pure def summed(l: List[int]): int = l.foldr(0, (x, acc) => x + acc)
   action double = all { n' = summed([n, n]), m' = m }
-  // Quint documents no rounding for a negative operand of /.
+  // Quint documents no rounding for a negative operand of / or %.
   action halve = all { n' = (-n) / 2, m' = m }
+  action parity = all { n' = (-n) % 2, m' = m }
   // Quint leaves the head of an empty list undefined.
   action first = all { n' = List().head(), m' = m }
   // Quint drops a variable an action leaves unassigned from the next state.

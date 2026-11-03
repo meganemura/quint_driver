@@ -165,12 +165,12 @@ module QuintDriver
 
       def nonempty!(list, op) = list.empty? ? undefined("#{op} of an empty list") : list
 
-      # Quint documents no rounding: its evaluators truncate toward zero, and
-      # Ruby's Integer#/ floors, so only operands where the two agree are
-      # evaluated.
-      def divide(a, b)
-        refuse("#{a} / #{b}", "Quint documents no rounding for a negative operand") if a.negative? || b.negative?
-        b.zero? ? undefined("#{a} / 0") : a / b
+      # Quint documents no rounding: its evaluators truncate / and % toward
+      # zero, and Ruby's Integer#/ and #% floor, so only operands where the
+      # two agree are evaluated.
+      def divide(a, b, op)
+        refuse("#{a} #{op} #{b}", "Quint documents no rounding for a negative operand") if a.negative? || b.negative?
+        b.zero? ? undefined("#{a} #{op} 0") : a.public_send(op, b)
       end
 
       def apply(op, args, env)
@@ -199,7 +199,8 @@ module QuintDriver
         when "iadd" then a + b
         when "isub" then a - b
         when "imul" then a * b
-        when "idiv" then divide(a, b)
+        when "idiv" then divide(a, b, "/")
+        when "imod" then divide(a, b, "%")
         when "iuminus" then -a
         when "to" then a <= b ? (a..b).to_set : undefined("#{a}.to(#{b})")
         # A set's fold order is unspecified, so Quint leaves a fold whose

@@ -178,11 +178,13 @@ end
 リストは Ruby の Array になります。
 リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl` を評価します。
 整数では `+`、`-`、`*`、単項の `-`、比較を評価します。
-`/` は両辺が負でないときだけ評価します。
+`/` と `%` は両辺が負でないときだけ評価します。
 Quint は負の値を割ったときの丸めを決めていないからです。
+Quint の二つの評価器はゼロに向けて切り捨て（`-7 % 2` は `-1`）、Ruby は小さい方へ丸めます（`-7 % 2` は `1`）。
+そのため、モデルは違う答えを出さずに、負の値を断ります。
 空のリストの `head` や、末尾より先の `nth` のように、Quint のドキュメントが未定義とする演算では、モデルは答えを選ばずに `QuintDriver::Unsupported` を投げます。
 ただし `slice(l, l.length(), l.length())` は、Quint の二つの評価器と同じく `[]` です。
-`foldr` や `%` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+`foldr` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
 メッセージには、その演算子を書いたアクションか定義の名前が入ります。
 例えば `quint: no evaluation for operator foldr in summed` です。
