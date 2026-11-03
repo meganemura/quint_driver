@@ -75,6 +75,35 @@ class TraceTest < Minitest::Test
     assert_equal inside, outside.message
   end
 
+  def test_a_mismatch_your_own_code_raises_inside_simulate_names_the_trace_it_was_yielding
+    names = []
+    error = assert_raises(QuintDriver::Mismatch) do
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 5, seed: "1") do |path|
+        names << File.basename(path)
+        raise QuintDriver::Mismatch, "quint: the ledger lost a loan" if names.size == 2
+      end
+    end
+
+    call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 3, max_steps: 5, seed: "1", step: "step", backend: "rust"))
+    assert_equal [ names.last, "1", call ], [ File.basename(error.trace), error.seed, error.simulate ]
+    assert_equal "quint: the ledger lost a loan\ntrace: #{names.last} of #{call}", error.message
+    assert_nil error.cause
+  end
+
+  def test_a_mismatch_your_own_code_raises_inside_simulate_keeps_its_class_and_cause
+    lost = Class.new(QuintDriver::Mismatch)
+    error = assert_raises(lost) do
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 1, max_steps: 2, seed: "1") do
+        raise KeyError, "b9"
+      rescue KeyError
+        raise lost, "quint: the ledger lost a loan"
+      end
+    end
+
+    assert_equal "b9", error.cause.message
+    assert_match(/\Atrace: trace_0\.itf\.json of /, error.message.lines.last)
+  end
+
   def test_a_mismatch_on_a_trace_file_of_your_own_names_its_path
     kept = File.join(Dir.mktmpdir("kept"), "broken.itf.json")
     QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|

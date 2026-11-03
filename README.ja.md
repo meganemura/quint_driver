@@ -137,6 +137,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 例えば `trace: trace_0.itf.json of Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1", step: "step", backend: "rust")` です。
 ブロックの中で捕まえても、メッセージは同じです。
 同じ事柄を `trace`、`seed`、`simulate` としても持っています。
+ブロックの中で自分のコードが投げた `Mismatch` も、ブロックを出るときに同じ `trace:` の行を得ます。
+例えば、再生のあとに自分で確かめた結果です。
 自分で用意したトレースファイルを再生したときは、そのパスを示します。
 再生の様子を見るときは `Trace.replay` に `log: $stdout` を渡します。
 ドライバーが動かす前に、`step 1 borrow {"b" => "b1", "m" => "m2"}` のように各ステップを書き出します。

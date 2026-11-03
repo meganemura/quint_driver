@@ -134,6 +134,10 @@ class ModelTest < Minitest::Test
     assert_equal %i[Mismatch Model Quint QuintFailed Spec Trace Unsupported VERSION], QuintDriver.constants.sort
   end
 
+  def test_which_trace_a_simulate_block_is_yielding_is_not_part_of_the_api
+    assert_equal %i[command compile evaluator simulate], QuintDriver::Quint.singleton_methods.sort
+  end
+
   private
     def unsupported
       QuintDriver::Spec.new(OPERATORS, main: "unsupported").model.tap { _1.step("init", {}) }

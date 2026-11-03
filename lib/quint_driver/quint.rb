@@ -69,6 +69,9 @@ module QuintDriver
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
           @simulated[trace] = { seed:, simulate: call }
           yield trace
+        rescue Mismatch => mismatch
+          name_trace(mismatch, trace)
+          raise
         ensure
           @simulated.delete(trace)
         end
@@ -76,9 +79,14 @@ module QuintDriver
     end
     @simulated = {}
 
-    # The seed and the call of the simulate block that is yielding +trace+,
-    # or nil.
-    def self.simulated(trace) = @simulated[trace]
+    # Names +trace+ on a +mismatch+ that names none and, while a simulate
+    # block is yielding it, the seed and the call that write it again. The
+    # Mismatch keeps its class, backtrace and cause. Trace.replay calls it
+    # too, so a block that rescues a replay's Mismatch reads what the caller
+    # of simulate reads.
+    def self.name_trace(mismatch, trace)
+      mismatch.send(:name_trace, trace, **@simulated[trace].to_h) unless mismatch.trace
+    end
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
     # Its stdin format is not a documented interface, so the gem reads only
@@ -153,6 +161,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :capture, :compile_now, :evaluator_input, :write_traces
+    private_class_method :capture, :compile_now, :evaluator_input, :name_trace, :write_traces
   end
 end

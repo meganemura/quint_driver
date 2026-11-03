@@ -28,6 +28,9 @@ module QuintDriver
 
       "#{super}\ntrace: #{simulate ? "#{File.basename(trace)} of #{simulate}" : trace}"
     end
+
+    private
+      def name_trace(trace, seed: nil, simulate: nil) = (@trace, @seed, @simulate = trace, seed, simulate)
   end
 
   # The quint command failed. The message holds its output.

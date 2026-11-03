@@ -132,7 +132,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 
 - Each line before `steps:` names one variable that differs. `trace`, or `model` under Hegel, is what the spec says. `driver` is what the system did.
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
-- `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`.
+- `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too.
 - Under Hegel, `steps:` is the shrunk sequence.
 
 | Error | Cause |

@@ -16,7 +16,6 @@ module QuintDriver
     # +log+, an IO such as $stdout, gets each step before the driver runs it.
     def self.replay(path, driver, log: nil)
       ran = []
-      origin = { trace: path, **Quint.simulated(path).to_h }
       steps(path).each do |step|
         # An unnamed action names no command for the driver to run.
         raise Unsupported, "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
@@ -27,11 +26,8 @@ module QuintDriver
         Agreement.check!("step #{step.index} `#{step.action}` #{step.picks.inspect}", step.expected, driver.state, by: "trace", steps: ran)
       end
     rescue Mismatch => mismatch
-      raise if mismatch.trace
-
-      named = Mismatch.new(mismatch.reason, **origin)
-      named.set_backtrace(mismatch.backtrace)
-      raise named, cause: nil
+      Quint.send(:name_trace, mismatch, path)
+      raise
     end
 
     # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
