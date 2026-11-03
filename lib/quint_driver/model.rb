@@ -43,7 +43,7 @@ module QuintDriver
                end
                rule.args.map { value(_1, typed, within: rule.within) }
              end
-      enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{picks.inspect}"))
+      enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{Agreement.show(picks)}"))
     end
 
     def state = Model.plain(@state)

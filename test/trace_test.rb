@@ -46,7 +46,7 @@ class TraceTest < Minitest::Test
     assert_match(/\Aquint: after step \d+ `borrow_refused` \{.*\}, the driver differs from the trace$/, error.message.lines.first)
     refute_includes error.message, File.dirname(error.trace), "the trace directory is gone once simulate returns"
     assert_nil error.cause, "Ruby prints a cause with the path of the trace"
-    steps = ran.drop(ran.rindex { _1.first == "init" }).map { |action, picks| "  #{action} #{picks.inspect}" }
+    steps = ran.drop(ran.rindex { _1.first == "init" }).map { |action, picks| "  #{action} {#{picks.sort.map { |k, v| "#{k.inspect} => #{v.inspect}" }.join(", ")}}" }
     assert_includes error.message, "steps:\n#{steps.join("\n")}\n"
     call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
     trace = File.basename(error.trace)
@@ -117,6 +117,22 @@ class TraceTest < Minitest::Test
     assert_equal "trace: #{kept}", error.message.lines.last
   ensure
     FileUtils.rm_rf(File.dirname(kept))
+  end
+
+  def test_a_mismatch_prints_a_record_with_its_keys_in_one_order_on_both_sides
+    spec = QuintDriver::Spec.new(File.expand_path("operators.qnt", __dir__), main: "operators")
+    reversed = Class.new do
+      define_method(:initialize) { @model = spec.model }
+      define_method(:step) { |action, picks| @model.step(action, picks) }
+      define_method(:state) { { "count" => @model.state["count"].then { { "value" => _1["value"] + 1, "full" => _1["full"] } } } }
+    end
+    error = assert_raises(QuintDriver::Mismatch) do
+      QuintDriver::Quint.simulate(File.expand_path("operators.qnt", __dir__), main: "operators", traces: 1, max_steps: 1, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, reversed.new)
+      end
+    end
+
+    assert_includes error.message, %(  count: trace {"full" => false, "value" => 0}, driver {"full" => false, "value" => 1}\n)
   end
 
   def test_a_driver_is_held_only_to_the_variables_it_reports

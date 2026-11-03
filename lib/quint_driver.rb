@@ -53,11 +53,21 @@ module QuintDriver
 
       diff = actual.keys.reject { expected[_1] == actual[_1] }
                    .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
-      ran = steps.map { |action, picks| "  #{action} #{picks.inspect}" }
+      ran = steps.map { |action, picks| "  #{action} #{show(picks)}" }
       raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\nsteps:\n#{ran.join("\n")}"
     end
 
-    def self.show(value) = value.is_a?(Set) ? "{#{value.map { show(_1) }.sort.join(', ')}}" : value.inspect
+    # A plain value as a failure prints it: a set's elements and a hash's
+    # keys sorted, so the spec's side and the driver's side, and a replay and
+    # the machine, print the same value the same way on every Ruby.
+    def self.show(value)
+      case value
+      when Set then "{#{value.map { show(_1) }.sort.join(', ')}}"
+      when Hash then "{#{value.map { |k, v| [ show(k), show(v) ] }.sort.map { "#{_1} => #{_2}" }.join(', ')}}"
+      when Array then "[#{value.map { show(_1) }.join(', ')}]"
+      else value.inspect
+      end
+    end
   end
   private_constant :Agreement
 end

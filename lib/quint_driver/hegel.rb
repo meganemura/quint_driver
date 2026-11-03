@@ -47,7 +47,7 @@ module QuintDriver
         end
         @moves[@ran..].each { |move| @driver.step(*move) }
         @ran = @moves.size
-        Agreement.check!("`#{action}` #{@moves.last.last.inspect}", @model.state, @driver.state, by: "model",
+        Agreement.check!("`#{action}` #{Agreement.show(@moves.last.last)}", @model.state, @driver.state, by: "model",
                              steps: [ [ "init", {} ], *@moves ])
         agreed << @moves.dup
       end
