@@ -19,8 +19,12 @@ module QuintDriver
         return ir if status.success? && ir.key?("modules")
 
         # With --out, quint writes its errors into the file and prints nothing;
-        # a missing spec leaves no error at all, only the stage it stopped at.
-        reasons = [ output.strip, *ir.fetch("errors", []).map { _1["explanation"] } ].reject(&:empty?)
+        # a missing spec leaves no error at all, only the stage it stopped at,
+        # and a missing module only the modules the file has.
+        modules = ir.fetch("modules", []).map { _1["name"] }
+        wanted = main || File.basename(path, ".qnt")
+        missing = "no module is named #{wanted}; #{path} has #{modules.join(', ')}" if modules.any? && !modules.include?(wanted)
+        reasons = [ output.strip, *ir.fetch("errors", []).map { _1["explanation"] }, missing.to_s ].reject(&:empty?)
         raise QuintFailed, "quint compile failed for #{path} at the #{ir.fetch('stage', 'start')} stage\n#{reasons.join("\n")}"
       end
     end

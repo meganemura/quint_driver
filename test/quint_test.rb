@@ -64,4 +64,20 @@ class QuintTest < Minitest::Test
       QuintDriver::Quint.simulate(MISSING, traces: 1, max_steps: 1, seed: "1") { flunk "no trace for a missing spec" }
     end
   end
+
+  def test_a_spec_that_names_no_module_of_its_file_lists_the_modules_it_has
+    error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Spec.new(OPERATORS, main: "nope") }
+
+    assert_match(/no module is named nope; .*operators\.qnt has operators, unsupported, countdown, painting/, error.message)
+  end
+
+  def test_compiling_a_file_with_no_module_named_after_it_lists_the_modules_it_has
+    Dir.mktmpdir do |dir|
+      several = File.join(dir, "several.qnt")
+      File.write(several, File.read(OPERATORS))
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(several) }
+      assert_match(/no module is named several; .*several\.qnt has operators, unsupported, countdown, painting/, error.message)
+    end
+  end
 end
