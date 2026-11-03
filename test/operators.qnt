@@ -140,3 +140,14 @@ module painting {
     any { paint(c) }
   }
 }
+
+// A step whose one move leaves m unassigned, which Quint allows and the
+// model refuses rather than guess at m's next value.
+module unassigned {
+  var n: int
+  var m: int
+
+  action init = all { n' = 0, m' = 0 }
+  action bump = n' = n + 1
+  action step = any { bump }
+}

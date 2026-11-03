@@ -91,6 +91,13 @@ class ModelTest < Minitest::Test
     assert_equal "quint: borrow needs a pick for b, and the move gives none", error.message
   end
 
+  def test_the_model_refuses_a_move_that_leaves_a_variable_unassigned
+    model = QuintDriver::Spec.new(OPERATORS, main: "unassigned").model
+    model.step("init", {})
+
+    error = assert_raises(QuintDriver::Unsupported) { model.step("bump", {}) }
+    assert_equal "quint: bump leaves m unassigned", error.message
+  end
 
   def test_a_model_comes_only_from_a_spec
     error = assert_raises(NoMethodError) { QuintDriver::Model.new([ { "kind" => "def", "name" => "init" } ], []) }
