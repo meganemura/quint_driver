@@ -29,7 +29,8 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 
 この gem は `quint` コマンドを呼びます。
 使うコマンドは `QUINT` で指定します(手元にインストールしたものなど)。
-指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js が必要です。
+指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js と、初回は npm レジストリへの接続が必要です。
+オフラインなどで npx が quint を取得できないときは、そのことを伝えて `QUINT` の指定を促す `QuintDriver::QuintFailed` を投げます。
 
 ### エージェント向けのスキル
 

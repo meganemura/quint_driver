@@ -80,4 +80,19 @@ class QuintTest < Minitest::Test
       assert_match(/no module is named several; .*several\.qnt has operators, unsupported, countdown, painting/, error.message)
     end
   end
+
+  def test_without_quint_set_a_failed_fetch_says_npx_could_not_fetch_quint
+    Dir.mktmpdir do |dir|
+      previous = ENV.to_h.slice("QUINT", "npm_config_registry", "npm_config_cache", "npm_config_fetch_retries")
+      ENV.delete("QUINT")
+      ENV.update("npm_config_registry" => "http://127.0.0.1:9/", "npm_config_cache" => dir, "npm_config_fetch_retries" => "0")
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(OPERATORS) }
+      assert_match(/\Aquint: QUINT is unset, and `npx --yes @informalsystems\/quint@0\.33\.0` could not fetch quint/, error.message)
+      assert_match(/set QUINT/, error.message)
+      refute_match(/^npm error/, error.message)
+    ensure
+      %w[QUINT npm_config_registry npm_config_cache npm_config_fetch_retries].each { ENV[_1] = previous[_1] }
+    end
+  end
 end

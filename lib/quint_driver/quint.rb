@@ -52,7 +52,13 @@ module QuintDriver
     end
 
     def self.capture(arguments)
-      Open3.capture2e("#{command} #{arguments}")
+      output, status = Open3.capture2e("#{command} #{arguments}")
+      # Only npm prefixes its lines with "npm error", so these mean npx did
+      # not get as far as running quint.
+      fetch = output[/^npm (?:error|ERR!) code .*/] if !status.success? && !ENV.key?("QUINT")
+      raise QuintFailed, "quint: QUINT is unset, and `#{command}` could not fetch quint (#{fetch}); install quint and set QUINT to its command" if fetch
+
+      [ output, status ]
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
