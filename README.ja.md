@@ -176,7 +176,10 @@ end
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
 集合 (`fold` と `i.to(j)` を含む)、マップ、レコード、タプル、リスト、`match` 付きの直和型、整数、真偽値です。
 リストは Ruby の Array になります。
-リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl` を評価します。
+リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl`、`foldr` を評価します。
+Quint の組み込みのドキュメントに `foldr` はありません。
+ただし Quint の二つの評価器はどちらも右から畳み込み、要素を先に渡します（`(x, acc) => ...`）。
+モデルも同じようにします。
 整数では `+`、`-`、`*`、単項の `-`、比較を評価します。
 `/` と `%` は両辺が負でないときだけ評価します。
 Quint は負の値を割ったときの丸めを決めていないからです。
@@ -184,10 +187,10 @@ Quint の二つの評価器はゼロに向けて切り捨て（`-7 % 2` は `-1`
 そのため、モデルは違う答えを出さずに、負の値を断ります。
 空のリストの `head` や、末尾より先の `nth` のように、Quint のドキュメントが未定義とする演算では、モデルは答えを選ばずに `QuintDriver::Unsupported` を投げます。
 ただし `slice(l, l.length(), l.length())` は、Quint の二つの評価器と同じく `[]` です。
-`foldr` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
+`powerset` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。
 メッセージには、その演算子を書いたアクションか定義の名前が入ります。
-例えば `quint: no evaluation for operator foldr in summed` です。
+例えば `quint: no evaluation for operator powerset in subsets` です。
 nondet の定義域にある演算子では、それを選ぶアクションを示します。
 `step` がその場で開くアクションのこともあります。
 

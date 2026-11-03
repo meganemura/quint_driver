@@ -41,6 +41,9 @@ class ListPropertyTest < Minitest::Test
   # Each list operator gives what Quint's builtin docs say on any list, and is
   # refused exactly where the docs leave it undefined. slice also takes
   # i == l.length(), which both of Quint's evaluators answer with [].
+  # foldr is in neither the builtin docs nor builtin.qnt, but both evaluators
+  # define it the same way: [4, 5, 6].foldr(0, (x, acc) => acc * 10 + x) is
+  # 654 under --backend rust and typescript, and [].foldr(z, f) is z.
   def test_the_list_operators_agree_with_quints_docs_on_every_list
     model = QuintDriver::Spec.new(File.expand_path("../operators.qnt", __dir__), main: "operators").model
     ints = integers(min_value: -2, max_value: 9)
@@ -59,7 +62,8 @@ class ListPropertyTest < Minitest::Test
         app("nth", l, int(i)) => inside ? list[i] : :undefined,
         app("replaceAt", l, int(i), int(x)) => inside ? list.each_with_index.map { |e, k| k == i ? x : e } : :undefined,
         app("slice", l, int(i), int(j)) => i >= 0 && i <= j && j <= list.size ? list.drop(i).take(j - i) : :undefined,
-        app("range", int(i), int(j)) => i <= j ? Array.new(j - i) { i + _1 } : :undefined
+        app("range", int(i), int(j)) => i <= j ? Array.new(j - i) { i + _1 } : :undefined,
+        app("foldr", l, int(x), digits) => list.reverse.reduce(x) { |acc, e| acc * 10 + e }
       }
       expected.each do |node, want|
         got = begin
@@ -100,4 +104,5 @@ class ListPropertyTest < Minitest::Test
     def ref(name) = { "kind" => "name", "name" => name }
     def int(value) = { "kind" => "int", "value" => value }
     def l = ref("l")
+    def digits = { "kind" => "lambda", "params" => [ { "name" => "x" }, { "name" => "acc" } ], "expr" => app("iadd", app("imul", ref("acc"), int(10)), ref("x")) }
 end

@@ -26,11 +26,11 @@ module operators {
 type ListFacts = {
     first: int, rest: List[int], len: int, last: int, positions: Set[int], replaced: List[int],
     after: List[int], upTo: List[int], big: List[int], digits: int, joined: List[int], negated: int,
-    product: int, half: int, left: int, span: Set[int], weighed: int,
+    product: int, half: int, left: int, span: Set[int], weighed: int, reversed: int,
   }
   
   // q.append(a) is never empty, so head, tail and nth are defined on it.
-  // foldl builds digits, which depends on the order it folds in.
+  // foldl builds digits and foldr reversed, which depend on the order they fold in.
   pure def listFactsOf(a: int, q: List[int]): ListFacts = {
     val l = q.append(a)
     {
@@ -51,6 +51,7 @@ type ListFacts = {
       left: (a + l.length()) % 3,
       span: (-a).to(a),
       weighed: l.indices().fold(0, (acc, i) => acc + i * l.nth(i)),
+      reversed: l.foldr(0, (x, acc) => acc * 10 + x),
     }
   }
 
@@ -147,9 +148,9 @@ module unsupported {
   var m: int
 
   action init = all { n' = 1, m' = 1 }
-  // Quint's builtin docs leave foldr undocumented.
-  pure def summed(l: List[int]): int = l.foldr(0, (x, acc) => x + acc)
-  action double = all { n' = summed([n, n]), m' = m }
+  // The model does not evaluate powerset.
+  pure def subsets(s: Set[int]): Set[Set[int]] = s.powerset()
+  action double = all { n' = subsets(Set(n)).size(), m' = m }
   // Quint documents no rounding for a negative operand of / or %.
   action halve = all { n' = (-n) / 2, m' = m }
   action parity = all { n' = (-n) % 2, m' = m }

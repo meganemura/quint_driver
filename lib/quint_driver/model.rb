@@ -206,6 +206,9 @@ module QuintDriver
         # A set's fold order is unspecified, so Quint leaves a fold whose
         # operator is not associative and commutative undefined.
         when "fold", "foldl" then a.reduce(b) { |acc, x| call(c, [ acc, x ]) }
+        # The builtin docs leave foldr out, but both evaluators fold from the
+        # right and pass the element first.
+        when "foldr" then a.reverse.reduce(b) { |acc, x| call(c, [ x, acc ]) }
         when "List", "Tup" then values
         when "append" then a + [ b ]
         when "concat" then a + b
