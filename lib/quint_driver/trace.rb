@@ -13,16 +13,18 @@ module QuintDriver
       end
     end
 
-    def self.replay(path, driver)
+    # +log+, an IO such as $stdout, gets each step before the driver runs it.
+    def self.replay(path, driver, log: nil)
       ran = []
       steps(path).each do |step|
         # An unnamed action names no command for the driver to run.
         raise Unsupported, "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
 
+        log&.puts "step #{step.index} #{step.action} #{step.picks.inspect}"
         driver.step(step.action, step.picks)
         ran << [ step.action, step.picks ]
         Agreement.check!("step #{step.index} `#{step.action}` #{step.picks.inspect} of #{path}",
-                             step.expected, driver.state, by: "trace", steps: ran)
+                         step.expected, driver.state, by: "trace", steps: ran)
       end
     end
 

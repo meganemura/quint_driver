@@ -120,6 +120,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 この手順を順に動かせば、失敗をもう一度起こせます。
 `Quint.simulate` の中で起きたときは、再生したファイルはもう消えています。
 そのため、メッセージはトレースをファイル名とシードで示し、同じトレースをもう一度書く呼び出しで終わります。
+再生の様子を見るときは `Trace.replay` に `log: $stdout` を渡します。
+ドライバーが動かす前に、`step 1 borrow {"b" => "b1", "m" => "m2"}` のように各ステップを書き出します。
 Minitest のテストでも RSpec の example でも同じコードで動きます。
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。

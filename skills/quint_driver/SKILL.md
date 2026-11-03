@@ -83,7 +83,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 50, max_steps: 20
 end
 ```
 
-Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example.
+Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it.
 
 ## 4. Check the Ruby model
 

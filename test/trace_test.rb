@@ -1,4 +1,5 @@
 require_relative "test_helper"
+require "stringio"
 
 class TraceTest < Minitest::Test
   ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
@@ -75,6 +76,19 @@ class TraceTest < Minitest::Test
       end
     end
     assert_match(/anonymous action/, error.message)
+  end
+
+  def test_a_replay_prints_each_step_before_the_driver_runs_it
+    log = StringIO.new
+    error = assert_raises(QuintDriver::Mismatch) do
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
+        log.reopen(+"")
+        QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans), log:)
+      end
+    end
+
+    ran = error.message[/^steps:\n((?:  .*\n)+)/, 1].lines.map(&:strip)
+    assert_equal ran.each_with_index.map { |move, index| "step #{index} #{move}\n" }.join, log.string
   end
 
   private

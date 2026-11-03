@@ -103,7 +103,7 @@ machine = QuintDriver.machine(spec, driver: -> { LoansDriver.new }, invariants: 
 Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ```
 
-Both raise `QuintDriver::Mismatch` with each variable that differs and the steps the driver ran from `init`, so you can run the failure again by hand. Inside `Quint.simulate`, the file it replayed is gone, so the message names the trace by its file name and seed, and ends with the call that writes the same trace again. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
+Both raise `QuintDriver::Mismatch` with each variable that differs and the steps the driver ran from `init`, so you can run the failure again by hand. Inside `Quint.simulate`, the file it replayed is gone, so the message names the trace by its file name and seed, and ends with the call that writes the same trace again. To watch a replay, pass `log: $stdout` to `Trace.replay`; it prints each step, such as `step 1 borrow {"b" => "b1", "m" => "m2"}`, before the driver runs it. The code runs the same in a Minitest test and in an RSpec example. In RSpec, include `Hegel::Syntax::Methods` if your own examples draw values; the machine itself does not need it.
 
 `Quint.simulate` runs the module named after the file. Pass `main:` to run another module of that file, the same name `Spec.new` takes. When quint fails or is not installed, `Spec.new` and `Quint.simulate` raise `QuintDriver::QuintFailed` with quint's reason.
 
