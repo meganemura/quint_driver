@@ -19,6 +19,7 @@ module QuintDriver
       @vars = declarations.select { _1["kind"] == "var" }.map { _1["name"] }
       @rules = rules.to_h { [ _1.action, _1 ] }
       @state = {}
+      @constant = {}
     end
 
     # The driver protocol. Picks from a trace are plain values; each one
@@ -97,8 +98,19 @@ module QuintDriver
         return env[name] if env.key?(name)
         return @state.fetch(name) if @vars.include?(name)
 
-        definition = @defs.fetch(name) { raise Unsupported, "quint: unknown name #{name}" }
-        eval(definition["expr"], {})
+        defined(name) { raise Unsupported, "quint: unknown name #{name}" }
+      end
+
+      # A pure val or pure def reads no variable, and a lambda reads none
+      # until it is called, so their value is the same in every state and is
+      # evaluated once. Every other definition is evaluated on each read.
+      def defined(name, &missing)
+        @constant.fetch(name) do
+          definition = @defs.fetch(name, &missing)
+          value = eval(definition["expr"], {})
+          constant = %w[pureval puredef].include?(definition["qualifier"]) || definition["expr"]["kind"] == "lambda"
+          constant ? @constant[name] = value.freeze : value
+        end
       end
 
       def call(closure, args)
@@ -148,9 +160,8 @@ module QuintDriver
           arm = args.drop(1).each_slice(2).find { |label, _| [ target.tag, "_" ].include?(eval(label, env)) }
           call(eval(arm[1], env), [ target.value ])
         else
-          definition = @defs.fetch(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }
           # A definition is a lambda, or another operator's name (`def doubleOf = twice`).
-          call(eval(definition["expr"], {}), args.map { eval(_1, env) })
+          call(defined(op) { raise Unsupported, "quint: no evaluation for operator #{op}" }, args.map { eval(_1, env) })
         end
       end
   end
