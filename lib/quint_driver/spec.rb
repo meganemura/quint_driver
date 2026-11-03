@@ -9,8 +9,11 @@ module QuintDriver
 
     attr_reader :declarations
 
+    # The q:: definitions are what quint adds for --main, so only the module
+    # a file compiled for first would have them.
     def initialize(path, main:)
       @declarations = Quint.compile(path, main:).fetch("modules").find { _1["name"] == main }.fetch("declarations")
+                           .reject { _1["name"].to_s.start_with?("q::") }
     end
 
     def model(step = "step") = Model.send(:new, declarations, rules(step))

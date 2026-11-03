@@ -24,7 +24,7 @@ The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 
 
 The gem calls the `quint` command line. Set `QUINT` to the command to use, for example a local install. Without it, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js and, the first time, the npm registry. When npx cannot fetch quint, for example offline, the gem raises `QuintDriver::QuintFailed` that says so and asks you to set `QUINT`.
 
-`Spec.new` compiles a file once per process and quint command, and compiles it again when the file's text changes. A change to a file the spec imports is not seen until the process starts again.
+`Spec.new` compiles a file once per process and quint command, and compiles it again when the file's text changes. Every module of the file shares that compile, so a `Spec.new` or `Quint.simulate` for another `main:` of the same file starts no node. A change to a file the spec imports is not seen until the process starts again.
 
 `Quint.simulate` runs Quint's Rust evaluator directly, without node, when it finds one: the copy quint downloaded into `QUINT_HOME/rust-evaluator-v0.7.0/` (`~/.quint` when `QUINT_HOME` is unset). Set `QUINT_EVALUATOR` to the evaluator to use another copy, or to an empty string to run `quint run` instead. The same seed gives the same traces on both ways. The gem reads only the input and output format of evaluator v0.7.0, the one quint 0.33.0 runs; an evaluator that answers in another format raises `QuintDriver::QuintFailed`. Without an evaluator, or with a `step:` that names no action of the module, `Quint.simulate` runs `quint run`.
 

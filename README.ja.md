@@ -34,6 +34,7 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 
 `Spec.new` は、1 つのプロセスの中で、ファイルと quint コマンドの組ごとに 1 回だけコンパイルします。
 ファイルの中身が変わると、もう一度コンパイルします。
+ファイルのどのモジュールもこのコンパイルを使うので、同じファイルの別の `main:` で `Spec.new` や `Quint.simulate` を呼んでも node は動きません。
 仕様が import するファイルの変更は、プロセスを起動し直すまで反映されません。
 
 `Quint.simulate` は、Quint の Rust 評価器が見つかれば、node を通さずに直接実行します。

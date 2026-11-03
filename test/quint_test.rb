@@ -117,6 +117,28 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_file_compiles_once_for_every_module_it_has
+    Dir.mktmpdir do |dir|
+      counting = File.join(dir, "counting-quint")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+      File.chmod(0o755, counting)
+      spec = File.join(dir, "operators.qnt")
+      File.write(spec, File.read(OPERATORS))
+      previous, ENV["QUINT"] = ENV["QUINT"], counting
+
+      first = QuintDriver::Spec.new(spec, main: "countdown")
+      assert_equal %w[tick], first.rules("step").map(&:action)
+      assert_equal %w[paint], QuintDriver::Spec.new(spec, main: "painting").rules("step").map(&:action)
+      assert_equal %w[n init tick step], first.declarations.map { _1["name"] }, "a module compiled first reads like the others"
+      assert_equal %w[painting operators], [ QuintDriver::Quint.compile(spec, main: "painting"), QuintDriver::Quint.compile(spec) ].map { _1["main"] }
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(spec, main: "nope") }
+      assert_match(/no module is named nope/, error.message)
+      assert_equal "compile\ncompile\n", File.read(File.join(dir, "ran")), "only the module the file lacks compiles again"
+    ensure
+      ENV["QUINT"] = previous
+    end
+  end
+
   def test_the_quint_command_is_the_one_quint_names_when_it_runs
     Dir.mktmpdir do |dir|
       fake = File.join(dir, "fake-quint")
