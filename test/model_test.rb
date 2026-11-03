@@ -36,6 +36,17 @@ class ModelTest < Minitest::Test
     assert_raises(QuintDriver::Unsupported) { model.try("bump") }
   end
 
+  def test_the_model_refuses_a_trace_that_names_no_action_of_step
+    model = QuintDriver::Spec.new(OPERATORS, main: "countdown").model
+
+    error = assert_raises(QuintDriver::Unsupported) do
+      QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, model)
+      end
+    end
+    assert_match(/any \{/, error.message)
+  end
+
   def test_the_model_knows_which_actions_are_enabled
     model = LoansDriver.spec.model
     model.step("init", {})

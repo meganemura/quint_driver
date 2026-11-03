@@ -21,7 +21,14 @@ module QuintDriver
     # the model's own for strings, numbers, and booleans; a variant pick would
     # need its type to be rebuilt.
     def step(action, picks)
-      args = action == "init" ? [] : @rules.fetch(action).args.map { value(_1, picks) }
+      args = if action == "init" then []
+             else
+               # Quint names a move after step itself when step is one action,
+               # or a nondet pick, that no `any` wraps.
+               @rules.fetch(action) do
+                 raise Unsupported, "quint: no action of step is named #{action}; write step as any { ... } so each move names its action"
+               end.args.map { value(_1, picks) }
+             end
       enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{picks.inspect}"))
     end
 
