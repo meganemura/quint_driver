@@ -118,8 +118,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 
 どちらも、食い違った変数と、`init` からドライバーが動かした手順を並べて `QuintDriver::Mismatch` を投げます。
 この手順を順に動かせば、失敗をもう一度起こせます。
-`Quint.simulate` の中で起きたときは、同じトレースをもう一度書く呼び出しとトレースのファイル名も示します。
-再生したファイルは消えているためです。
+`Quint.simulate` の中で起きたときは、再生したファイルはもう消えています。
+そのため、メッセージはトレースをファイル名とシードで示し、同じトレースをもう一度書く呼び出しで終わります。
 Minitest のテストでも RSpec の example でも同じコードで動きます。
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。

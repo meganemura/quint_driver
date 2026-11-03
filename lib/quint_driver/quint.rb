@@ -40,13 +40,15 @@ module QuintDriver
         output, status = capture(arguments)
         raise QuintFailed, "quint run failed:\n#{output}" unless status.success?
 
-        # The trace files go with dir, so a mismatch names the call that writes them again.
+        # The trace files go with dir, so a mismatch names the trace by its
+        # seed instead of its path, and the call that writes it again.
         call = "Quint.simulate(#{path.inspect}, " +
                { traces:, max_steps:, seed:, main:, step:, backend: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
           yield trace
         rescue Mismatch => mismatch
-          raise Mismatch, "#{mismatch.message}\n#{call} wrote this trace as #{File.basename(trace)}", mismatch.backtrace
+          named = mismatch.message.sub(trace, "#{File.basename(trace)} (seed #{seed.inspect})")
+          raise Mismatch, "#{named}\n#{call} wrote this trace as #{File.basename(trace)}", mismatch.backtrace, cause: nil
         end
       end
     end

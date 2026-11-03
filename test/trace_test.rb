@@ -40,6 +40,10 @@ class TraceTest < Minitest::Test
     recording = Class.new(LoansDriver) { define_method(:step) { |action, picks| ran << [ action, picks ]; super(action, picks) } }
     error = assert_raises(QuintDriver::Mismatch) { replay(recording.new(BrokenLoans)) }
 
+    first = error.message.lines.first
+    assert_match(/\Aquint: after step \d+ `borrow_refused` \{.*\} of trace_\d+\.itf\.json \(seed "1"\), the driver differs/, first)
+    refute_includes first, Dir.tmpdir
+    assert_nil error.cause, "Ruby prints a cause with the path of the trace"
     steps = ran.drop(ran.rindex { _1.first == "init" }).map { |action, picks| "  #{action} #{picks.inspect}" }
     assert_includes error.message, "steps:\n#{steps.join("\n")}\n"
     call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))

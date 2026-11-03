@@ -116,26 +116,21 @@ end
 ## Read a failure
 
 ```text
-quint: after step 9 `borrow_refused` {"b" => "b1", "m" => "m2"} of /tmp/quint20261103-16417-qykl1y/trace_0.itf.json, the driver differs from the trace
-  holder: trace {"b1" => "", "b2" => "m1", "b3" => "m2"}, driver {"b1" => "m2", "b2" => "m1", "b3" => "m2"}
+quint: after step 4 `borrow_refused` {"b" => "b3", "m" => "m2"} of trace_0.itf.json (seed "1"), the driver differs from the trace
+  holder: trace {"b1" => "", "b2" => "m2", "b3" => ""}, driver {"b1" => "", "b2" => "m2", "b3" => "m2"}
   outcome: trace ["Refused", "limit_reached"], driver "Done"
 steps:
   init {}
-  give_back_refused {"b" => "b1"}
-  give_back_refused {"b" => "b3"}
-  borrow {"b" => "b3", "m" => "m2"}
-  give_back_refused {"b" => "b1"}
-  give_back_refused {"b" => "b2"}
-  borrow {"b" => "b2", "m" => "m1"}
-  borrow_refused {"b" => "b2", "m" => "m1"}
-  borrow_refused {"b" => "b3", "m" => "m1"}
-  borrow_refused {"b" => "b1", "m" => "m2"}
+  borrow {"b" => "b2", "m" => "m2"}
+  give_back {"b" => "b2"}
+  borrow {"b" => "b2", "m" => "m2"}
+  borrow_refused {"b" => "b3", "m" => "m2"}
 Quint.simulate("spec.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", step: "step", backend: "rust") wrote this trace as trace_0.itf.json
 ```
 
 - Each line before `steps:` names one variable that differs. `trace`, or `model` under Hegel, is what the spec says. `driver` is what the system did.
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
-- The trace file is gone after `simulate` returns. The last line is the call that writes the same trace again.
+- Under `simulate`, the first line names the trace by its file name and seed, because the file is gone after `simulate` returns. The last line is the call that writes the same trace again.
 - Under Hegel, `steps:` is the shrunk sequence.
 
 | Error | Cause |
