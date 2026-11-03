@@ -136,5 +136,5 @@ Quint.simulate("spec.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", 
 | Error | Cause |
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
-| `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, or a move names no action of `step`. |
+| `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
 | `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, or `QUINT` is unset and npx could not fetch quint. |

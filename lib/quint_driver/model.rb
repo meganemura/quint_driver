@@ -33,7 +33,7 @@ module QuintDriver
                  raise Unsupported, "quint: no action of step is named #{action}; write step as any { ... } so each move names its action"
                end
                typed = rule.domains.each_with_object({}) do |(name, domain), chosen|
-                 pick = picks.fetch(name)
+                 pick = picks.fetch(name) { raise Unsupported, "quint: #{action} needs a pick for #{name}, and the move gives none" }
                  chosen[name] = value(domain, chosen).find { Model.plain(_1) == pick } ||
                                 raise(Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}")
                end

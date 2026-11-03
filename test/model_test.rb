@@ -83,6 +83,15 @@ class ModelTest < Minitest::Test
     assert_match(/"Green"/, error.message)
   end
 
+  def test_the_model_refuses_a_move_that_lacks_a_pick
+    model = LoansDriver.spec.model
+    model.step("init", {})
+
+    error = assert_raises(QuintDriver::Unsupported) { model.step("borrow", { "m" => "m1" }) }
+    assert_equal "quint: borrow needs a pick for b, and the move gives none", error.message
+  end
+
+
   def test_a_model_comes_only_from_a_spec
     error = assert_raises(NoMethodError) { QuintDriver::Model.new([ { "kind" => "def", "name" => "init" } ], []) }
 
