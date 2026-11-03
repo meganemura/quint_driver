@@ -63,6 +63,26 @@ class ModelTest < Minitest::Test
     assert_raises(QuintDriver::Mismatch) { model.step("give_back", { "b" => "b1" }) }
   end
 
+  def test_the_ruby_model_follows_quint_on_a_pick_of_a_sum_type
+    spec = QuintDriver::Spec.new(OPERATORS, main: "painting")
+    count = 0
+    QuintDriver::Quint.simulate(OPERATORS, main: "painting", traces: 20, max_steps: 10, seed: "5") do |path|
+      QuintDriver::Trace.replay(path, spec.model)
+      count += 1
+    end
+
+    assert_equal 20, count
+  end
+
+  def test_the_model_refuses_a_pick_outside_its_domain
+    model = QuintDriver::Spec.new(OPERATORS, main: "painting").model
+    model.step("init", {})
+
+    error = assert_raises(QuintDriver::Mismatch) { model.step("paint", { "c" => "Green" }) }
+    assert_match(/c/, error.message)
+    assert_match(/"Green"/, error.message)
+  end
+
   private
     def unsupported
       QuintDriver::Spec.new(OPERATORS, main: "unsupported").model.tap { _1.step("init", {}) }

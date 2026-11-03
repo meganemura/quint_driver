@@ -17,17 +17,23 @@ module QuintDriver
       @state = {}
     end
 
-    # The driver protocol. Picks from a trace are plain values, which equal
-    # the model's own for strings, numbers, and booleans; a variant pick would
-    # need its type to be rebuilt.
+    # The driver protocol. Picks from a trace are plain values; each one
+    # becomes the element of its domain that reads as the same plain value,
+    # so a variant pick is a variant again.
     def step(action, picks)
       args = if action == "init" then []
              else
                # Quint names a move after step itself when step is one action,
                # or a nondet pick, that no `any` wraps.
-               @rules.fetch(action) do
+               rule = @rules.fetch(action) do
                  raise Unsupported, "quint: no action of step is named #{action}; write step as any { ... } so each move names its action"
-               end.args.map { value(_1, picks) }
+               end
+               typed = rule.domains.each_with_object({}) do |(name, domain), chosen|
+                 pick = picks.fetch(name)
+                 chosen[name] = value(domain, chosen).find { Model.plain(_1) == pick } ||
+                                raise(Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}")
+               end
+               rule.args.map { value(_1, typed) }
              end
       enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{picks.inspect}"))
     end

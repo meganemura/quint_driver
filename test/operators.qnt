@@ -118,3 +118,25 @@ module countdown {
   action tick = all { n > 0, n' = n - 1 }
   action step = tick
 }
+
+// Each move picks a value of a sum type, so a trace's pick has to become
+// the model's own variant before the model can compare or match it.
+module painting {
+  type Color = Red | Blue | Mixed(int)
+
+  var color: Color
+  var mixed: int
+
+  action init = all { color' = Red, mixed' = 0 }
+
+  action paint(c: Color): bool = all {
+    c != color,
+    color' = c,
+    mixed' = match c { Mixed(n) => mixed + n | _ => mixed },
+  }
+
+  action step = {
+    nondet c = Set(Red, Blue, Mixed(1), Mixed(2)).oneOf()
+    any { paint(c) }
+  }
+}

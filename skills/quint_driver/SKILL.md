@@ -140,6 +140,6 @@ Quint.simulate("spec.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", 
 
 | Error | Cause |
 | --- | --- |
-| `QuintDriver::Mismatch` | The system and the spec disagree. |
+| `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, or a move names no action of `step`. |
 | `QuintDriver::QuintFailed` | quint rejected the spec, or the `QUINT` command is not installed. |
