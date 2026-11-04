@@ -202,6 +202,53 @@ class QuintTest < Minitest::Test
     assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ], states
   end
 
+  # The evaluator takes an action and a definition by name; a step that names
+  # no action, or a reach that names no definition, goes to quint run, which
+  # reports it as quint does.
+  def test_a_step_or_reach_that_names_no_action_or_definition_is_left_to_quint_run
+    skip "quint has not downloaded its Rust evaluator #{QuintDriver::Quint::EVALUATOR_VERSION}" unless QuintDriver::Quint.evaluator
+    { { step: "one_book_each" } => /default --step action name 'one_book_each' is used by a val declaration/,
+      { step: "holder" } => /default --step action name 'holder' is used by a var declaration/,
+      { reach: "holder" } => /Expected boolean/ }.each do |names, reason|
+      ran = quint_subcommands do
+        error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", **names) { flunk } }
+        assert_match(/\Aquint run failed:\n.*#{reason}/m, error.message, names.inspect)
+      end
+      assert_includes ran, "run", names.inspect
+    end
+  end
+
+  def test_traces_through_quint_run_come_in_the_order_quint_numbers_them
+    names = with_env("QUINT_EVALUATOR" => "") do
+      [].tap { |list| QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 12, max_steps: 2, seed: "1") { list << File.basename(_1) } }
+    end
+
+    assert_equal 12.times.map { "trace_#{_1}.itf.json" }, names
+  end
+
+  def test_the_evaluator_quint_downloaded_is_the_executable_one_named_for_the_platform
+    Dir.mktmpdir do |home|
+      folder = File.join(home, "rust-evaluator-#{QuintDriver::Quint::EVALUATOR_VERSION}")
+      Dir.mkdir(folder)
+      with_env("QUINT_HOME" => home, "QUINT_EVALUATOR" => nil) do
+        File.write(File.join(folder, "quint_evaluator"), "")
+        assert_nil QuintDriver::Quint.evaluator, "a file quint did not make executable"
+        File.chmod(0o755, File.join(folder, "quint_evaluator"))
+        assert_equal File.join(folder, "quint_evaluator"), QuintDriver::Quint.evaluator
+
+        File.write(File.join(folder, "quint_evaluator.exe"), "")
+        File.chmod(0o755, File.join(folder, "quint_evaluator.exe"))
+        on_windows = Gem.method(:win_platform?)
+        Gem.define_singleton_method(:win_platform?) { true }
+        begin
+          assert_equal File.join(folder, "quint_evaluator.exe"), QuintDriver::Quint.evaluator
+        ensure
+          Gem.define_singleton_method(:win_platform?, on_windows)
+        end
+      end
+    end
+  end
+
   def test_an_evaluator_that_is_not_installed_raises
     error = with_env("QUINT_EVALUATOR" => "/nonexistent/quint_evaluator") do
       assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "1") { flunk } }
@@ -457,6 +504,17 @@ class QuintTest < Minitest::Test
           states << QuintDriver::Trace.steps(trace).map(&:to_a)
         end
         states
+      end
+    end
+
+    # The quint subcommands the block ran, such as "compile" and "run".
+    def quint_subcommands
+      Dir.mktmpdir do |dir|
+        counting = File.join(dir, "counting-quint")
+        File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+        File.chmod(0o755, counting)
+        with_env("QUINT" => counting) { yield }
+        File.exist?(File.join(dir, "ran")) ? File.readlines(File.join(dir, "ran"), chomp: true) : []
       end
     end
 
