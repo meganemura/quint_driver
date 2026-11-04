@@ -291,6 +291,47 @@ Without the `rescue`, the refusal leaves the driver. The replay fails with a `St
      # ./app/services/lending.rb:12:in 'Lending::BorrowBook.call'
 ```
 
+### With ActiveRecord and a test database
+
+The same shape runs on a real ActiveRecord model in a Rails 8.1 app with rspec-rails, transactional fixtures, and SQLite or PostgreSQL. Name the records in the spec (`l1`, `l2`) and keep the id that `create!` returns for each name, because ids keep growing from one trace to the next:
+
+```ruby
+when "init" then Loan.delete_all; @ids = {}
+when "request" then @ids[picks.fetch("l")] = Loan.create!(amount_cents: picks.fetch("a")).id
+when "approve" then Loan.find(@ids.fetch(picks.fetch("l"))).approve!
+```
+
+Transactional fixtures roll back once, after the example, not after each trace or Hegel test case. A row one trace writes is still there in the next, so the driver deletes the rows at `init`, or each trace and each test case rolls back to a savepoint:
+
+```ruby
+def rolled_back
+  ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+    yield
+    raise ActiveRecord::Rollback
+  end
+end
+
+QuintDriver::Quint.simulate(spec_file, main: "loan", traces: 50, max_steps: 12, seed: "1") do |path|
+  rolled_back { QuintDriver::Trace.replay(path, LoanDriver.new) }
+end
+Hegel.test(test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|
+  rolled_back { Hegel::Stateful.run(machine.new, tc) }
+end
+```
+
+With `rolled_back`, the driver's `init` needs no `delete_all`. Pass `joinable: false`. A joinable savepoint takes in the model's own `transaction` blocks, so a `raise ActiveRecord::Rollback` inside one rolls nothing back: a loan that a model transaction approved and then rolled back read `"approved"` under `transaction(requires_new: true)`, and `"requested"` under `joinable: false`, as under the fixture's transaction alone.
+
+A driver that neither deletes nor rolls back fails at init, with the rows an earlier trace or test case left:
+
+```text
+quint: after step 0 `init` {}, the driver differs from the model
+  outstanding: model 0, driver 500100
+steps:
+  init {}
+```
+
+On 4 CPUs at load average 1.3 to 1.6, a trace of 13 steps took 15 ms on SQLite and 35 ms on PostgreSQL, and a Hegel test case 25 ms and 42 ms. Deleting at init and rolling back to a savepoint took the same time within 10%.
+
 ## Read a failure
 
 ```text

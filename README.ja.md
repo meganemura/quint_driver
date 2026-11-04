@@ -154,6 +154,10 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 ドライバーが動かす前に、`step 1 borrow {"b" => "b1", "m" => "m2"}` のように各ステップを書き出します。
 Minitest のテストでも RSpec の example でも同じコードで動きます。
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
+Rails アプリでは、トランザクションのフィクスチャーは example ごとに一度だけロールバックします。
+そのため、1 つの example のすべてのトレースと Hegel のすべてのテストケースが、テスト用データベースを共有します。
+ドライバーの `init` で行を消すか、トレースとテストケースごとに `ActiveRecord::Base.transaction(requires_new: true, joinable: false) { ...; raise ActiveRecord::Rollback }` で包んでください。
+スキルには両方の書き方と、セーブポイントを joinable にしてはいけない理由があります。
 machine 自体には不要です。
 
 ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::StepRaised` になります。
