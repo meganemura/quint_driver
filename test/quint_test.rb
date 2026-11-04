@@ -202,19 +202,27 @@ class QuintTest < Minitest::Test
     assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ], states
   end
 
-  # The evaluator takes an action and a definition by name; a step that names
-  # no action, or a reach that names no definition, goes to quint run, which
-  # reports it as quint does.
-  def test_a_step_or_reach_that_names_no_action_or_definition_is_left_to_quint_run
-    skip "quint has not downloaded its Rust evaluator #{QuintDriver::Quint::EVALUATOR_VERSION}" unless QuintDriver::Quint.evaluator
-    { { step: "one_book_each" } => /default --step action name 'one_book_each' is used by a val declaration/,
-      { step: "holder" } => /default --step action name 'holder' is used by a var declaration/,
-      { reach: "holder" } => /Expected boolean/ }.each do |names, reason|
-      ran = quint_subcommands do
-        error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", **names) { flunk } }
-        assert_match(/\Aquint run failed:\n.*#{reason}/m, error.message, names.inspect)
+  # The two evaluators report a step or a reach of the wrong kind each in
+  # its own words, so simulate checks the kind before either runs.
+  def test_a_step_that_is_no_action_without_parameters_or_a_reach_that_is_no_predicate_raises_before_quint_runs
+    actions = "such as step"
+    predicates = "such as nothing_on_loan, one_book_each, two_on_loan"
+    { { step: "one_book_each" } => "step names one_book_each, a predicate of loans; step takes an action without parameters, #{actions}",
+      { step: "holder" } => "step names holder, a variable of loans; step takes an action without parameters, #{actions}",
+      { step: "borrow" } => "step names borrow, an action with parameters of loans; step takes an action without parameters, #{actions}",
+      { reach: "borrow" } => "reach names borrow, an action with parameters of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "step" } => "reach names step, an action of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "holder" } => "reach names holder, a variable of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "onLoan" } => "reach names onLoan, a def with parameters of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "BOOKS" } => "reach names BOOKS, a set val of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "Done" } => "reach names Done, a case of a sum type of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}" }.each do |names, message|
+      [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+        ran = quint_subcommands do
+          error = with_env(env) { assert_raises(ArgumentError) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", **names) { flunk } } }
+          assert_equal "quint: #{message}", error.message, [ names, env ].inspect
+        end
+        refute_includes ran, "run", names.inspect
       end
-      assert_includes ran, "run", names.inspect
     end
   end
 

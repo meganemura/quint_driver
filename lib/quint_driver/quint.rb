@@ -91,6 +91,7 @@ module QuintDriver
     # it holds, and only the traces that get there are yielded.
     def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil)
       Dir.mktmpdir("quint") do |dir|
+        runnable!(path, main:, step:, reach:)
         evaluator = self.evaluator if backend == "rust"
         input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:) if evaluator
         if input
@@ -114,6 +115,45 @@ module QuintDriver
 
         written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:)
         yield_traces(traces_written, seed:, written_by:) { yield _1 }
+      end
+    end
+
+    # Raises ArgumentError when +step+ names no action without parameters, or
+    # +reach+ no predicate. quint finds that out only while it runs, and its
+    # two evaluators each say "Expected boolean" in words of their own. A
+    # name the module does not declare is left to quint, which reads the
+    # modules it imports too.
+    def self.runnable!(path, main:, step:, reach:)
+      ir = compile(path, main:)
+      declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
+      kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
+      such_as = ->(kind) { kinds.select { |name, of| of == kind && name != "init" && !name.start_with?("q::") }.keys.sort.join(", ") }
+      if kinds.key?(step) && kinds[step] != "an action"
+        raise ArgumentError, "quint: step names #{step}, #{kinds[step]} of #{ir['main']}; step takes an action without parameters, such as #{such_as.("an action")}"
+      end
+      return unless kinds.key?(reach) && kinds[reach] != "a predicate"
+
+      raise ArgumentError, "quint: reach names #{reach}, #{kinds[reach]} of #{ir['main']}; " \
+                           "reach takes a predicate, a boolean val or def without parameters, such as #{such_as.("a predicate")}"
+    end
+
+    # What a declaration is, as a step or a reach has to tell: a variant
+    # quint declares as a val, or as a def when it carries a value.
+    def self.kind_of(declaration, types)
+      expr = declaration["expr"] || {}
+      lambda = expr["kind"] == "lambda"
+      type = types.dig(declaration["id"].to_s, "type", "kind")
+      case
+      when declaration["kind"] == "var" then "a variable"
+      when declaration["kind"] == "const" then "a constant"
+      when declaration["kind"] != "def" then "a type"
+      when (lambda ? expr["expr"] : expr)["opcode"] == "variant" then "a case of a sum type"
+      when declaration["qualifier"] == "action" then lambda ? "an action with parameters" : "an action"
+      when declaration["qualifier"] == "run" then "a run"
+      when declaration["qualifier"] == "temporal" then "a temporal formula"
+      when lambda then "a def with parameters"
+      when type == "bool" then "a predicate"
+      else "#{type.match?(/\A[aeiou]/) ? 'an' : 'a'} #{type} #{declaration['qualifier'].end_with?('val') ? 'val' : 'def'}"
       end
     end
 
@@ -260,6 +300,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :call, :capture, :compile_now, :evaluator_input, :name_trace, :sources, :write_traces, :yield_traces
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :kind_of, :name_trace, :runnable!, :sources, :write_traces, :yield_traces
   end
 end

@@ -112,7 +112,7 @@ QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 20, max_steps: 10
 end
 ```
 
-One of those traces runs `init give_back_refused borrow borrow`. When no trace gets there, `Quint.simulate` raises `QuintDriver::QuintFailed`: `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`. Raise `max_steps` or `traces` then.
+One of those traces runs `init give_back_refused borrow borrow`. When no trace gets there, `Quint.simulate` raises `QuintDriver::QuintFailed`: `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`. Raise `max_steps` or `traces` then. `reach:` takes a predicate (a boolean `val` or `def` without parameters) and `step:` an action without parameters; a name of another kind, such as an action as `reach:`, raises `ArgumentError` before quint runs, and the message lists the names that fit.
 
 To replay a named run (`run lendTest = init.then(...)`), use `Quint.test`. quint test writes no `mbt::actionTaken`, so the spec must record each step's action in a variable, as a sum type whose tag names the action and whose record holds its picks, the way a Choreo spec records it. Pass that variable's path as `action:`, and the path to the state the driver answers for as `state:`:
 

@@ -199,6 +199,10 @@ quint が失敗したときや見つからないときは、`Spec.new` と `Quin
 各トレースは、その定義が初めて成り立つ状態で終わり、`Quint.simulate` はそこに至ったトレースだけを渡します。
 Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れたところでトレースを止めます。
 どのトレースも至らなかったときは、`quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces` のように `QuintDriver::QuintFailed` を投げます。
+`reach:` が受け取るのは述語、つまりパラメーターのない真偽値の `val` か `def` です。
+`step:` が受け取るのは、パラメーターのないアクションです。
+ほかの種類の名前を渡すと、quint を動かす前に `ArgumentError` を投げます。
+例えば `quint: reach names borrow, an action with parameters of loans; reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan` です。
 
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。
