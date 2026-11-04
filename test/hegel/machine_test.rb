@@ -219,6 +219,12 @@ class MachineTest < Minitest::Test
     assert_match(/\nsteps:\n  init \{\}\z/, error.message)
   end
 
+  def test_a_choice_other_than_rule_or_rotate_raises
+    error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, choose: :random) }
+
+    assert_equal "quint: choose is :rule or :rotate", error.message
+  end
+
   def test_the_adapter_adds_only_the_machine_to_quint_driver
     assert_equal %i[machine], QuintDriver.singleton_methods.sort
   end
