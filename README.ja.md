@@ -241,6 +241,7 @@ end
 
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
 集合 (`fold` と `i.to(j)` を含む)、マップ、レコード、タプル、リスト、`match` 付きの直和型、整数、真偽値です。
+マップでは `Map`、`get`、`keys`、`put`、`mapBy`、`set`、`setBy`、`setToMap` を評価します。
 リストは Ruby の Array になります。
 リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl`、`foldr` を評価します。
 Quint の組み込みのドキュメントに `foldr` はありません。
@@ -251,7 +252,8 @@ Quint の組み込みのドキュメントに `foldr` はありません。
 Quint は負の値を割ったときの丸めを決めていないからです。
 Quint の二つの評価器はゼロに向けて切り捨て（`-7 % 2` は `-1`）、Ruby は小さい方へ丸めます（`-7 % 2` は `1`）。
 そのため、モデルは違う答えを出さずに、負の値を断ります。
-空のリストの `head` や、末尾より先の `nth` のように、Quint のドキュメントが未定義とする演算では、モデルは答えを選ばずに `QuintDriver::Unsupported` を投げます。
+空のリストの `head`、末尾より先の `nth`、キーが重なる組の `setToMap` のように、Quint のドキュメントが未定義とする演算では、モデルは答えを選ばずに `QuintDriver::Unsupported` を投げます。
+マップに無いキーでの `get`、`set`、`setBy` も、Quint の評価器がそこで止まるので、`QuintDriver::Unsupported` を投げます。
 ただし `slice(l, l.length(), l.length())` は、Quint の二つの評価器と同じく `[]` です。
 `powerset` など、それ以外の演算子は `QuintDriver::Unsupported` を投げるので、足りない仕様ははっきり失敗します。
 アクションを名指ししない step の枝も同じです。

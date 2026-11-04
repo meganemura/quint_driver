@@ -21,6 +21,7 @@ module operators {
   var facts: {
     lt: bool, lte: bool, gt: bool, gte: bool, both: bool, either: bool, implied: bool, same: bool,
     within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int, grown: int,
+    keyed: int -> int, reset: int -> int, bumped: int -> int, paired: int -> int,
   }
 
 type ListFacts = {
@@ -62,6 +63,7 @@ type ListFacts = {
   pure def factsOf(a: int, total: int, picked: Set[int], last: int -> int): {
     lt: bool, lte: bool, gt: bool, gte: bool, both: bool, either: bool, implied: bool, same: bool,
     within: bool, doubled: Set[int], shared: Set[int], seen: Set[int], after: int, grown: int,
+    keyed: int -> int, reset: int -> int, bumped: int -> int, paired: int -> int,
   } = {
     val after = a + 1
     {
@@ -76,6 +78,10 @@ type ListFacts = {
       seen: last.keys(),
       after: after,
       grown: doubleOf(a),
+      keyed: picked.mapBy(v => v * 2),
+      reset: last.put(a, total).set(a, after),
+      bumped: last.put(a, total).setBy(a, v => v + 1),
+      paired: Set((a, total), (after, a)).setToMap(),
     }
   }
 
@@ -156,6 +162,11 @@ module unsupported {
   action parity = all { n' = (-n) % 2, m' = m }
   // Quint leaves the head of an empty list undefined.
   action first = all { n' = List().head(), m' = m }
+  // Quint leaves set and setBy at a key the map does not have undefined.
+  action overwrite = all { n' = Map(1 -> n).set(2, n).keys().size(), m' = m }
+  action bumpMissing = all { n' = Map("a" -> n).setBy("b", v => v + 1).keys().size(), m' = m }
+  // Which of two pairs with one key setToMap keeps depends on the set's order.
+  action pairUp = all { n' = Set((1, n), (1, n + 1)).setToMap().keys().size(), m' = m }
   // Quint drops a variable an action leaves unassigned from the next state.
   action bump = n' = n + 1
   action resize(s: Set[int]): bool = all { n' = s.size(), m' = m }

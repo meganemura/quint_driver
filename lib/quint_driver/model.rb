@@ -166,6 +166,8 @@ module QuintDriver
 
       def nonempty!(list, op) = list.empty? ? undefined("#{op} of an empty list") : list
 
+      def keyed!(map, key, op) = map.key?(key) || refuse("#{op}(_, #{key.inspect})", "the map has no such key")
+
       # Quint documents no rounding: its evaluators truncate / and % toward
       # zero, and Ruby's Integer#/ and #% floor, so only operands where the
       # two agree are evaluated.
@@ -241,6 +243,11 @@ module QuintDriver
         when "map" then a.to_set { call(b, [ _1 ]) }
         when "Map" then values.to_h
         when "put", "with" then a.merge(b => c)
+        when "mapBy" then a.to_h { [ _1, call(b, [ _1 ]) ] }
+        when "set" then a.merge(b => c) if keyed!(a, b, "set")
+        when "setBy" then a.merge(b => call(c, [ a[b] ])) if keyed!(a, b, "setBy")
+        # Which of two pairs with one key wins depends on the set's order.
+        when "setToMap" then a.to_h.tap { undefined("setToMap of pairs that share a key") if _1.size < a.size }
         when "get" then a.fetch(b) { refuse("get(_, #{b.inspect})", "the map has no such key") }
         when "keys" then a.keys.to_set
         when "item" then a.fetch(b - 1)

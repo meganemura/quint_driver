@@ -64,10 +64,16 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     halve = assert_raises(QuintDriver::Unsupported) { unsupported.try("halve") }
     parity = assert_raises(QuintDriver::Unsupported) { unsupported.try("parity") }
     first = assert_raises(QuintDriver::Unsupported) { unsupported.try("first") }
+    overwrite = assert_raises(QuintDriver::Unsupported) { unsupported.try("overwrite") }
+    bump = assert_raises(QuintDriver::Unsupported) { unsupported.try("bumpMissing") }
+    pairs = assert_raises(QuintDriver::Unsupported) { unsupported.try("pairUp") }
 
     assert_equal "quint: no evaluation for -1 / 2 in halve; Quint documents no rounding for a negative operand", halve.message
     assert_equal "quint: no evaluation for -1 % 2 in parity; Quint documents no rounding for a negative operand", parity.message
     assert_equal "quint: no evaluation for head of an empty list in first; Quint leaves it undefined", first.message
+    assert_equal "quint: no evaluation for set(_, 2) in overwrite; the map has no such key", overwrite.message
+    assert_equal "quint: no evaluation for setBy(_, \"b\") in bumpMissing; the map has no such key", bump.message
+    assert_equal "quint: no evaluation for setToMap of pairs that share a key in pairUp; Quint leaves it undefined", pairs.message
   end
 
   def test_the_model_refuses_an_action_that_leaves_a_variable_unassigned
