@@ -71,7 +71,7 @@ end
 ```
 
 - `step("init", {})` comes first in every sequence. Make a new system there.
-- `picks` holds the nondet values by name.
+- `picks` holds the nondet values by name. A pick the move did not make (Quint's `None`) is absent, so read one an action may go without as `picks["b"]`, which is `nil` then, and one it needs as `picks.fetch("b")`.
 - A refused twin runs the same command. Rescue the domain error into the spec's refusal value.
 - `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one.
 

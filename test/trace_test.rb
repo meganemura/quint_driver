@@ -52,6 +52,19 @@ class TraceTest < Minitest::Test
     assert_equal plain, QuintDriver::Trace.decode(itf)
   end
 
+  def test_a_pick_the_move_did_not_make_is_absent_from_its_picks
+    Dir.mktmpdir do |dir|
+      trace = File.join(dir, "optional.itf.json")
+      none, some = { "tag" => "None", "value" => { "#tup" => [] } }, { "tag" => "Some", "value" => "b1" }
+      File.write(trace, JSON.generate("states" => [
+        { "mbt::actionTaken" => "init", "mbt::nondetPicks" => { "b" => none, "m" => none }, "n" => { "#bigint" => "0" } },
+        { "mbt::actionTaken" => "give_back", "mbt::nondetPicks" => { "b" => some, "m" => none }, "n" => { "#bigint" => "1" } }
+      ]))
+
+      assert_equal [ [ "init", {} ], [ "give_back", { "b" => "b1" } ] ], QuintDriver::Trace.steps(trace).map { [ _1.action, _1.picks ] }
+    end
+  end
+
   def test_a_system_that_follows_the_spec_replays_every_trace
     count = replay(LoansDriver.new)
 
