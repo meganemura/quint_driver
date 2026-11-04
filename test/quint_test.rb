@@ -351,6 +351,12 @@ class QuintTest < Minitest::Test
       error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(mistyped) }
       assert_match(/at the typechecking stage/, error.message)
       refute_match(/no module is named/, error.message)
+
+      # A flat compile reads quint's stdout, which holds nothing when it fails.
+      { invalid => /unexpected '='/, mistyped => /typechecking failed/ }.each do |path, reason|
+        error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(path, main: File.basename(path, ".qnt"), flat: true) }
+        assert_match(reason, error.message)
+      end
     end
   end
 

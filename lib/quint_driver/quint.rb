@@ -62,11 +62,12 @@ module QuintDriver
       Dir.mktmpdir("quint") do |dir|
         # Into a file: through a pipe, quint exits before its 64 KB of JSON is
         # out. With --out, quint writes the modules as the file has them; on
-        # stdout it prints the main module flattened.
+        # stdout it prints the main module flattened. The shell makes that file
+        # before quint runs, so a flat compile that fails leaves it empty.
         out = File.join(dir, "ir.json")
         words = [ "compile", "--target", "json", path, *([ "--main", main ] if main) ]
         output, status = flat ? capture(*words, stdout: out) : capture(*words, "--out", out)
-        ir = File.exist?(out) ? JSON.parse(File.read(out), freeze: true) : {}
+        ir = File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 
         # With --out, quint writes its errors into the file and prints nothing;
