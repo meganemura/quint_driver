@@ -246,7 +246,7 @@ module QuintDriver
     # through a shell, and each word after it is quoted: an app's folder can
     # have a space in its name. +stdout+ is a file quint's output goes into.
     def self.capture(*words, stdout: nil)
-      line = "#{command} #{Shellwords.join(words.map(&:to_s))}#{" > #{Shellwords.escape(stdout)}" if stdout}"
+      line = "#{command} #{Shellwords.join(words)}#{" > #{Shellwords.escape(stdout)}" if stdout}"
       output, status = Open3.capture2e(line)
       # Only npm prefixes its lines with "npm error", so these mean npx did
       # not get as far as running quint.
