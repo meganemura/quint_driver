@@ -243,6 +243,29 @@ class MachineTest < Minitest::Test
     assert_match(/\Aquint: observe names borrow, which is no definition without parameters of loans; it has /, error.message)
   end
 
+  # Reports the last approver as an app does: a name, or nil for none.
+  class ApprovalDriver
+    def step(action, picks)
+      @last, @approvals = nil, 0 if action == "init"
+      @last, @approvals = picks.fetch("by"), @approvals + 1 if action == "approve"
+    end
+
+    def state = { "last" => @last, "approvals" => @approvals, "approved" => !@last.nil? }
+  end
+
+  def test_a_driver_reads_an_option_as_nil_or_its_value_on_a_replay_and_under_the_machine
+    operators = File.expand_path("../operators.qnt", __dir__)
+    spec = QuintDriver::Spec.new(operators, main: "approval")
+    lasts = Set.new
+    QuintDriver::Quint.simulate(operators, main: "approval", traces: 10, max_steps: 5, seed: "2") do |path|
+      QuintDriver::Trace.replay(path, ApprovalDriver.new, spec:, observe: %w[approved]).each { lasts << _1.expected["last"] }
+    end
+    machine = QuintDriver.machine(spec, driver: -> { ApprovalDriver.new }, observe: %w[approved])
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    assert_equal Set[nil, "grace", "ada"], lasts
+  end
+
   def test_a_choice_other_than_rule_or_rotate_raises
     error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, choose: :random) }
 

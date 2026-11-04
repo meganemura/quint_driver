@@ -12,22 +12,30 @@ module QuintDriver
     # holds its picks; without it, the action is quint's mbt::actionTaken,
     # which `quint run --mbt` writes and quint test does not.
     def self.steps(path, state: [], action: nil)
-      JSON.parse(File.read(path)).fetch("states").each_with_index.map do |values, index|
-        values = decode(values)
+      JSON.parse(File.read(path)).fetch("states").each_with_index.map do |itf, index|
+        values = decode(itf)
         taken, picks = if action
                          at(values, action, index).then { _1.is_a?(String) ? [ _1, {} ] : _1 }
                        else
                          [ values.fetch("mbt::actionTaken") { raise Unsupported, "quint: state #{index} of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it" },
-                           values.fetch("mbt::nondetPicks") ]
+                           made(itf.fetch("mbt::nondetPicks")) ]
                        end
         expected = at(values.reject { _1.start_with?("mbt::") }, state, index)
         unless expected.is_a?(Hash)
           raise Unsupported, "quint: state #{index} of the trace has #{state.join('.')} = #{Agreement.show(expected)}, " \
                              "which is no record or map; pass state: the path to the record or map the driver reports"
         end
-        Step.new(taken, picks.reject { _2.nil? }, expected, index)
+        Step.new(taken, picks, expected, index)
       end
     end
+
+    # quint wraps each pick in an Option of its own: Some when the move made
+    # it, None when it did not. Only that wrapper is taken off, so a pick the
+    # move made of the spec's own None is nil and still present.
+    def self.made(picks)
+      picks.filter_map { |name, pick| [ name, decode(pick["value"]) ] if pick["tag"] == "Some" }.to_h
+    end
+    private_class_method :made
 
     def self.at(values, path, index)
       path.each_with_index.reduce(values) do |value, (key, depth)|
@@ -87,7 +95,7 @@ module QuintDriver
     private_class_method :observed
 
     # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
-    # `Option` None is nil and Some its value, so a nondet pick reads as a value.
+    # An Option is nil for None and its value for Some, as Model.plain gives one.
     # With a block, a sum type's value is what the block makes of its tag and
     # its decoded value, as the model holds one.
     def self.decode(value, &variant)

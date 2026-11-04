@@ -10,7 +10,8 @@ require "set"
 #
 # Plain values: a Quint set is a Set, a map a Hash, a tuple or a list an
 # Array, a record a Hash with string keys, a sum type its tag, or
-# [tag, value] when it carries one.
+# [tag, value] when it carries one. An Option, a sum type of None and Some,
+# is nil or its value.
 module QuintDriver
   # The trace a failure happened on. On a replay, +trace+ is its path. Under
   # Quint.simulate or Quint.test that file is gone once the block returns, so

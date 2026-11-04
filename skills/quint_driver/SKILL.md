@@ -72,10 +72,10 @@ end
 ```
 
 - `step("init", {})` comes first in every sequence. Make a new system there.
-- `picks` holds the nondet values by name. A pick the move did not make (Quint's `None`) is absent, so read one an action may go without as `picks["b"]`, which is `nil` then, and one it needs as `picks.fetch("b")`.
+- `picks` holds the nondet values by name. A pick the move did not make is absent, and one it made of the spec's own `None` is present as `nil`, so read one an action may go without as `picks["b"]`, which is `nil` then, and one it needs as `picks.fetch("b")`.
 - A refused twin runs the same command. Rescue the domain error into the spec's refusal value.
 - A value the spec derives, a `val` or a `def` without parameters, is in no trace state. To compare one, name it in `observe:` (section 3) and return it from `state` under its name.
-- `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one.
+- `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one. An Option, a sum type with the cases `None` and `Some`, is `nil` or the value itself.
 
 ## 3. Replay Quint's traces
 

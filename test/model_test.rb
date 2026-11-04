@@ -153,6 +153,17 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     assert_equal 20, count
   end
 
+  def test_the_ruby_model_follows_quint_on_a_pick_of_an_option
+    spec = QuintDriver::Spec.new(OPERATORS, main: "approval")
+    count = 0
+    QuintDriver::Quint.simulate(OPERATORS, main: "approval", traces: 20, max_steps: 10, seed: "5") do |path|
+      QuintDriver::Trace.replay(path, spec.model)
+      count += 1
+    end
+
+    assert_equal 20, count
+  end
+
   def test_the_model_refuses_a_pick_outside_its_domain
     model = QuintDriver::Spec.new(OPERATORS, main: "painting").model
     model.step("init", {})

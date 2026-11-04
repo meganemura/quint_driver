@@ -110,6 +110,8 @@ end
 素の値の対応は次のとおりです。
 Quint の集合は `Set`、マップは `Hash`、タプルとリストは `Array`、レコードは文字列のキーを持つ `Hash` です。
 直和型はタグになり、値を持つときは `[タグ, 値]` になります。
+`None` と `Some` の場合を持つ直和型、つまり Option は、`None` なら `nil`、`Some` ならその値そのものです。
+再生でもマシンでも同じです。
 
 仕様、システム、ドライバーをそろえた例は [examples/loans](examples/loans) にあります。
 
@@ -149,7 +151,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 `Mismatch` のバックトレースからは quint_driver 自身のフレームを除きます。
 そのため RSpec でも Minitest でも、再生を呼んだ行か、`Mismatch` を投げた行が最初に出ます。
 Gemfile が gem をパスから読み込むときも同じです。
-その手が選ばなかった選択値、つまり Quint の `None` は `picks` にありません。
+その手が選ばなかった選択値は `picks` にありません。
+その手が仕様の `None` を選んだ選択値は、`nil` として `picks` にあります。
 なくてもよい選択値は `picks["name"]` で読み、そのときは `nil` です。
 欠かせない選択値は `picks.fetch("name")` で読みます。
 `Trace.replay` は、走らせたステップを `action`、`picks`、`expected` の状態とともに返すので、トレースがどこまで届いたかを数えられます。

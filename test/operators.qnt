@@ -255,3 +255,22 @@ module pairing {
     unpair(p),
   }
 }
+
+// An Option variable, and a pick whose domain holds None, so a replay and
+// the machine have to hand a driver the same Ruby value for each.
+module approval {
+  type Approver = None | Some(str)
+
+  var last: Approver
+  var approvals: int
+
+  action init = all { last' = None, approvals' = 0 }
+  action approve(by: Approver): bool = all { last' = by, approvals' = approvals + 1 }
+
+  val approved = last != None
+
+  action step = any {
+    nondet by = Set(None, Some("grace"), Some("ada")).oneOf()
+    approve(by),
+  }
+}

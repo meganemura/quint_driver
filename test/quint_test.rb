@@ -477,7 +477,7 @@ class QuintTest < Minitest::Test
   def test_a_spec_that_names_no_module_of_its_file_lists_the_modules_it_has
     error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Spec.new(OPERATORS, main: "nope") }
 
-    assert_match(/no module is named nope; .*operators\.qnt has operators, unsupported, countdown, painting, unassigned, pairing\z/, error.message, "the modules in the order of the file")
+    assert_match(/no module is named nope; .*operators\.qnt has operators, unsupported, countdown, painting, unassigned, pairing, approval\z/, error.message, "the modules in the order of the file")
   end
 
   def test_compiling_a_file_with_no_module_named_after_it_lists_the_modules_it_has

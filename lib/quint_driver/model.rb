@@ -91,9 +91,16 @@ module QuintDriver
     # Each definition +names+ names, by name, as a plain value.
     def observe(names) = names.to_h { [ _1, Model.plain(value(_1)) ] }
 
+    # A value as Trace.decode gives it, so a driver reads an Option the same
+    # on a replay and under the machine: nil for None, the value for Some.
     def self.plain(value)
       case value
-      when Variant then value.value == [] ? value.tag : [ value.tag, plain(value.value) ]
+      when Variant
+        case value.tag
+        when "None" then nil
+        when "Some" then plain(value.value)
+        else value.value == [] ? value.tag : [ value.tag, plain(value.value) ]
+        end
       when Set then value.to_set { plain(_1) }
       when Hash then value.to_h { |k, v| [ plain(k), plain(v) ] }
       when Array then value.map { plain(_1) }
