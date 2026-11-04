@@ -69,8 +69,10 @@ module QuintDriver
 
         # With --out, quint writes its errors into the file and prints nothing;
         # a missing spec leaves no error at all, only the stage it stopped at,
-        # and a missing module only the modules the file has.
-        modules = ir.fetch("modules", []).map { _1["name"] }
+        # and a missing module only the modules the file has. quint lists them
+        # in an order an edit to one module can change; it numbers a module
+        # after the text it parses, so its id gives the order of the file.
+        modules = ir.fetch("modules", []).sort_by { _1["id"] }.map { _1["name"] }
         wanted = main || File.basename(path, ".qnt")
         missing = "no module is named #{wanted}; #{path} has #{modules.join(', ')}" if modules.any? && !modules.include?(wanted)
         reasons = [ output.strip, *ir.fetch("errors", []).map { _1["explanation"] }, missing.to_s ].reject(&:empty?)
