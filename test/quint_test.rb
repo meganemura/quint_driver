@@ -117,6 +117,31 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_spec_compiles_again_when_a_file_it_imports_changes
+    Dir.mktmpdir do |dir|
+      counting = File.join(dir, "counting-quint")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+      File.chmod(0o755, counting)
+      Dir.mkdir(File.join(dir, "lib"))
+      constants = File.join(dir, "lib", "start.qnt")
+      File.write(constants, "module start {\n  pure val START = 2\n}\n")
+      File.write(File.join(dir, "lib", "shelf.qnt"), "module shelf {\n  import start.* from \"start\"\n  pure val FROM = START\n}\n")
+      spec = File.join(dir, "countdown.qnt")
+      File.write(spec, "module countdown {\n  import shelf.* from \"./lib/shelf\"\n  var n: int\n  action init = n' = FROM\n  action tick = n' = n - 1\n  action step = any { tick }\n}\n")
+      previous, ENV["QUINT"] = ENV["QUINT"], counting
+      start = lambda do
+        QuintDriver::Quint.compile(spec, main: "countdown")["modules"].find { _1["name"] == "start" }["declarations"].first["expr"]["value"]
+      end
+
+      2.times { assert_equal 2, start.() }
+      File.write(constants, "module start {\n  pure val START = 3\n}\n")
+      assert_equal 3, start.(), "a file the spec imports through another one changed"
+      assert_equal "compile\ncompile\n", File.read(File.join(dir, "ran"))
+    ensure
+      ENV["QUINT"] = previous
+    end
+  end
+
   def test_a_file_compiles_once_for_every_module_it_has
     Dir.mktmpdir do |dir|
       counting = File.join(dir, "counting-quint")

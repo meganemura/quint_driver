@@ -12,24 +12,40 @@ module QuintDriver
     # The spec's JSON IR, frozen. +main+ names the module quint checks;
     # without it, quint checks the module named after the file, and fails when
     # none is. A file compiles once per process and quint command, until its
-    # text changes: one compile costs a second or two of node, and every
-    # Spec.new asks for one. Its other modules reuse that compile: quint
-    # typechecks every module of the file whichever is main, and --main only
-    # sets "main" and adds q::init and q::step, which nothing here reads.
+    # text or the text of a file it imports changes: one compile costs a
+    # second or two of node, and every Spec.new asks for one. Its other
+    # modules reuse that compile: quint typechecks every module of the file
+    # whichever is main, and --main only sets "main" and adds q::init and
+    # q::step, which nothing here reads.
     def self.compile(path, main: nil)
       key = [ command, File.expand_path(path) ]
       wanted = main || File.basename(path, ".qnt")
-      source = File.read(path) if File.file?(path)
-      cached_source, ir = @compiled[key]
-      if source && source == cached_source && ir["modules"].any? { _1["name"] == wanted }
+      sources = sources(path) if File.file?(path)
+      cached_sources, ir = @compiled[key]
+      if sources && sources == cached_sources && ir["modules"].any? { _1["name"] == wanted }
         return ir["main"] == wanted ? ir : ir.merge("main" => wanted).freeze
       end
 
       ir = compile_now(path, main)
-      @compiled[key] = [ source, ir ] if source
+      @compiled[key] = [ sources, ir ] if sources
       ir
     end
     @compiled = {}
+
+    # The text of +path+ and of each file it imports, directly or through
+    # another, by path. Quint resolves `from "name"` against the directory of
+    # the file that writes it, and adds .qnt when the name has none. A name in
+    # a comment reads as an import too, which costs only a file read.
+    def self.sources(path, read = {})
+      path = File.expand_path(path)
+      return read if read.key?(path) || !File.file?(path)
+
+      read[path] = File.read(path)
+      read[path].scan(/\bfrom\s+"([^"]+)"/) do |(name)|
+        sources(File.join(File.dirname(path), name.end_with?(".qnt") ? name : "#{name}.qnt"), read)
+      end
+      read
+    end
 
     def self.compile_now(path, main)
       Dir.mktmpdir("quint") do |dir|
@@ -166,6 +182,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :capture, :compile_now, :evaluator_input, :name_trace, :write_traces
+    private_class_method :capture, :compile_now, :evaluator_input, :name_trace, :sources, :write_traces
   end
 end
