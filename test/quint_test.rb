@@ -168,6 +168,23 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_threads_that_ask_for_one_spec_at_once_compile_it_once
+    Dir.mktmpdir do |dir|
+      counting = File.join(dir, "counting-quint")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+      File.chmod(0o755, counting)
+      spec = File.join(dir, "countdown.qnt")
+      File.write(spec, "module countdown {\n  var n: int\n  action init = n' = 2\n  action tick = n' = n - 1\n  action step = any { tick }\n}\n")
+      previous, ENV["QUINT"] = ENV["QUINT"], counting
+
+      rules = 3.times.map { Thread.new { QuintDriver::Spec.new(spec, main: "countdown").rules("step").map(&:action) } }.map(&:value)
+      assert_equal [ %w[tick] ] * 3, rules
+      assert_equal "compile\n", File.read(File.join(dir, "ran"))
+    ensure
+      ENV["QUINT"] = previous
+    end
+  end
+
   def test_a_spec_compiles_again_when_a_file_it_imports_changes
     Dir.mktmpdir do |dir|
       counting = File.join(dir, "counting-quint")

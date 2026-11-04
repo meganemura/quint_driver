@@ -16,21 +16,26 @@ module QuintDriver
     # second or two of node, and every Spec.new asks for one. Its other
     # modules reuse that compile: quint typechecks every module of the file
     # whichever is main, and --main only sets "main" and adds q::init and
-    # q::step, which nothing here reads.
+    # q::step, which nothing here reads. Threads that ask for one file at
+    # once wait for one compile; other files compile beside it.
     def self.compile(path, main: nil)
       key = [ command, File.expand_path(path) ]
       wanted = main || File.basename(path, ".qnt")
-      sources = sources(path) if File.file?(path)
-      cached_sources, ir = @compiled[key]
-      if sources && sources == cached_sources && ir["modules"].any? { _1["name"] == wanted }
-        return ir["main"] == wanted ? ir : ir.merge("main" => wanted).freeze
-      end
+      @locking.synchronize { @locks[key] ||= Mutex.new }.synchronize do
+        sources = sources(path) if File.file?(path)
+        cached_sources, ir = @compiled[key]
+        if sources && sources == cached_sources && ir["modules"].any? { _1["name"] == wanted }
+          return ir["main"] == wanted ? ir : ir.merge("main" => wanted).freeze
+        end
 
-      ir = compile_now(path, main)
-      @compiled[key] = [ sources, ir ] if sources
-      ir
+        ir = compile_now(path, main)
+        @compiled[key] = [ sources, ir ] if sources
+        ir
+      end
     end
     @compiled = {}
+    @locks = {}
+    @locking = Mutex.new
 
     # The text of +path+ and of each file it imports, directly or through
     # another, by path. Quint resolves `from "name"` against the directory of
