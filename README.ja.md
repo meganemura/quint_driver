@@ -151,7 +151,7 @@ Minitest のテストでも RSpec の example でも同じコードで動きま�
 RSpec で自分の example から値を引くときは `Hegel::Syntax::Methods` を include してください。
 machine 自体には不要です。
 
-ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::DriverFailed` になります。
+ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::StepRaised` になります。
 エラーはドライバー自身のコードからも、その下のシステムからも来ます。
 ドライバーの例は、選んだ値の名前が `p` なのに `picks.fetch("person")` と書いたときの `KeyError` です。
 このとき、仕様とシステムはまだ比べられていません。

@@ -29,7 +29,7 @@ module QuintDriver
         end
         Agreement.check!(at, step.expected, actual, by: "trace", steps: ran)
       end
-    rescue Mismatch, DriverFailed => failure
+    rescue Mismatch, StepRaised => failure
       Quint.send(:name_trace, failure, path)
       raise
     end

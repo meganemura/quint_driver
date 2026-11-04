@@ -33,7 +33,7 @@ class ReplayPropertyTest < Minitest::Test
         Class.new(LoansDriver) { define_method(part) { |*args| raise_at.(at); super(*args) } }.new
       end
 
-      error = assert_raises(QuintDriver::DriverFailed) { QuintDriver::Trace.replay(trace, driver) }
+      error = assert_raises(QuintDriver::StepRaised) { QuintDriver::Trace.replay(trace, driver) }
       first, *rest = error.message.lines
       raised_in = rest.first.start_with?("raised in: ") ? rest.shift : nil
       assert first.start_with?("quint: at step #{at} `#{steps[at].action}` "), first

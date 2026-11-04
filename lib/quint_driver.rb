@@ -42,7 +42,7 @@ module QuintDriver
   # compared. The message names the step, the system's frame that raised when
   # it is not in the driver's file, and the steps from init. The backtrace is
   # the error's, and +cause+ is the error.
-  class DriverFailed < StandardError
+  class StepRaised < StandardError
     include NamedTrace
   end
 
@@ -71,10 +71,10 @@ module QuintDriver
 
     # Runs the block, the driver's part of the step named +at+, and returns
     # what it returns. An error the driver's own code raises comes out as
-    # DriverFailed with +steps+; the gem's own errors pass through.
+    # StepRaised with +steps+; the gem's own errors pass through.
     def self.drive(at, steps:)
       yield
-    rescue Mismatch, DriverFailed, Unsupported, QuintFailed
+    rescue Mismatch, StepRaised, Unsupported, QuintFailed
       raise
     rescue StandardError => error
       # Hegel groups the failures it shrinks by the first frame of the
@@ -82,7 +82,7 @@ module QuintDriver
       # sets a backtrace from Strings only.
       backtrace = RUBY_VERSION >= "3.4" ? error.backtrace_locations || error.backtrace : error.backtrace
       raised_in = beneath_driver(error.backtrace_locations)&.then { "raised in: #{_1}\n" }
-      raise DriverFailed, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in}#{ran(steps)}", backtrace
+      raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in}#{ran(steps)}", backtrace
     end
 
     # The frame that raised, when it is not in the file the gem called: the

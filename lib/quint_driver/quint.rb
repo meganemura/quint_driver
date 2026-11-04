@@ -74,7 +74,7 @@ module QuintDriver
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
           @simulated[trace] = { seed:, simulate: call }
           yield trace
-        rescue Mismatch, DriverFailed => failure
+        rescue Mismatch, StepRaised => failure
           name_trace(failure, trace)
           raise
         ensure

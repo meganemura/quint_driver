@@ -129,7 +129,7 @@ class MachineTest < Minitest::Test
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
 
     report = StringIO.new
-    error = assert_raises(QuintDriver::DriverFailed) do
+    error = assert_raises(QuintDriver::StepRaised) do
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
@@ -144,7 +144,7 @@ class MachineTest < Minitest::Test
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { Class.new(LoansDriver) { def state = raise("no state yet") }.new })
     report = StringIO.new
 
-    error = assert_raises(QuintDriver::DriverFailed) do
+    error = assert_raises(QuintDriver::StepRaised) do
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 

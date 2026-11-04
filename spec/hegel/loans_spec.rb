@@ -25,7 +25,7 @@ RSpec.describe "a lending shelf held to loans.qnt by Hegel" do
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
 
     expect { Hegel.test(**settings, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
-      .to raise_error(QuintDriver::DriverFailed, /\Aquint: at step 1 `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
+      .to raise_error(QuintDriver::StepRaised, /\Aquint: at step 1 `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
   end
 
   it "fails a driver that disagrees at init before Hegel takes a step" do

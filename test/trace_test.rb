@@ -115,7 +115,7 @@ class TraceTest < Minitest::Test
   def test_an_error_the_driver_raises_names_its_step_the_steps_before_it_and_the_trace
     misspelled = Class.new(LoansDriver) { def step(action, picks) = action == "give_back" ? picks.fetch("book") : super }
     line = __LINE__ - 1
-    error = assert_raises(QuintDriver::DriverFailed) { replay(misspelled.new) }
+    error = assert_raises(QuintDriver::StepRaised) { replay(misspelled.new) }
 
     first, *rest = error.message.lines
     assert_match(/\Aquint: at step (\d+) `give_back` (\{"b" => "b\d"\}), the step raised KeyError: key not found: "book"$/, first)
@@ -133,7 +133,7 @@ class TraceTest < Minitest::Test
   def test_an_error_the_system_raises_names_the_system_frame_it_came_from
     unfinished = Class.new(Loans) { def give_back(book) = normalize(book) }
     line = __LINE__ - 1
-    error = assert_raises(QuintDriver::DriverFailed) { replay(LoansDriver.new(unfinished)) }
+    error = assert_raises(QuintDriver::StepRaised) { replay(LoansDriver.new(unfinished)) }
 
     first, raised_in, steps = error.message.lines
     assert_match(/\Aquint: at step \d+ `give_back` \{"b" => "b\d"\}, the step raised NoMethodError: undefined method .normalize. /, first)
@@ -143,14 +143,14 @@ class TraceTest < Minitest::Test
 
   def test_an_error_raised_with_a_backtrace_of_strings_still_names_its_step
     pasted = Class.new(LoansDriver) { def state = raise(KeyError, "no holder", [ "lib/desk.rb:3:in 'Desk#holder'" ]) }
-    error = assert_raises(QuintDriver::DriverFailed) { replay(pasted.new) }
+    error = assert_raises(QuintDriver::StepRaised) { replay(pasted.new) }
 
     assert_equal "quint: at step 0 `init` {}, the step raised KeyError: no holder\nsteps:\n", error.message.lines.first(2).join
   end
 
   def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
     stateless = Class.new(LoansDriver) { def state = raise("no state yet") }
-    error = assert_raises(QuintDriver::DriverFailed) { replay(stateless.new) }
+    error = assert_raises(QuintDriver::StepRaised) { replay(stateless.new) }
 
     assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\nsteps:\n  init {}\n", error.message.lines.first(3).join
   end
