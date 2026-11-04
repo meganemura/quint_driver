@@ -230,6 +230,8 @@ Hegel のレポートは、`reproduce_failure: "AXicXYmhDQAADMJWu/3/70BgQJCmvdEW
 
 Hegel のやり方は、仕様の Ruby での評価を信じています。
 モデルもドライバーと同じ受け答えをするので、Quint 自身のトレースに照らして確かめられます。
+別のモジュールやファイルから定義やアクションを import するモジュールは、quint が動かすときと同じく、それを自分のものとして読みます。
+そのモジュールには、コンパイルが 1 回増えます。
 
 ```ruby
 QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|

@@ -18,8 +18,13 @@ module QuintDriver
     # whichever is main, and --main only sets "main" and adds q::init and
     # q::step, which nothing here reads. Threads that ask for one file at
     # once wait for one compile; other files compile beside it.
-    def self.compile(path, main: nil)
-      key = [ command, File.expand_path(path) ]
+    #
+    # With +flat+, the IR holds only +main+, with each definition it imports
+    # among its own declarations, as quint flattens a module before it runs
+    # it. That is one compile per module, so only a module that imports asks
+    # for it.
+    def self.compile(path, main: nil, flat: false)
+      key = [ command, File.expand_path(path), (main if flat) ]
       wanted = main || File.basename(path, ".qnt")
       @locking.synchronize { @locks[key] ||= Mutex.new }.synchronize do
         sources = sources(path) if File.file?(path)
@@ -28,7 +33,7 @@ module QuintDriver
           return ir["main"] == wanted ? ir : ir.merge("main" => wanted).freeze
         end
 
-        ir = compile_now(path, main)
+        ir = compile_now(path, main, flat)
         @compiled[key] = [ sources, ir ] if sources
         ir
       end
@@ -52,11 +57,13 @@ module QuintDriver
       read
     end
 
-    def self.compile_now(path, main)
+    def self.compile_now(path, main, flat)
       Dir.mktmpdir("quint") do |dir|
-        # Into a file: through a pipe, quint exits before its 64 KB of JSON is out.
+        # Into a file: through a pipe, quint exits before its 64 KB of JSON is
+        # out. With --out, quint writes the modules as the file has them; on
+        # stdout it prints the main module flattened.
         out = File.join(dir, "ir.json")
-        output, status = capture("compile --target json #{path} --out #{out}#{" --main #{main}" if main}")
+        output, status = capture("compile --target json #{path}#{" --main #{main}" if main} #{flat ? '>' : '--out'} #{out}")
         ir = File.exist?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 

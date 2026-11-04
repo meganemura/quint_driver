@@ -135,7 +135,7 @@ Without `action:`, the replay raises `QuintDriver::Unsupported`: `quint: state 0
 
 ## 4. Check the Ruby model
 
-Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first:
+Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first. A module that imports, such as a test module that imports the spec's actions, reads what it imports as its own:
 
 ```ruby
 spec = QuintDriver::Spec.new("spec.qnt", main: "loans")

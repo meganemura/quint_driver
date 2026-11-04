@@ -168,6 +168,24 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_module_that_imports_its_definitions_and_actions_runs_on_the_model
+    Dir.mktmpdir do |dir|
+      Dir.mkdir(File.join(dir, "lib"))
+      File.write(File.join(dir, "lib", "start.qnt"), "module start {\n  pure val START = 2\n}\n")
+      File.write(File.join(dir, "lib", "shelf.qnt"), "module shelf {\n  import start.* from \"start\"\n  pure val FROM = START\n}\n")
+      spec = File.join(dir, "countdown.qnt")
+      File.write(spec, "module ticks {\n  import shelf.* from \"./lib/shelf\"\n  var n: int\n  action init = n' = FROM\n" \
+                       "  action tick = all { n > 0, n' = n - 1 }\n}\n\nmodule countdown {\n  import ticks.* from \"./countdown\"\n" \
+                       "  action step = any { tick }\n}\n")
+      model = QuintDriver::Spec.new(spec, main: "countdown").model
+
+      model.step("init", {})
+      model.step("tick", {})
+      assert_equal({ "n" => 1 }, model.state)
+      assert_equal %w[tick], QuintDriver::Spec.new(spec, main: "countdown").rules("step").map(&:action)
+    end
+  end
+
   def test_threads_that_ask_for_one_spec_at_once_compile_it_once
     Dir.mktmpdir do |dir|
       counting = File.join(dir, "counting-quint")

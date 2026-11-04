@@ -11,9 +11,12 @@ module QuintDriver
     attr_reader :declarations
 
     # The q:: definitions are what quint adds for --main, so only the module
-    # a file compiled for first would have them.
+    # a file compiled for first would have them. A module that imports reads
+    # quint's flattened copy, where what it imports is its own.
     def initialize(path, main:)
       ir = Quint.compile(path, main:)
+      declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
+      ir = Quint.compile(path, main:, flat: true) if declarations.any? { %w[import instance export].include?(_1["kind"]) }
       @declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
                         .reject { _1["name"].to_s.start_with?("q::") }
       @effects = ir.fetch("effects")
