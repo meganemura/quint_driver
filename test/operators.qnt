@@ -216,6 +216,8 @@ module painting {
   // variant as the model's own.
   val shade = match color { Mixed(n) => n | _ => 0 }
   val red = color == Red
+  def tint = shade + 1
+  pure def white = 0
 
   action step = {
     nondet c = Set(Red, Blue, Mixed(1), Mixed(2)).oneOf()

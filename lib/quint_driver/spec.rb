@@ -32,14 +32,10 @@ module QuintDriver
     # and not a sum type's case, which quint declares as a val too.
     def observable!(names)
       observable = declarations.select do
-        _1["kind"] == "def" && %w[val def pureval puredef].include?(_1["qualifier"]) &&
-          _1["expr"]["kind"] != "lambda" && _1["expr"]["opcode"] != "variant"
+        %w[val def pureval puredef].include?(_1["qualifier"]) && _1["expr"]["kind"] != "lambda" && _1["expr"]["opcode"] != "variant"
       end.map { _1["name"] }
-      names.each do |name|
-        next if observable.include?(name)
-
-        raise ArgumentError, "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
-      end
+      name = names.find { !observable.include?(_1) } or return
+      raise ArgumentError, "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
     end
 
     # The definition that writes each IR node, by node id, so the model names

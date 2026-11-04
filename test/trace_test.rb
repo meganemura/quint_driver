@@ -297,6 +297,7 @@ class TraceTest < Minitest::Test
 
   def test_a_driver_is_held_to_each_definition_it_observes
     assert_equal 40, replay(CountingDriver.new, spec: LoansDriver.spec, observe: %w[two_on_loan])
+    assert_equal 40, replay(CountingDriver.new, spec: LoansDriver.spec, observe: %i[two_on_loan]), "a definition named by a symbol"
   end
 
   def test_a_wrong_derived_value_fails_the_step_that_shows_it
@@ -318,8 +319,8 @@ class TraceTest < Minitest::Test
       assert_equal "quint: observe names #{name}, which is no definition without parameters of loans; " \
                    "it has BOOKS, MEMBERS, NOBODY, nothing_on_loan, one_book_each, two_on_loan", error.message
     end
-    error = assert_raises(ArgumentError) { replay(CountingDriver.new, observe: %w[two_on_loan]) }
-    assert_equal "quint: observe needs spec:, the Spec that evaluates two_on_loan", error.message
+    error = assert_raises(ArgumentError) { replay(CountingDriver.new, observe: %w[two_on_loan one_book_each]) }
+    assert_equal "quint: observe needs spec:, the Spec that evaluates two_on_loan, one_book_each", error.message
   end
 
   def test_a_step_that_names_no_action_is_refused

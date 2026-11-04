@@ -27,7 +27,7 @@ class ModelTest < Minitest::Test
 # Trace.replay reads an observed definition in the state quint wrote, the
 # machine in the state the model stepped to; the two have to agree.
 def test_the_model_reads_an_observed_definition_the_same_in_a_trace_s_state_as_after_its_own_steps
-  { "operators" => %w[NUMS], "painting" => %w[shade red], "loans" => %w[one_book_each nothing_on_loan two_on_loan] }.each do |main, names|
+  { "operators" => %w[NUMS], "painting" => %w[shade red tint white], "loans" => %w[one_book_each nothing_on_loan two_on_loan] }.each do |main, names|
     file = main == "loans" ? LoansDriver::SPEC : OPERATORS
     spec = QuintDriver::Spec.new(file, main:)
     observing = Class.new { define_method(:initialize) { @model = spec.model }; define_method(:step) { |*move| @model.step(*move) }; define_method(:state) { @model.state.merge(@model.observe(names)) } }

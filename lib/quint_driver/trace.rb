@@ -71,7 +71,8 @@ module QuintDriver
 
     # The value of each definition +observe+ names, in each state of the
     # trace. The model reads the state as quint wrote it, so the driver's
-    # steps never pass through the model.
+    # steps never pass through the model; it reads only the spec's variables,
+    # so the mbt:: entries stay.
     def self.observed(path, spec, observe)
       return Hash.new({}) if observe.empty?
       raise ArgumentError, "quint: observe needs spec:, the Spec that evaluates #{observe.join(', ')}" unless spec
@@ -79,7 +80,7 @@ module QuintDriver
       spec.observable!(observe)
       model = spec.model(nil)
       JSON.parse(File.read(path)).fetch("states").map do |values|
-        model.enter(decode(values.reject { _1.start_with?("mbt::") }) { |tag, inner| Model::Variant.new(tag, inner) })
+        model.enter(decode(values) { |tag, inner| Model::Variant.new(tag, inner) })
         model.observe(observe)
       end
     end

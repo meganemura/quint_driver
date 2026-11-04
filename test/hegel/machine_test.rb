@@ -233,6 +233,14 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(wrong.new, tc) }
     end
     assert_match(/\Aquint: after step 1 `borrow` \{"b" => "b1", "m" => "m1"\}, the driver differs from the model\n  two_on_loan: model false, driver true\n/, error.message)
+    by_symbol = QuintDriver.machine(LoansDriver.spec, driver: -> { lent.(->(n) { n == 2 }).new }, observe: %i[two_on_loan])
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(by_symbol.new, tc) }
+  end
+
+  def test_the_machine_refuses_to_observe_a_name_that_is_no_definition_without_parameters
+    error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, observe: %w[borrow]) }
+
+    assert_match(/\Aquint: observe names borrow, which is no definition without parameters of loans; it has /, error.message)
   end
 
   def test_a_choice_other_than_rule_or_rotate_raises
