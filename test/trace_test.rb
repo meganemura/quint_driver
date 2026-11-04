@@ -144,6 +144,18 @@ class TraceTest < Minitest::Test
     assert_equal "steps:\n", steps
   end
 
+  def test_an_error_raised_in_another_directory_names_its_frame_from_the_directory_the_run_started_in
+    started, elsewhere = Dir.pwd, Dir.mktmpdir("elsewhere")
+    moving = Class.new(LoansDriver) { define_method(:state) { Dir.chdir(elsewhere); raise "no ledger here" } }
+    line = __LINE__ - 1
+    error = assert_raises(QuintDriver::StepRaised) { replay(moving.new) }
+
+    assert_match(/\Araised in: test\/trace_test\.rb:#{line}:in /, error.message.lines[1])
+  ensure
+    Dir.chdir(started)
+    FileUtils.rm_rf(elsewhere)
+  end
+
   def test_an_error_raised_in_rubys_library_names_the_project_frame_that_called_it
     parsing = Class.new(LoansDriver) { def step(action, picks) = action == "give_back" ? JSON.parse("{") : super }
     line = __LINE__ - 1

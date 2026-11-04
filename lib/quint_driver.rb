@@ -95,11 +95,14 @@ module QuintDriver
       frame = frames.take_while { !library?(_1, QUINT_DRIVER) }.find { !library?(_1, *LIBRARIES) }
       return "raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver\n" unless frame
 
-      # The path as the project names it, as RSpec prints one, when the
-      # frame is under the directory the run started in.
-      "raised in: #{frame.to_s.delete_prefix(File.join(Dir.pwd, ""))}\n"
+      "raised in: #{frame.to_s.delete_prefix(STARTED_IN)}\n"
     end
 
+    # The path as the project names it, as RSpec prints one, when the frame
+    # is under the directory the run started in. That is the directory when
+    # the gem loaded, as RSpec reads it once, so a driver that changes
+    # directory does not turn the path absolute.
+    STARTED_IN = File.join(Dir.pwd, "")
     QUINT_DRIVER = File.join(__dir__, "quint_driver")
     LIBRARIES = [ QUINT_DRIVER, "<internal:", RbConfig::CONFIG["rubylibprefix"] + File::SEPARATOR,
                   *(defined?(Gem) ? Gem.path : []).map { File.join(_1, "") } ].freeze
