@@ -35,12 +35,16 @@ module QuintDriver
     # Walks +step+: `any` splits into rules, `nondet x = S.oneOf()` adds a
     # domain, and a call of a declared action ends a rule. A parameterless
     # action made of `any` (such as `step` inside a wider step) opens in place.
+    # An `all` of one action is that action, as in `all { nondet x = ...
+    # any { ... } }`; an `all` of more holds a condition no rule can carry.
     def rules(step)
       actions = declarations.select { _1["qualifier"] == "action" }.to_h { [ _1["name"], _1 ] }
       choice = ->(node) { node["kind"] == "app" && node["opcode"] == "actionAny" }
       walk = lambda do |node, domains, within|
         if choice.(node)
           node["args"].flat_map { walk.(_1, domains, within) }
+        elsif node["kind"] == "app" && node["opcode"] == "actionAll" && node["args"].size == 1
+          walk.(node["args"].first, domains, within)
         elsif node["kind"] == "let" && node["opdef"]["qualifier"] == "nondet" && node["opdef"]["expr"]["opcode"] == "oneOf"
           walk.(node["expr"], domains.merge(node["opdef"]["name"] => node["opdef"]["expr"]["args"].first), within)
         elsif actions.key?(node["name"])

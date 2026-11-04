@@ -297,6 +297,18 @@ class TraceTest < Minitest::Test
     assert_equal "quint: step holds actionAll in an arm that names no action; name every action in step", error.message
   end
 
+  def test_a_step_of_one_all_around_its_picks_lists_the_actions_of_the_any_inside
+    spec = QuintDriver::Spec.new(ANONYMOUS, main: "wrapped")
+    rules = spec.rules("step")
+
+    assert_equal [ [ "add", %w[x] ], [ "sub", %w[x] ] ], rules.map { [ _1.action, _1.domains.keys ] }
+    steps = 0
+    QuintDriver::Quint.simulate(ANONYMOUS, main: "wrapped", traces: 5, max_steps: 4, seed: "1") do |path|
+      steps += QuintDriver::Trace.replay(path, spec.model).size
+    end
+    assert_equal 25, steps
+  end
+
   def test_a_step_that_is_no_action_of_the_module_lists_the_actions_it_has
     error = assert_raises(ArgumentError) { QuintDriver::Spec.new(ANONYMOUS, main: "nested").rules("steps") }
 

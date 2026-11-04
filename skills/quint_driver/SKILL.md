@@ -36,7 +36,7 @@ With that evaluator in place, `Quint.simulate` runs it directly and skips node; 
 
 Each move of `step` must name the action that a driver runs.
 
-- Write `step` as `any { ... }` whose arms call named actions, even for one action: `action step = any { tick }`. Without `any`, Quint names every move `step`, so a driver cannot tell the moves apart, and replay through the model raises `QuintDriver::Unsupported`.
+- Write `step` as `any { ... }` whose arms call named actions, even for one action: `action step = any { tick }`. Without `any`, Quint names every move `step`, so a driver cannot tell the moves apart, and replay through the model raises `QuintDriver::Unsupported`. One `all` around the picks and the `any` reads the same: `action step = all { nondet x = S.oneOf() any { add(x), sub(x) } }`. An `all` that also holds a condition is refused, because no rule carries the condition.
 - Take arguments only from `nondet x = S.oneOf()` before the call: `nondet b = BOOKS.oneOf() any { give_back(b), give_back_refused(b) }`.
 - Draw each pick in the arm whose action takes it. A pick drawn above `any` is in the `picks` of every arm, so a failure lists it on a move that does not use it.
 - A parameterless action whose body is `any { ... }` opens in place, so `action step = any { lending, returning }` works.
