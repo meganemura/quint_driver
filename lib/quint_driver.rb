@@ -62,15 +62,31 @@ module QuintDriver
     # +expected+, and the [action, picks] +steps+ the driver ran from init, so
     # the failure can be run again without the trace file. Compares only the
     # variables +actual+ reports, and each definition +observe+ names, which
-    # the driver has to report.
-    def self.check!(after, expected, actual, by:, steps:, observe: [])
+    # the driver has to report. The model evaluates an observed definition,
+    # also on a trace's state, so its line names the model. +spec+, when the
+    # caller has one, tells a name the driver reports that is no variable
+    # apart from a definition it forgot to observe.
+    def self.check!(after, expected, actual, by:, steps:, observe: [], spec: nil)
       compared = actual.keys | observe
-      expected = expected.slice(*compared)
-      return if expected == actual
+      return if expected.slice(*compared) == actual
 
-      diff = compared.reject { expected[_1] == actual[_1] }
-                   .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
-      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\n#{ran(steps)}", outside(caller_locations)
+      lines = compared.reject { expected[_1] == actual[_1] }.map do |name|
+        next [ by, unknown(name, actual[name], expected.keys - observe, by:, spec:) ] unless expected.key?(name)
+
+        source = observe.include?(name) ? "model" : by
+        [ source, "  #{name}: #{source} #{show(expected[name])}, driver #{show(actual[name])}" ]
+      end
+      raise Mismatch, "quint: after #{after}, the driver differs from the #{lines.map(&:first).uniq.join(' and the ')}\n" \
+                      "#{lines.map(&:last).join("\n")}\n#{ran(steps)}", outside(caller_locations)
+    end
+
+    def self.unknown(name, reported, names, by:, spec:)
+      within = by == "trace" ? "the trace's state, which has #{names.sort.join(', ')}" : "the spec's variables, #{names.sort.join(', ')}"
+      hint = if spec.nil? then "; to hold the driver to a definition, pass spec: and observe:"
+             elsif spec.send(:observable).include?(name) then "; it is a definition of the spec, so name it in observe:"
+             else ""
+             end
+      "  #{name}: driver #{show(reported)}, but #{name} is not in #{within}#{hint}"
     end
 
     # Runs the block, the driver's part of the step named +at+, and returns

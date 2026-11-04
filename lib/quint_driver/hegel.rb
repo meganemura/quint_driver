@@ -70,7 +70,7 @@ module QuintDriver
           @driver.step(*init)
           @driver.state
         end
-        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ], observe:)
+        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ], observe:, spec:)
       end
 
       define_method(:move!) do |action, picks, after|
@@ -89,7 +89,7 @@ module QuintDriver
         end
         last = at.(@numbers.last, @moves.last)
         actual = Agreement.drive(last, steps: [ init, *@moves ]) { @driver.state }
-        Agreement.check!(last, @model.state.merge(@model.observe(observe)), actual, by: "model", steps: [ init, *@moves ], observe:)
+        Agreement.check!(last, @model.state.merge(@model.observe(observe)), actual, by: "model", steps: [ init, *@moves ], observe:, spec:)
         agreed << @moves.dup
       end
 

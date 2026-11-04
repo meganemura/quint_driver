@@ -70,7 +70,7 @@ module QuintDriver
           driver.step(step.action, step.picks)
           driver.state
         end
-        Agreement.check!(at, step.expected.merge(observed[step.index]), actual, by: "trace", steps: ran, observe:)
+        Agreement.check!(at, step.expected.merge(observed[step.index]), actual, by: "trace", steps: ran, observe:, spec:)
       end
     rescue Mismatch, StepRaised => failure
       Quint.send(:name_trace, failure, path)

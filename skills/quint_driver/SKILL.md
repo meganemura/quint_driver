@@ -101,7 +101,7 @@ reached.sort.to_h # => {"borrow" => 214, "borrow_refused" => 283, "give_back" =>
 
 An action that never appears is one no test reached; raise `traces` or `max_steps`, or aim at it with `reach:`.
 
-A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that reports no value for it fails with `driver nil`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
+A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that reports no value for it fails with `driver nil`. The model evaluates the definition, on a replay too, so the line names the model, such as `approvedSum: model 0, driver 15000`. A name `state` reports that is in no state fails as `dueCents: driver 0, but dueCents is not in the trace's state, which has ...`, and when the name is a definition of the spec the line says to name it in `observe:`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
 
 To test the steps that lead to one state, write a definition that holds there and pass its name as `reach:`. Each trace then ends at the first state where it holds, and only the traces that get there are yielded:
 
@@ -516,8 +516,8 @@ With `approved_total` written as `loans.sum(:amount)`, which counts the loans no
 
 ```text
 QuintDriver::Mismatch:
-  quint: after step 1 `request` {"a" => 15000, "l" => "l1"}, the driver differs from the trace
-    approvedSum: trace 0, driver 15000
+  quint: after step 1 `request` {"a" => 15000, "l" => "l1"}, the driver differs from the model
+    approvedSum: model 0, driver 15000
   steps:
     init {}
     request {"a" => 15000, "l" => "l1"}

@@ -241,6 +241,16 @@ class MachineTest < Minitest::Test
     Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(by_symbol.new, tc) }
   end
 
+  def test_a_name_the_driver_reports_that_is_no_variable_says_so_and_names_a_definition_as_one
+    { "dueCents" => "", "two_on_loan" => "; it is a definition of the spec, so name it in observe:" }.each do |name, hint|
+      reporting = Class.new(LoansDriver) { define_method(:state) { super().merge(name => 0) } }
+      machine = QuintDriver.machine(LoansDriver.spec, driver: -> { reporting.new })
+
+      error = assert_raises(QuintDriver::Mismatch) { Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
+      assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  #{name}: driver 0, but #{name} is not in the spec's variables, holder, outcome#{Regexp.escape(hint)}\nsteps:\n/, error.message)
+    end
+  end
+
   def test_the_machine_refuses_to_observe_a_name_that_is_no_definition_without_parameters
     error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, observe: %w[borrow]) }
 

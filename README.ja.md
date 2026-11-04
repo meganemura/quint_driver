@@ -172,6 +172,11 @@ machine 自体には不要です。
 ドライバーの `state` では、`"approvedSum" => borrower.approved_total` のように同じ名前でその値を返します。
 ドライバーは、各状態でその定義が持つ値に照らされます。
 値を返さないドライバーは失敗します。
+定義を評価するのはモデルです。
+再生でもモデルがトレースの状態を読んで評価するので、失敗は `approvedSum: model 0, driver 15000` のようにモデルを示します。
+ドライバーが返した名前がどの状態にもないときも失敗します。
+例えば `dueCents: driver 0, but dueCents is not in the trace's state, which has amount, approvedBy, outcome` です。
+その名前が仕様の定義なら、その行は `observe:` に名前を渡すよう示します。
 パラメーターのない `val` や `def` でない名前を渡すと、モジュールにある名前を添えて `ArgumentError` を投げます。
 
 ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::StepRaised` になります。

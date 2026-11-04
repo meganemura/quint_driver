@@ -31,9 +31,6 @@ module QuintDriver
     # can read in a state: a val or a def without parameters, not an action,
     # and not a sum type's case, which quint declares as a val too.
     def observable!(names)
-      observable = declarations.select do
-        %w[val def pureval puredef].include?(_1["qualifier"]) && _1["expr"]["kind"] != "lambda" && _1["expr"]["opcode"] != "variant"
-      end.map { _1["name"] }
       name = names.find { !observable.include?(_1) } or return
       raise ArgumentError, "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
     end
@@ -76,6 +73,12 @@ module QuintDriver
     end
 
     private
+      def observable
+        @observable ||= declarations.select do
+          %w[val def pureval puredef].include?(_1["qualifier"]) && _1["expr"]["kind"] != "lambda" && _1["expr"]["opcode"] != "variant"
+        end.map { _1["name"] }
+      end
+
       # Quint's effect of a set says which variables it reads, and a pick is
       # not a variable, so a set also has to name no earlier pick. A lambda
       # parameter that shadows a pick counts as the pick: one evaluation too

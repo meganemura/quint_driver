@@ -306,13 +306,26 @@ class TraceTest < Minitest::Test
     miscounting = CountingDriver.new { |count| count >= 1 }
 
     error = assert_raises(QuintDriver::Mismatch) { replay(miscounting, spec: LoansDriver.spec, observe: %w[two_on_loan]) }
-    assert_match(/\Aquint: after step \d+ `borrow` \{.*\}, the driver differs from the trace\n  two_on_loan: trace false, driver true\nsteps:\n  init \{\}\n/, error.message)
+    assert_match(/\Aquint: after step \d+ `borrow` \{.*\}, the driver differs from the model\n  two_on_loan: model false, driver true\nsteps:\n  init \{\}\n/, error.message)
   end
 
   def test_an_observed_definition_the_driver_does_not_report_fails
     error = assert_raises(QuintDriver::Mismatch) { replay(LoansDriver.new, spec: LoansDriver.spec, observe: %w[two_on_loan]) }
 
-    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the trace\n  two_on_loan: trace false, driver nil\n/, error.message)
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  two_on_loan: model false, driver nil\n/, error.message)
+  end
+
+  def test_a_name_the_driver_reports_that_is_not_in_the_trace_s_state_says_so
+    owing = Class.new(LoansDriver) { def state = super.merge("dueCents" => 0) }
+
+    error = assert_raises(QuintDriver::Mismatch) { replay(owing.new) }
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the trace\n  dueCents: driver 0, but dueCents is not in the trace's state, which has holder, outcome; to hold the driver to a definition, pass spec: and observe:\nsteps:\n/, error.message)
+  end
+
+  def test_a_definition_the_driver_reports_without_observing_it_is_named_as_one
+    error = assert_raises(QuintDriver::Mismatch) { replay(CountingDriver.new, spec: LoansDriver.spec) }
+
+    assert_match(/\A  two_on_loan: driver false, but two_on_loan is not in the trace's state, which has holder, outcome; it is a definition of the spec, so name it in observe:\n/, error.message.lines[1..].join)
   end
 
   def test_observe_names_only_definitions_without_parameters
