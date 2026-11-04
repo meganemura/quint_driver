@@ -290,6 +290,18 @@ class TraceTest < Minitest::Test
     assert_equal "quint: no action is named steps; the module has counting, init, step", error.message
   end
 
+  def test_a_replay_returns_the_steps_it_ran_so_a_caller_can_count_what_the_traces_reached
+    reached = Hash.new(0)
+    QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
+      steps = QuintDriver::Trace.replay(path, LoansDriver.new)
+      assert_equal QuintDriver::Trace.steps(path).map(&:to_a), steps.map(&:to_a)
+      steps.each { reached[_1.action] += 1 }
+    end
+
+    assert_equal %w[borrow borrow_refused give_back give_back_refused init], reached.keys.sort
+    assert_equal 40, reached["init"]
+  end
+
   def test_a_replay_prints_each_step_before_the_driver_runs_it
     log = StringIO.new
     error = assert_raises(QuintDriver::Mismatch) do

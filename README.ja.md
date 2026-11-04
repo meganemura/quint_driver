@@ -146,6 +146,7 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 投げるときはメッセージだけを渡します（`raise QuintDriver::Mismatch, "..."`）。
 実際に走ったトレースは gem が示すので、`Mismatch.new` はトレース、シード、呼び出しを受け取りません。
 自分で用意したトレースファイルを再生したときは、そのパスを示します。
+`Trace.replay` は、走らせたステップを `action`、`picks`、`expected` の状態とともに返すので、トレースがどこまで届いたかを数えられます。
 再生の様子を見るときは `Trace.replay` に `log: $stdout` を渡します。
 ドライバーが動かす前に、`step 1 borrow {"b" => "b1", "m" => "m2"}` のように各ステップを書き出します。
 Minitest のテストでも RSpec の example でも同じコードで動きます。

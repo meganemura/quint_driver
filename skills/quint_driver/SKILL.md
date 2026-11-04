@@ -87,6 +87,18 @@ end
 
 Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it.
 
+`Trace.replay` returns the steps it ran (`action`, `picks`, `expected`, `index`), so you can see what the traces reached before you trust a pass:
+
+```ruby
+reached = Hash.new(0)
+QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 50, max_steps: 20, seed: "1") do |path|
+  QuintDriver::Trace.replay(path, LoansDriver.new).each { reached[_1.action] += 1 }
+end
+reached.sort.to_h # => {"borrow" => 214, "borrow_refused" => 283, "give_back" => 161, "give_back_refused" => 342, "init" => 50}
+```
+
+An action that never appears is one no test reached; raise `traces` or `max_steps`, or aim at it with `reach:`.
+
 To test the steps that lead to one state, write a definition that holds there and pass its name as `reach:`. Each trace then ends at the first state where it holds, and only the traces that get there are yielded:
 
 ```ruby

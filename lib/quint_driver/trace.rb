@@ -37,6 +37,8 @@ module QuintDriver
 
     # +log+, an IO such as $stdout, gets each step before the driver runs it.
     # +state+ and +action+ are paths into each state, as Trace.steps reads them.
+    # Returns the steps it ran, so a caller can count the actions and states
+    # its traces reached.
     def self.replay(path, driver, log: nil, state: [], action: nil)
       ran = []
       steps(path, state:, action:).each do |step|
