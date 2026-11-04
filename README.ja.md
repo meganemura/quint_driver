@@ -153,10 +153,14 @@ machine 自体には不要です。
 
 ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::StepRaised` になります。
 エラーはドライバー自身のコードからも、その下のシステムからも来ます。
-ドライバーの例は、選んだ値の名前が `p` なのに `picks.fetch("person")` と書いたときの `KeyError` です。
+ドライバーの例は、選んだ値の名前が `m` なのに `picks.fetch("member")` と書いたときの `KeyError` です。
 このとき、仕様とシステムはまだ比べられていません。
-メッセージは ``quint: at step 2 `take` {"p" => "ann"}, the step raised KeyError: key not found: "person"`` のようにステップとエラーを示します。
-投げたフレームがドライバーとは別のファイル、例えばシステム自身のメソッドにあるときは、`raised in: lib/desk.rb:9:in 'Desk#take'` のような `raised in:` の行がそのフレームを示します。
+メッセージは ``quint: at step 1 `borrow` {"b" => "b2", "m" => "m2"}, the step raised KeyError: key not found: "member"`` のようにステップとエラーを示します。
+続く `raised in:` の行は、`raised in: loans_driver.rb:6:in 'Hash#fetch'` のように、投げた場所にいちばん近いプロジェクトのフレームを示します。
+パスは、実行を始めたディレクトリからの相対パスです。
+gem、Ruby のライブラリ、quint_driver の中のフレームは飛ばすので、gem が投げたエラーでは、その gem を呼んだ自分の行を示します。
+すべてのフレームを飛ばしたときは、その行が `raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver` と示します。
+そのときはバックトレースを読んでください。
 Hegel のもとでは、ステップの番号は Hegel のレポートがその手に付けた番号（`Step 2: take` など）で、再生と同じく `init` はステップ 0 です。
 そのあとに `init` からの手順を並べます。
 再生では、最後に同じ `trace:` の行が付きます。

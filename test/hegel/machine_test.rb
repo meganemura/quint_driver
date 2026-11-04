@@ -133,8 +133,9 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
-    first, *steps = error.message.lines
+    first, raised_in, *steps = error.message.lines
     assert_match(/\Aquint: at step #{report.string.scan(/^  Step (\d+): /).flatten.last} `(give_back\S*)` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"$/, first)
+    assert_match(/\Araised in: test\/hegel\/machine_test\.rb:#{line}:in .*fetch'\n\z/, raised_in)
     assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
     assert_equal KeyError, error.cause.class
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
@@ -142,13 +143,15 @@ class MachineTest < Minitest::Test
 
   def test_an_error_the_driver_raises_at_init_fails_before_hegel_takes_a_step
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { Class.new(LoansDriver) { def state = raise("no state yet") }.new })
+    line = __LINE__ - 1
     report = StringIO.new
 
     error = assert_raises(QuintDriver::StepRaised) do
       Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
 
-    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\nsteps:\n  init {}", error.message
+    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\n", error.message.lines.first
+    assert_match(/\Araised in: test\/hegel\/machine_test\.rb:#{line}:in .*state'\nsteps:\n  init \{\}\z/, error.message.lines.drop(1).join)
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
   end
 

@@ -22,10 +22,11 @@ RSpec.describe "a lending shelf held to loans.qnt by Hegel" do
 
   it "names the move and the shrunk steps where the driver's own code raised" do
     misspelled = Class.new(LoansDriver) { def step(action, picks) = action.start_with?("give_back") ? picks.fetch("book") : super }
+    line = __LINE__ - 1
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { misspelled.new })
 
     expect { Hegel.test(**settings, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
-      .to raise_error(QuintDriver::StepRaised, /\Aquint: at step 1 `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
+      .to raise_error(QuintDriver::StepRaised, /\Aquint: at step 1 `give_back\S*` \{"b" => "b\d"\}, the step raised KeyError: key not found: "book"\nraised in: spec\/hegel\/loans_spec\.rb:#{line}:in .*fetch'\nsteps:\n  init \{\}\n  give_back\S* \{"b" => "b\d"\}\z/)
   end
 
   it "fails a driver that disagrees at init before Hegel takes a step" do

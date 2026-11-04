@@ -133,24 +133,24 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
 - Every value prints with a set's elements and a hash's keys sorted, so the two sides of a line, a replay and the machine, and Ruby 3.3 and 3.4 print the same value the same way.
 - `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `simulate:`, because the gem fills them with the trace that ran.
-- An error a step raises, in the driver's own code or in the system beneath it, is a `QuintDriver::StepRaised`, not a `Mismatch`: the two sides were never compared. Fix the code the message points at first. A domain error the driver lets through, such as `Loans::Refused` on a `_refused` step, lands here too; rescue it into the spec's refusal value, as step 2 does. The first line names the step and the error. When the frame that raised is outside the driver's file, a `raised in:` line names it. That is usually the system's line to fix; for a domain error the driver should rescue, it is where the error came from. The backtrace is the error's, and `cause` is the original error:
+- An error a step raises, in the driver's own code or in the system beneath it, is a `QuintDriver::StepRaised`, not a `Mismatch`: the two sides were never compared. Fix the code the message points at first. A domain error the driver lets through, such as `Loans::Refused` on a `_refused` step, lands here too; rescue it into the spec's refusal value, as step 2 does. The first line names the step and the error. The `raised in:` line names the frame of your project nearest the raise, with the path relative to the directory the run started in. It skips frames in a gem, in Ruby's library, and in quint_driver, so an error a gem raises names your line that called the gem. That line is usually the one to fix; for a domain error the driver should rescue, it is where the error came from. When every frame is skipped, the line reads `raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver`; read the backtrace then. The backtrace is the error's, and `cause` is the original error. Here a driver like the one in section 2 reads `picks.fetch("member")`, but the pick is named `m`:
 
   ```text
-  quint: at step 2 `take` {"p" => "ann"}, the step raised KeyError: key not found: "person"
+  quint: at step 1 `borrow` {"b" => "b2", "m" => "m2"}, the step raised KeyError: key not found: "member"
+  raised in: loans_driver.rb:6:in 'Hash#fetch'
   steps:
     init {}
-    serve_refused {}
-    take {"p" => "ann"}
-  trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 5, max_steps: 5, seed: "1", main: "desk", step: "step", backend: "rust")
+    borrow {"b" => "b2", "m" => "m2"}
+  trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", step: "step", backend: "rust")
   ```
 
-  Under Hegel the line reads the same, and the number is the one Hegel's report gives the move (`Step 2: take`). A rule Hegel rejected counts too, so the number can be larger than the moves under `steps:`. A failure while the `driver:` lambda makes the driver, or at its first state, reads ``quint: at step 0 `init` {}, ...``, as on a replay. The machine makes its driver when it starts, so Hegel's report for that failure lists no step.
+  Under Hegel the line reads the same, and the number is the one Hegel's report gives the move (`Step 1: borrow`). A rule Hegel rejected counts too, so the number can be larger than the moves under `steps:`. A failure while the `driver:` lambda makes the driver, or at its first state, reads ``quint: at step 0 `init` {}, ...``, as on a replay. The machine makes its driver when it starts, so Hegel's report for that failure lists no step.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
 | Error | Cause |
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
-| `QuintDriver::StepRaised` | The driver's `step` or `state`, the system it called, or the `driver:` lambda raised. `raised in:` names the system's frame. `cause` holds the error. |
+| `QuintDriver::StepRaised` | The driver's `step` or `state`, the system it called, or the `driver:` lambda raised. `raised in:` names your project's frame. `cause` holds the error. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
 | `ArgumentError` | `QuintDriver.machine`'s `step:`, or `spec.rules`, names no action of the module. The message lists the actions it has. |
 | `QuintDriver::QuintFailed` | quint rejected the spec, `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, `QUINT` is unset and npx could not fetch quint, or the `QUINT_EVALUATOR` evaluator cannot run or answers in a format other than v0.7.0's. |

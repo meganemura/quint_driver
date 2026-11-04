@@ -1,6 +1,8 @@
 require_relative "test_helper"
 require "fileutils"
 require "stringio"
+require "delegate"
+require "json"
 
 class TraceTest < Minitest::Test
   ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
@@ -117,8 +119,9 @@ class TraceTest < Minitest::Test
     line = __LINE__ - 1
     error = assert_raises(QuintDriver::StepRaised) { replay(misspelled.new) }
 
-    first, *rest = error.message.lines
+    first, raised_in, *rest = error.message.lines
     assert_match(/\Aquint: at step (\d+) `give_back` (\{"b" => "b\d"\}), the step raised KeyError: key not found: "book"$/, first)
+    assert_match(/\Araised in: test\/trace_test\.rb:#{line}:in .*fetch'\n\z/, raised_in)
     step, picks = first.match(/step (\d+) `give_back` (\{.*\}),/).captures
     steps = rest.take_while { !_1.start_with?("trace:") }
     assert_equal [ "steps:\n", "  init {}\n" ], steps.first(2)
@@ -137,8 +140,24 @@ class TraceTest < Minitest::Test
 
     first, raised_in, steps = error.message.lines
     assert_match(/\Aquint: at step \d+ `give_back` \{"b" => "b\d"\}, the step raised NoMethodError: undefined method .normalize. /, first)
-    assert_match(/\Araised in: #{Regexp.escape(__FILE__)}:#{line}:in .*give_back'\n\z/, raised_in, "the system's frame, not the driver's")
+    assert_match(/\Araised in: test\/trace_test\.rb:#{line}:in .*give_back'\n\z/, raised_in, "the system's frame, not the driver's")
     assert_equal "steps:\n", steps
+  end
+
+  def test_an_error_raised_in_rubys_library_names_the_project_frame_that_called_it
+    parsing = Class.new(LoansDriver) { def step(action, picks) = action == "give_back" ? JSON.parse("{") : super }
+    line = __LINE__ - 1
+    error = assert_raises(QuintDriver::StepRaised) { replay(parsing.new) }
+
+    refute_includes error.backtrace.first, __FILE__, "the error raised inside the json library"
+    assert_match(/\Araised in: test\/trace_test\.rb:#{line}:in /, error.message.lines[1])
+  end
+
+  def test_an_error_with_no_frame_of_the_project_says_so
+    error = assert_raises(QuintDriver::StepRaised) { replay(SimpleDelegator.new(Object.new)) }
+
+    assert_match(/\Aquint: at step 0 `init` \{\}, the step raised NoMethodError: /, error.message)
+    assert_equal "raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver\n", error.message.lines[1]
   end
 
   def test_an_error_raised_with_a_backtrace_of_strings_still_names_its_step
@@ -150,9 +169,11 @@ class TraceTest < Minitest::Test
 
   def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
     stateless = Class.new(LoansDriver) { def state = raise("no state yet") }
+    line = __LINE__ - 1
     error = assert_raises(QuintDriver::StepRaised) { replay(stateless.new) }
 
-    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\nsteps:\n  init {}\n", error.message.lines.first(3).join
+    assert_equal "quint: at step 0 `init` {}, the step raised RuntimeError: no state yet\n", error.message.lines.first
+    assert_match(/\Araised in: test\/trace_test\.rb:#{line}:in .*state'\nsteps:\n  init \{\}\n\z/, error.message.lines[1, 3].join)
   end
 
   def test_a_mismatch_the_driver_raises_stays_a_mismatch

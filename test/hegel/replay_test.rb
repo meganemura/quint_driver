@@ -8,9 +8,8 @@ class ReplayPropertyTest < Minitest::Test
   SETTINGS = { test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow] }.freeze
 
   # Wherever in a trace a step raises, in the driver's step, in its state,
-  # or in the system beneath it, the failure names that step and lists the
-  # trace's steps up to it, and names the system's frame only when the
-  # system raised.
+  # or in the system beneath it, the failure names that step, the line that
+  # raised, and the trace's steps up to it.
   def test_a_step_error_names_the_step_it_raised_in_and_the_steps_before_it
     dir = Dir.mktmpdir("replay")
     trace = File.join(dir, "kept.itf.json")
@@ -21,6 +20,7 @@ class ReplayPropertyTest < Minitest::Test
       at = tc.draw(integers(min_value: 0, max_value: steps.size - 1), label: "at")
       part = tc.draw(sampled_from(%i[step state system]), label: "part")
       calls = 0
+      line = __LINE__ + 2
       raise_at = lambda do |count|
         raise IndexError, "call #{calls}" if calls == count
         calls += 1
@@ -34,11 +34,10 @@ class ReplayPropertyTest < Minitest::Test
       end
 
       error = assert_raises(QuintDriver::StepRaised) { QuintDriver::Trace.replay(trace, driver) }
-      first, *rest = error.message.lines
-      raised_in = rest.first.start_with?("raised in: ") ? rest.shift : nil
+      first, raised_in, *rest = error.message.lines
       assert first.start_with?("quint: at step #{at} `#{steps[at].action}` "), first
       assert_match(/the step raised IndexError: call \d+\n\z/, first)
-      assert_equal part == :system, raised_in&.start_with?("raised in: #{__FILE__}:") || false, "only the system's frame is named"
+      assert raised_in.start_with?("raised in: test/hegel/replay_test.rb:#{line}:"), raised_in
       assert_equal steps.first(at + 1).map(&:action), rest[1..at + 1].map { _1.split.first }
       assert_equal "trace: #{trace}", rest.last
       assert_equal IndexError, error.cause.class

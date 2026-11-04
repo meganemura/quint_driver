@@ -1,3 +1,4 @@
+require "rbconfig"
 require "set"
 
 # Tests a Ruby system against a Quint spec. Two ways share one driver: replay
@@ -39,9 +40,9 @@ module QuintDriver
 
   # A step raised: the driver's code, or the system's beneath it, while it
   # ran a step or reported its state, so the spec and the system were never
-  # compared. The message names the step, the system's frame that raised when
-  # it is not in the driver's file, and the steps from init. The backtrace is
-  # the error's, and +cause+ is the error.
+  # compared. The message names the step, the project's frame that raised,
+  # and the steps from init. The backtrace is the error's, and +cause+ is the
+  # error.
   class StepRaised < StandardError
     include NamedTrace
   end
@@ -81,20 +82,30 @@ module QuintDriver
       # backtrace, so the driver's frames have to stay Locations; Ruby 3.3
       # sets a backtrace from Strings only.
       backtrace = RUBY_VERSION >= "3.4" ? error.backtrace_locations || error.backtrace : error.backtrace
-      raised_in = beneath_driver(error.backtrace_locations)&.then { "raised in: #{_1}\n" }
-      raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in}#{ran(steps)}", backtrace
+      raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in(error)}#{ran(steps)}", backtrace
     end
 
-    # The frame that raised, when it is not in the file the gem called: the
-    # system's own line, which the driver's frame below it would otherwise
-    # take the blame for.
-    def self.beneath_driver(frames)
-      ours = frames.to_a.index { _1.absolute_path.to_s.start_with?(File.join(__dir__, "quint_driver")) }
-      return unless ours&.positive?
+    # The project's frame nearest the raise, the one to read first: an error
+    # raised inside a gem or Ruby's library names the line that called it.
+    # The frames below quint_driver's are the caller of the replay or the
+    # machine, so they are never the step's. An error with no frames of its
+    # own, such as one raised with a backtrace of strings, names none.
+    def self.raised_in(error)
+      frames = error.backtrace_locations or return
+      frame = frames.take_while { !library?(_1, QUINT_DRIVER) }.find { !library?(_1, *LIBRARIES) }
+      return "raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver\n" unless frame
 
-      called = frames[ours - 1].absolute_path
-      frames.first(ours).find { _1.absolute_path != called && !_1.path.start_with?("<internal:") }
+      # The path as the project names it, as RSpec prints one, when the
+      # frame is under the directory the run started in.
+      "raised in: #{file(frame).delete_prefix(File.join(Dir.pwd, ""))}#{frame.to_s.delete_prefix(frame.path)}\n"
     end
+
+    QUINT_DRIVER = File.join(__dir__, "quint_driver")
+    LIBRARIES = [ QUINT_DRIVER, "<internal:", RbConfig::CONFIG["rubylibprefix"] + File::SEPARATOR,
+                  *(defined?(Gem) ? Gem.path : []).map { File.join(_1, "") } ].freeze
+
+    def self.library?(frame, *prefixes) = file(frame).start_with?(*prefixes)
+    def self.file(frame) = frame.absolute_path || frame.path
 
     def self.ran(steps) = "steps:\n#{steps.map { |action, picks| "  #{action} #{show(picks)}" }.join("\n")}"
 
