@@ -167,6 +167,24 @@ class MachineTest < Minitest::Test
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
   end
 
+  # A test database keeps its rows from one test case to the next unless
+  # the driver's init deletes them. Each driver the machine starts is held
+  # to the model at init, also when an earlier machine already agreed on it.
+  def test_a_driver_whose_init_keeps_an_earlier_test_case_s_state_fails_at_init
+    shared = Loans.new
+    keeping = Class.new(LoansDriver) do
+      define_method(:step) { |action, picks| action == "init" ? (@loans, @outcome = shared, "Done") : super(action, picks) }
+    end
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { keeping.new })
+
+    error = assert_raises(QuintDriver::Mismatch) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  holder: model \{"b1" => "", "b2" => "", "b3" => ""\}, driver /, error.message)
+    assert_match(/\nsteps:\n  init \{\}\z/, error.message)
+  end
+
   def test_the_adapter_adds_only_the_machine_to_quint_driver
     assert_equal %i[machine], QuintDriver.singleton_methods.sort
   end

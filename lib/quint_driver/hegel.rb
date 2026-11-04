@@ -42,21 +42,28 @@ module QuintDriver
       define_method(:initialize) do
         @model = spec.model(step)
         @model.step(*init)
+        @start = @model.state
         @moves = []
         @numbers = [] # the Hegel step of each move
         @step = 0 # every rule Hegel ran, a rejected one too, as its report counts
         @ran = 0 # how many of @moves the driver has run
         next if agreed.include?(@moves)
 
-        actual = Agreement.drive(at.(0, init), steps: [ init ]) { start_driver.state }
-        Agreement.check!(at.(0, init), @model.state, actual, by: "model", steps: [ init ])
+        start_driver
         agreed << []
       end
 
+      # Every driver is held to the model at init, also one started after an
+      # earlier machine agreed on init: a test database keeps the rows of an
+      # earlier test case unless the driver's init deletes them, and without
+      # this check the first move would take the blame for them.
       define_method(:start_driver) do
-        @driver = driver.call
-        @driver.step(*init)
-        @driver
+        actual = Agreement.drive(at.(0, init), steps: [ init ]) do
+          @driver = driver.call
+          @driver.step(*init)
+          @driver.state
+        end
+        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ])
       end
 
       define_method(:move!) do |action, picks, after|
@@ -65,7 +72,7 @@ module QuintDriver
         @numbers << @step
         return if agreed.include?(@moves)
 
-        Agreement.drive(at.(0, init), steps: [ init ]) { start_driver } unless @driver
+        start_driver unless @driver
         # Every move the driver has not run yet, which is more than the last
         # one when the driver skipped a sequence it agreed on.
         while @ran < @moves.size
