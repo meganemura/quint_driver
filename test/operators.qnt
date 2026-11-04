@@ -164,7 +164,16 @@ module unsupported {
     nondet s = Set(n).powerset().oneOf()
     resize(s),
   }
-  action step = any { double, picking }
+  // A domain written above a nested choice is written in step, not in the
+  // action that holds the choice.
+  action grow = all { n' = n + 1, m' = m }
+  action growing = any { grow }
+  action step = any {
+    double,
+    picking,
+    nondet t = Set(m).powerset().oneOf()
+    growing,
+  }
 }
 
 // After two ticks no move is enabled, so a sequence has to stop there.

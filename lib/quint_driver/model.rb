@@ -16,7 +16,9 @@ module QuintDriver
     # shape of quint's compiled IR and checks none of it.
     private_class_method :new
 
-    def initialize(declarations, rules)
+    # +owners+ names the definition that writes each IR node, by its id.
+    def initialize(declarations, rules, owners)
+      @owners = owners
       @defs = declarations.select { _1["kind"] == "def" }.to_h { [ _1["name"], _1 ] }
       @vars = declarations.select { _1["kind"] == "var" }.map { _1["name"] }
       @rules = rules.to_h { [ _1.action, _1 ] }
@@ -38,10 +40,10 @@ module QuintDriver
                end
                typed = rule.domains.each_with_object({}) do |(name, domain), chosen|
                  pick = picks.fetch(name) { raise Unsupported, "quint: #{action} needs a pick for #{name}, and the move gives none" }
-                 chosen[name] = value(domain, chosen, within: rule.within).find { Model.plain(_1) == pick } ||
+                 chosen[name] = value(domain, chosen).find { Model.plain(_1) == pick } ||
                                 raise(Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}")
                end
-               rule.args.map { value(_1, typed, within: rule.within) }
+               rule.args.map { value(_1, typed) }
              end
       enter(try(action, args) || raise(Mismatch, "quint: the model refused #{action} #{Agreement.show(picks)}"))
     end
@@ -73,18 +75,17 @@ module QuintDriver
     # same state.
     def moves(rule)
       picks_of(rule, rule.domains.to_a, {}).filter_map do |picks|
-        after = try(rule.action, rule.args.map { value(_1, picks, within: rule.within) })
+        after = try(rule.action, rule.args.map { value(_1, picks) })
         [ rule.action, picks, after ] if after
       end
     end
 
-    # +within+ names the definition that holds +node_or_name+, such as the
-    # Rule#within of a domain or an argument, so an operator it cannot
-    # evaluate is reported there; without it, the message says the node is
-    # outside any definition.
-    def value(node_or_name, env = {}, within: nil)
+    # A refusal names the definition that writes +node_or_name+, such as the
+    # action a domain or an argument of a rule is written in, or says the node
+    # is outside any definition when no definition of the spec holds it.
+    def value(node_or_name, env = {})
       node = node_or_name.is_a?(String) ? { "kind" => "name", "name" => node_or_name } : node_or_name
-      inside(within) { eval(node, env) }
+      inside(@owners[node["id"]]) { eval(node, env) }
     end
 
     def self.plain(value)
@@ -102,7 +103,7 @@ module QuintDriver
         return [ picks ] if domains.empty?
 
         (name, domain), *rest = domains
-        value(domain, picks, within: rule.within).to_a.sort_by(&:to_s).flat_map { picks_of(rule, rest, picks.merge(name => _1)) }
+        value(domain, picks).to_a.sort_by(&:to_s).flat_map { picks_of(rule, rest, picks.merge(name => _1)) }
       end
 
       def eval(node, env)

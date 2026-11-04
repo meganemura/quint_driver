@@ -46,7 +46,14 @@ class ModelTest < Minitest::Test
     assert_equal [ "quint: no evaluation for operator powerset in picking" ] * 2, [ stepped.message, listed.message ]
   end
 
-  def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
+def test_the_model_names_the_action_that_writes_a_domain_above_a_nested_choice
+  rule = QuintDriver::Spec.new(OPERATORS, main: "unsupported").rules("step").find { _1.action == "grow" }
+  error = assert_raises(QuintDriver::Unsupported) { unsupported.moves(rule) }
+
+  assert_equal "quint: no evaluation for operator powerset in step", error.message
+end
+
+def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     error = assert_raises(QuintDriver::Unsupported) { unsupported.value({ "kind" => "name", "name" => "nowhere" }) }
 
     assert_equal "quint: no evaluation for the name nowhere outside any definition; no definition, variable or parameter has it",

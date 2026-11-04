@@ -47,7 +47,7 @@ class FixedDomainPropertyTest < Minitest::Test
       spec = QuintDriver::Spec.new(path, main:)
       rules = spec.rules("step")
       first = spec.model.tap { _1.step("init", {}) }
-      fixed = rules.to_h { |rule| [ rule, rule.fixed.to_h { [ _1, first.value(rule.domains[_1], {}, within: rule.within) ] } ] }
+      fixed = rules.to_h { |rule| [ rule, rule.fixed.to_h { [ _1, first.value(rule.domains[_1], {}) ] } ] }
 
       Hegel.test(**SETTINGS) do |tc|
         model = spec.model
@@ -58,7 +58,7 @@ class FixedDomainPropertyTest < Minitest::Test
 
           rules.each do |rule|
             model.moves(rule).each do |_, picks, _|
-              fixed[rule].each { |name, set| assert_equal set, model.value(rule.domains[name], picks.except(name), within: rule.within) }
+              fixed[rule].each { |name, set| assert_equal set, model.value(rule.domains[name], picks.except(name)) }
             end
           end
           model.enter(tc.draw(sampled_from(moves)).last)
