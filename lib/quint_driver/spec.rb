@@ -20,9 +20,27 @@ module QuintDriver
       @declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
                         .reject { _1["name"].to_s.start_with?("q::") }
       @effects = ir.fetch("effects")
+      @main = main
     end
 
-    def model(step = "step") = Model.send(:new, declarations, rules(step), owners)
+    # With +step+ nil, the model holds no rules: it evaluates definitions on
+    # a state it is given, and takes no step.
+    def model(step = "step") = Model.send(:new, declarations, step ? rules(step) : [], owners)
+
+    # Raises ArgumentError unless each of +names+ is a definition the model
+    # can read in a state: a val or a def without parameters, not an action,
+    # and not a sum type's case, which quint declares as a val too.
+    def observable!(names)
+      observable = declarations.select do
+        _1["kind"] == "def" && %w[val def pureval puredef].include?(_1["qualifier"]) &&
+          _1["expr"]["kind"] != "lambda" && _1["expr"]["opcode"] != "variant"
+      end.map { _1["name"] }
+      names.each do |name|
+        next if observable.include?(name)
+
+        raise ArgumentError, "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
+      end
+    end
 
     # The definition that writes each IR node, by node id, so the model names
     # where a node is written when it cannot evaluate it.

@@ -88,6 +88,9 @@ module QuintDriver
       inside(@owners[node["id"]]) { eval(node, env) }
     end
 
+    # Each definition +names+ names, by name, as a plain value.
+    def observe(names) = names.to_h { [ _1, Model.plain(value(_1)) ] }
+
     def self.plain(value)
       case value
       when Variant then value.value == [] ? value.tag : [ value.tag, plain(value.value) ]

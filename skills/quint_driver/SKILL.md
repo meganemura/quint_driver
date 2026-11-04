@@ -74,6 +74,7 @@ end
 - `step("init", {})` comes first in every sequence. Make a new system there.
 - `picks` holds the nondet values by name. A pick the move did not make (Quint's `None`) is absent, so read one an action may go without as `picks["b"]`, which is `nil` then, and one it needs as `picks.fetch("b")`.
 - A refused twin runs the same command. Rescue the domain error into the spec's refusal value.
+- A value the spec derives, a `val` or a `def` without parameters, is in no trace state. To compare one, name it in `observe:` (section 3) and return it from `state` under its name.
 - `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one.
 
 ## 3. Replay Quint's traces
@@ -99,6 +100,8 @@ reached.sort.to_h # => {"borrow" => 214, "borrow_refused" => 283, "give_back" =>
 ```
 
 An action that never appears is one no test reached; raise `traces` or `max_steps`, or aim at it with `reach:`.
+
+A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that reports no value for it fails with `driver nil`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
 
 To test the steps that lead to one state, write a definition that holds there and pass its name as `reach:`. Each trace then ends at the first state where it holds, and only the traces that get there are yielded:
 
@@ -469,6 +472,57 @@ steps:
 `LoanDriver` above passes without `rolled_back` too, because its `init` makes a new borrower and `state` reads only the loans it made: the example left 145 loans behind for the fixture's rollback. Keep `rolled_back` anyway. App code that reads past the borrower, such as a count of all loans, sees the rows of earlier traces, and the failure then names a move, not the leftover rows.
 
 On 4 CPUs at load average 1.3 to 1.6, a trace of 13 steps took 15 ms on SQLite and 35 ms on PostgreSQL, and a Hegel test case 25 ms and 42 ms. Deleting at init and rolling back to a savepoint took the same time within 10%.
+
+### A value the spec derives
+
+`loan.qnt` derives the approved total with `def approvedSum = LOANS.filter(l => approvedBy.get(l) != "").fold(0, (sum, l) => sum + amount.get(l))`. No variable holds it, so the example above passes while the page's total is wrong. Observe it:
+
+```ruby
+# app/models/borrower.rb
+class Borrower < ApplicationRecord
+  has_many :loans
+
+  # What the borrower's page shows as approved so far.
+  def approved_total = loans.where.not(approved_at: nil).sum(:amount)
+end
+
+# spec/quint/observe_spec.rb
+require "rails_helper"
+require_relative "loan_driver"
+
+class ObservedLoanDriver < LoanDriver
+  def state = super.merge("approvedSum" => @borrower.reload.approved_total)
+end
+
+RSpec.describe Borrower, "held to loan.qnt's approvedSum" do
+  def rolled_back
+    ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+      yield
+      raise ActiveRecord::Rollback
+    end
+  end
+
+  it "totals the approved loans the way the spec does" do
+    qnt = Rails.root.join("spec/quint/loan.qnt")
+    spec = QuintDriver::Spec.new(qnt, main: "loan")
+    QuintDriver::Quint.simulate(qnt, traces: 50, max_steps: 12, seed: "1") do |path|
+      rolled_back { QuintDriver::Trace.replay(path, ObservedLoanDriver.new, spec:, observe: %w[approvedSum]) }
+    end
+  end
+end
+```
+
+With `approved_total` written as `loans.sum(:amount)`, which counts the loans not approved yet, the example fails at the first request:
+
+```text
+QuintDriver::Mismatch:
+  quint: after step 1 `request` {"a" => 15000, "l" => "l1"}, the driver differs from the trace
+    approvedSum: trace 0, driver 15000
+  steps:
+    init {}
+    request {"a" => 15000, "l" => "l1"}
+  trace: trace_0.itf.json of Quint.simulate("spec/quint/loan.qnt", traces: 50, max_steps: 12, seed: "1", step: "step", backend: "rust")
+```
 
 ## Read a failure
 

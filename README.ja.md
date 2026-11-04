@@ -163,6 +163,14 @@ Rails アプリでは、トランザクションのフィクスチャーは exam
 スキルには両方の書き方と、セーブポイントを joinable にしてはいけない理由があります。
 machine 自体には不要です。
 
+トレースが持つのは仕様の変数で、定義は持ちません。
+そのため、承認済みのローンを合計する `def approvedSum` のように仕様が導く値は、観測したときだけ比べます。
+`Trace.replay` には `spec:` と一緒に `observe: %w[approvedSum]` を、`QuintDriver.machine` には `observe:` を渡します。
+ドライバーの `state` では、`"approvedSum" => borrower.approved_total` のように同じ名前でその値を返します。
+ドライバーは、各状態でその定義が持つ値に照らされます。
+値を返さないドライバーは失敗します。
+パラメーターのない `val` や `def` でない名前を渡すと、モジュールにある名前を添えて `ArgumentError` を投げます。
+
 ステップが投げたエラーは、`Mismatch` ではなく `QuintDriver::StepRaised` になります。
 エラーはドライバー自身のコードからも、その下のシステムからも来ます。
 ドライバーの例は、選んだ値の名前が `m` なのに `picks.fetch("member")` と書いたときの `KeyError` です。

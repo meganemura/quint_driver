@@ -15,8 +15,13 @@ module QuintDriver
   # - :rotate, a disabled rule passes the turn to the next enabled one.
   #   Nothing is rejected, so deep states come sooner; shrinking leaves extra
   #   moves, because a draw means a different rule once the state differs.
-  def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule)
+  #
+  # +observe+ names definitions of the spec, as Trace.replay takes them: the
+  # driver reports each one in its state, held to the model's value.
+  def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule, observe: [])
     rules = spec.rules(step)
+    observe = observe.map(&:to_s)
+    spec.observable!(observe)
     # Many draws map to one sequence of moves, so the shrinker asks for the
     # same sequence thousands of times: on one failure, 8818 test cases held
     # 1342 distinct sequences. A sequence the system already agreed on is not
@@ -42,7 +47,7 @@ module QuintDriver
       define_method(:initialize) do
         @model = spec.model(step)
         @model.step(*init)
-        @start = @model.state
+        @start = @model.state.merge(@model.observe(observe))
         @moves = []
         @numbers = [] # the Hegel step of each move
         @step = 0 # every rule Hegel ran, a rejected one too, as its report counts
@@ -63,7 +68,7 @@ module QuintDriver
           @driver.step(*init)
           @driver.state
         end
-        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ])
+        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ], observe:)
       end
 
       define_method(:move!) do |action, picks, after|
@@ -82,7 +87,7 @@ module QuintDriver
         end
         last = at.(@numbers.last, @moves.last)
         actual = Agreement.drive(last, steps: [ init, *@moves ]) { @driver.state }
-        Agreement.check!(last, @model.state, actual, by: "model", steps: [ init, *@moves ])
+        Agreement.check!(last, @model.state.merge(@model.observe(observe)), actual, by: "model", steps: [ init, *@moves ], observe:)
         agreed << @moves.dup
       end
 

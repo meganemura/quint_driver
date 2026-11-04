@@ -60,12 +60,14 @@ module QuintDriver
     # Raises Mismatch naming each variable where +actual+ differs from
     # +expected+, and the [action, picks] +steps+ the driver ran from init, so
     # the failure can be run again without the trace file. Compares only the
-    # variables +actual+ reports.
-    def self.check!(after, expected, actual, by:, steps:)
-      expected = expected.slice(*actual.keys)
+    # variables +actual+ reports, and each definition +observe+ names, which
+    # the driver has to report.
+    def self.check!(after, expected, actual, by:, steps:, observe: [])
+      compared = actual.keys | observe
+      expected = expected.slice(*compared)
       return if expected == actual
 
-      diff = actual.keys.reject { expected[_1] == actual[_1] }
+      diff = compared.reject { expected[_1] == actual[_1] }
                    .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
       raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\n#{ran(steps)}", outside(caller_locations)
     end

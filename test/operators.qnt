@@ -212,6 +212,11 @@ module painting {
     mixed' = match c { Mixed(n) => mixed + n | _ => mixed },
   }
 
+  // Derived from a variant, so an observed value has to read the trace's
+  // variant as the model's own.
+  val shade = match color { Mixed(n) => n | _ => 0 }
+  val red = color == Red
+
   action step = {
     nondet c = Set(Red, Blue, Mixed(1), Mixed(2)).oneOf()
     any { paint(c) }

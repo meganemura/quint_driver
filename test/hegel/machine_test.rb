@@ -223,6 +223,18 @@ class MachineTest < Minitest::Test
     assert_match(/\nsteps:\n  init \{\}\z/, error.message)
   end
 
+  def test_the_machine_holds_the_driver_to_each_definition_it_observes
+    lent = ->(count) { Class.new(LoansDriver) { define_method(:state) { super().then { _1.merge("two_on_loan" => count.(_1["holder"].count { |_, holder| holder != "" })) } } } }
+    right = QuintDriver.machine(LoansDriver.spec, driver: -> { lent.(->(n) { n == 2 }).new }, observe: %w[two_on_loan])
+    wrong = QuintDriver.machine(LoansDriver.spec, driver: -> { lent.(->(n) { n >= 1 }).new }, observe: %w[two_on_loan])
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(right.new, tc) }
+    error = assert_raises(QuintDriver::Mismatch) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(wrong.new, tc) }
+    end
+    assert_match(/\Aquint: after step 1 `borrow` \{"b" => "b1", "m" => "m1"\}, the driver differs from the model\n  two_on_loan: model false, driver true\n/, error.message)
+  end
+
   def test_a_choice_other_than_rule_or_rotate_raises
     error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, choose: :random) }
 

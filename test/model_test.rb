@@ -24,6 +24,23 @@ class ModelTest < Minitest::Test
     assert_equal 100, count
   end
 
+# Trace.replay reads an observed definition in the state quint wrote, the
+# machine in the state the model stepped to; the two have to agree.
+def test_the_model_reads_an_observed_definition_the_same_in_a_trace_s_state_as_after_its_own_steps
+  { "operators" => %w[NUMS], "painting" => %w[shade red], "loans" => %w[one_book_each nothing_on_loan two_on_loan] }.each do |main, names|
+    file = main == "loans" ? LoansDriver::SPEC : OPERATORS
+    spec = QuintDriver::Spec.new(file, main:)
+    observing = Class.new { define_method(:initialize) { @model = spec.model }; define_method(:step) { |*move| @model.step(*move) }; define_method(:state) { @model.state.merge(@model.observe(names)) } }
+    count = 0
+    QuintDriver::Quint.simulate(file, main:, traces: 50, max_steps: 20, seed: "3") do |path|
+      QuintDriver::Trace.replay(path, observing.new, spec:, observe: names)
+      count += 1
+    end
+
+    assert_equal 50, count, main
+  end
+end
+
   def test_a_rule_names_the_domains_that_read_no_variable_and_no_earlier_pick
     fixed = ->(main) { QuintDriver::Spec.new(OPERATORS, main:).rules("step").to_h { [ _1.action, _1.fixed.sort ] } }
 

@@ -288,6 +288,40 @@ class TraceTest < Minitest::Test
     assert_equal 40, replay(holder_only.new)
   end
 
+  # A value the spec derives from its variables, such as a total, is in no
+  # trace state, so only an observed definition holds the system's copy of it.
+  class CountingDriver < LoansDriver
+    def initialize(system = Loans, &lent) = (super(system); @lent = lent || ->(count) { count == 2 })
+    def state = super.then { _1.merge("two_on_loan" => @lent.(_1["holder"].count { |_, holder| holder != "" })) }
+  end
+
+  def test_a_driver_is_held_to_each_definition_it_observes
+    assert_equal 40, replay(CountingDriver.new, spec: LoansDriver.spec, observe: %w[two_on_loan])
+  end
+
+  def test_a_wrong_derived_value_fails_the_step_that_shows_it
+    miscounting = CountingDriver.new { |count| count >= 1 }
+
+    error = assert_raises(QuintDriver::Mismatch) { replay(miscounting, spec: LoansDriver.spec, observe: %w[two_on_loan]) }
+    assert_match(/\Aquint: after step \d+ `borrow` \{.*\}, the driver differs from the trace\n  two_on_loan: trace false, driver true\nsteps:\n  init \{\}\n/, error.message)
+  end
+
+  def test_an_observed_definition_the_driver_does_not_report_fails
+    error = assert_raises(QuintDriver::Mismatch) { replay(LoansDriver.new, spec: LoansDriver.spec, observe: %w[two_on_loan]) }
+
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the trace\n  two_on_loan: trace false, driver nil\n/, error.message)
+  end
+
+  def test_observe_names_only_definitions_without_parameters
+    [ "borrow", "onLoan", "missing" ].each do |name|
+      error = assert_raises(ArgumentError) { replay(CountingDriver.new, spec: LoansDriver.spec, observe: [ name ]) }
+      assert_equal "quint: observe names #{name}, which is no definition without parameters of loans; " \
+                   "it has BOOKS, MEMBERS, NOBODY, nothing_on_loan, one_book_each, two_on_loan", error.message
+    end
+    error = assert_raises(ArgumentError) { replay(CountingDriver.new, observe: %w[two_on_loan]) }
+    assert_equal "quint: observe needs spec:, the Spec that evaluates two_on_loan", error.message
+  end
+
   def test_a_step_that_names_no_action_is_refused
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
     silent = Class.new { def step(*) = nil; def state = {} }.new # reports no variable, so only the refusal fails
@@ -419,10 +453,10 @@ class TraceTest < Minitest::Test
   end
 
   private
-    def replay(driver)
+    def replay(driver, **observing)
       count = 0
       QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
-        QuintDriver::Trace.replay(path, driver)
+        QuintDriver::Trace.replay(path, driver, **observing)
         count += 1
       end
       count
