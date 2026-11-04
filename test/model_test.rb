@@ -167,7 +167,7 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
   end
 
   def test_which_trace_a_simulate_block_is_yielding_is_not_part_of_the_api
-    assert_equal %i[command compile evaluator simulate], QuintDriver::Quint.singleton_methods.sort
+    assert_equal %i[command compile evaluator simulate test], QuintDriver::Quint.singleton_methods.sort
   end
 
   private

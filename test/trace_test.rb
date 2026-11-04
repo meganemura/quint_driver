@@ -6,6 +6,31 @@ require "json"
 
 class TraceTest < Minitest::Test
   ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
+  RECORDED = File.expand_path("recorded.qnt", __dir__)
+
+  # Runs Loans from recorded.qnt, whose one variable s holds the books and
+  # the action each step took, as a Choreo spec keeps its state.
+  class RecordedDriver
+    attr_reader :ran
+
+    def initialize(system = Loans) = (@system, @ran = system, [])
+
+    def step(action, picks)
+      @ran << [ action, picks ]
+      case action
+      when "Init" then @loans = @system.new
+      when "Borrow" then @loans.borrow(picks.fetch("m"), picks.fetch("b"))
+      when "GiveBack" then @loans.give_back(picks.fetch("b"))
+      end
+    end
+
+    def state = %w[b1 b2].to_h { [ _1, @loans.holder(_1) || "" ] }
+  end
+
+  # Gives a book back and keeps its holder.
+  class KeepingLoans < Loans
+    def give_back(book) = @holders.fetch(book)
+  end
 
   def test_decodes_itf_values_to_plain_ruby_values
     itf = {
@@ -53,7 +78,7 @@ class TraceTest < Minitest::Test
     call = %(Quint.simulate("examples/loans/loans.qnt", traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
     trace = File.basename(error.trace)
     assert_match(/\Atrace_\d+\.itf\.json\z/, trace)
-    assert_equal [ "1", call ], [ error.seed, error.simulate ]
+    assert_equal [ "1", call ], [ error.seed, error.written_by ]
     assert_equal "trace: #{trace} of #{call}", error.message.lines.last
     again = assert_raises(QuintDriver::Mismatch) do
       QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 40, max_steps: 20, seed: "1") do |path|
@@ -87,7 +112,7 @@ class TraceTest < Minitest::Test
     end
 
     call = %(Quint.simulate("examples/loans/loans.qnt", traces: 3, max_steps: 5, seed: "1", step: "step", backend: "rust"))
-    assert_equal [ names.last, "1", call ], [ File.basename(error.trace), error.seed, error.simulate ]
+    assert_equal [ names.last, "1", call ], [ File.basename(error.trace), error.seed, error.written_by ]
     assert_equal "quint: the ledger lost a loan\ntrace: #{names.last} of #{call}", error.message
     assert_nil error.cause
   end
@@ -95,7 +120,7 @@ class TraceTest < Minitest::Test
   def test_a_mismatch_your_own_code_raises_takes_only_its_message_and_the_gem_names_the_trace
     error = QuintDriver::Mismatch.new("quint: the ledger lost a loan")
 
-    assert_equal [ "quint: the ledger lost a loan", nil, nil, nil ], [ error.message, error.trace, error.seed, error.simulate ]
+    assert_equal [ "quint: the ledger lost a loan", nil, nil, nil ], [ error.message, error.trace, error.seed, error.written_by ]
     assert_raises(ArgumentError) { QuintDriver::Mismatch.new("quint: the ledger lost a loan", trace: "elsewhere.itf.json") }
     refute_respond_to error, :reason
   end
@@ -127,7 +152,7 @@ class TraceTest < Minitest::Test
     assert_equal [ "steps:\n", "  init {}\n" ], steps.first(2)
     assert_equal [ Integer(step) + 2, "  give_back #{picks}\n" ], [ steps.size, steps.last ]
     call = %(Quint.simulate("examples/loans/loans.qnt", traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
-    assert_equal [ "1", call ], [ error.seed, error.simulate ]
+    assert_equal [ "1", call ], [ error.seed, error.written_by ]
     assert_equal "trace: #{File.basename(error.trace)} of #{call}", rest.last
     assert_equal [ KeyError, "book" ], [ error.cause.class, error.cause.key ]
     assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts in the driver"
@@ -205,7 +230,7 @@ class TraceTest < Minitest::Test
     end
 
     error = assert_raises(QuintDriver::Mismatch) { QuintDriver::Trace.replay(kept, LoansDriver.new(BrokenLoans)) }
-    assert_equal [ kept, nil, nil ], [ error.trace, error.seed, error.simulate ]
+    assert_equal [ kept, nil, nil ], [ error.trace, error.seed, error.written_by ]
     assert_equal "trace: #{kept}", error.message.lines.last
   ensure
     FileUtils.rm_rf(File.dirname(kept))
@@ -276,6 +301,56 @@ class TraceTest < Minitest::Test
 
     ran = error.message[/^steps:\n((?:  .*\n)+)/, 1].lines.map(&:strip)
     assert_equal ran.each_with_index.map { |move, index| "step #{index} #{move}\n" }.join, log.string
+  end
+
+  def test_a_named_run_replays_the_action_its_spec_records_and_holds_the_driver_to_the_state_it_names
+    driver = RecordedDriver.new
+    QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
+      QuintDriver::Trace.replay(path, driver, state: %w[s books], action: %w[s taken])
+    end
+
+    assert_equal [ [ "Init", {} ], [ "Borrow", { "m" => "m1", "b" => "b1" } ], [ "Borrow", { "m" => "m2", "b" => "b2" } ], [ "GiveBack", { "b" => "b1" } ] ],
+                 driver.ran
+  end
+
+  def test_a_named_run_that_breaks_the_system_names_the_state_it_differs_in_and_the_call_that_writes_it
+    error = assert_raises(QuintDriver::Mismatch) do
+      QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
+        QuintDriver::Trace.replay(path, RecordedDriver.new(KeepingLoans), state: %w[s books], action: %w[s taken])
+      end
+    end
+
+    call = %(Quint.test("test/recorded.qnt", "lendTest", seed: "1"))
+    assert_equal <<~MESSAGE.chomp, error.message
+      quint: after step 3 `GiveBack` {"b" => "b1"}, the driver differs from the trace
+        b1: trace "", driver "m1"
+      steps:
+        Init {}
+        Borrow {"b" => "b1", "m" => "m1"}
+        Borrow {"b" => "b2", "m" => "m2"}
+        GiveBack {"b" => "b1"}
+      trace: test_0.itf.json of #{call}
+    MESSAGE
+    assert_equal [ "1", call ], [ error.seed, error.written_by ]
+  end
+
+  def test_a_trace_with_no_action_taken_asks_for_the_variable_that_records_it
+    error = assert_raises(QuintDriver::Unsupported) do
+      QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") { QuintDriver::Trace.replay(_1, RecordedDriver.new) }
+    end
+
+    assert_equal "quint: state 0 of the trace names no action taken; quint test writes no mbt::actionTaken, " \
+                 "so pass action: the path to a variable that records it", error.message
+  end
+
+  def test_a_path_the_trace_does_not_have_names_where_it_stops
+    error = assert_raises(QuintDriver::Unsupported) do
+      QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
+        QuintDriver::Trace.replay(path, RecordedDriver.new, state: %w[s shelf], action: %w[s taken])
+      end
+    end
+
+    assert_equal "quint: state 0 of the trace has no s.shelf; s has books, taken", error.message
   end
 
   private

@@ -94,30 +94,63 @@ module QuintDriver
           raise QuintFailed, "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
         end
 
-        # The trace files go with dir, so Trace.replay names a trace by the
-        # call that writes it again instead of by its path.
-        call = "Quint.simulate(#{Agreement.relative(File.expand_path(path)).inspect}, " +
-               { traces:, max_steps:, seed:, main:, step:, backend:, reach: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
-        traces_written.each do |trace|
-          @simulated[trace] = { seed:, simulate: call }
-          yield trace
-        rescue Mismatch, StepRaised => failure
-          name_trace(failure, trace)
-          raise
-        ensure
-          @simulated.delete(trace)
-        end
+        written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:)
+        yield_traces(traces_written, seed:, written_by:) { yield _1 }
       end
     end
-    @simulated = {}
 
-    # Names +trace+ on a +failure+ that names none and, while a simulate
-    # block is yielding it, the seed and the call that write it again. It
-    # keeps its class, backtrace and cause. Trace.replay calls it
-    # too, so a block that rescues a replay's failure reads what the caller
-    # of simulate reads.
+    # Writes the trace of the run named +name+, such as
+    # `run lendTest = init.then(...)`, and yields its file. +main+ names the
+    # module that holds the run. quint test writes no mbt::actionTaken, so
+    # replay it with Trace.replay's +action+: the spec has to record the
+    # action each step took, as a Choreo spec does.
+    def self.test(path, name, seed:, main: nil)
+      Dir.mktmpdir("quint") do |dir|
+        arguments = "test #{path} --match '^#{name}$' --seed #{seed} --max-samples 1 --out-itf #{dir}/test_{seq}.itf.json --verbosity 1"
+        arguments += " --main #{main}" if main
+        output, status = capture(arguments)
+        raise QuintFailed, "quint test failed:\n#{output}" unless status.success?
+
+        written = Dir["#{dir}/test_*.itf.json"]
+        if written.empty?
+          ir = compile(path, main:)
+          runs = ir["modules"].find { _1["name"] == ir["main"] }["declarations"].select { _1["qualifier"] == "run" }.map { _1["name"] }
+          raise QuintFailed, "quint: no run is named #{name} in #{ir['main']}; it has #{runs.sort.join(', ')}"
+        end
+        yield_traces(written, seed:, written_by: call("test", path, name, seed:, main:)) { yield _1 }
+      end
+    end
+
+    # The call that writes the same traces again, with the spec named as
+    # raised in names a frame.
+    def self.call(method, path, *names, **options)
+      arguments = [ Agreement.relative(File.expand_path(path)), *names ].map(&:inspect)
+      "Quint.#{method}(#{[ *arguments, *options.compact.map { "#{_1}: #{_2.inspect}" } ].join(', ')})"
+    end
+
+    # The trace files go with their directory, so a replay's failure names
+    # its trace by +seed+ and +written_by+, the call that writes it again,
+    # instead of by its path.
+    def self.yield_traces(traces, seed:, written_by:)
+      traces.each do |trace|
+        @written[trace] = { seed:, written_by: }
+        yield trace
+      rescue Mismatch, StepRaised => failure
+        name_trace(failure, trace)
+        raise
+      ensure
+        @written.delete(trace)
+      end
+    end
+    @written = {}
+
+    # Names +trace+ on a +failure+ that names none and, while a simulate or
+    # test block is yielding it, the seed and the call that write it again.
+    # It keeps its class, backtrace and cause. Trace.replay calls it too, so
+    # a block that rescues a replay's failure reads what the caller of
+    # simulate reads.
     def self.name_trace(failure, trace)
-      failure.send(:name_trace, trace, **@simulated[trace].to_h) unless failure.trace
+      failure.send(:name_trace, trace, **@written[trace].to_h) unless failure.trace
     end
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
@@ -203,6 +236,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :capture, :compile_now, :evaluator_input, :name_trace, :sources, :write_traces
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :name_trace, :sources, :write_traces, :yield_traces
   end
 end

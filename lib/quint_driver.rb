@@ -13,22 +13,22 @@ require "set"
 # [tag, value] when it carries one.
 module QuintDriver
   # The trace a failure happened on. On a replay, +trace+ is its path. Under
-  # Quint.simulate that file is gone once the block returns, so +seed+ and
-  # +simulate+ hold the seed and the call that write it again, and the message
-  # names the trace by those instead of by its path. Replay and simulate fill
-  # these in, so a caller cannot name a trace that disagrees with the one that
-  # ran.
+  # Quint.simulate or Quint.test that file is gone once the block returns, so
+  # +seed+ and +written_by+ hold the seed and the call that write it again,
+  # and the message names the trace by those instead of by its path. The gem
+  # fills these in, so a caller cannot name a trace that disagrees with the
+  # one that ran.
   module NamedTrace
-    attr_reader :trace, :seed, :simulate
+    attr_reader :trace, :seed, :written_by
 
     def to_s
       return super unless trace
 
-      "#{super}\ntrace: #{simulate ? "#{File.basename(trace)} of #{simulate}" : trace}"
+      "#{super}\ntrace: #{written_by ? "#{File.basename(trace)} of #{written_by}" : trace}"
     end
 
     private
-      def name_trace(trace, seed: nil, simulate: nil) = (@trace, @seed, @simulate = trace, seed, simulate)
+      def name_trace(trace, seed: nil, written_by: nil) = (@trace, @seed, @written_by = trace, seed, written_by)
   end
   private_constant :NamedTrace
 

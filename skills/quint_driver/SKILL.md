@@ -97,6 +97,30 @@ end
 ```
 
 One of those traces runs `init give_back_refused borrow borrow`. When no trace gets there, `Quint.simulate` raises `QuintDriver::QuintFailed`: `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`. Raise `max_steps` or `traces` then.
+
+To replay a named run (`run lendTest = init.then(...)`), use `Quint.test`. quint test writes no `mbt::actionTaken`, so the spec must record each step's action in a variable, as a sum type whose tag names the action and whose record holds its picks, the way a Choreo spec records it. Pass that variable's path as `action:`, and the path to the state the driver answers for as `state:`:
+
+```ruby
+QuintDriver::Quint.test("test/recorded.qnt", "lendTest", seed: "1") do |trace|
+  QuintDriver::Trace.replay(trace, RecordedDriver.new, state: %w[s books], action: %w[s taken])
+end
+```
+
+`test/recorded.qnt` in this repository, driven by `RecordedDriver` in `test/trace_test.rb`, keeps `var s: { books: str -> str, taken: Taken }` with `type Taken = Init | Borrow({ m: str, b: str }) | GiveBack({ b: str })`, so the driver gets `step("Init", {})`, then `step("Borrow", { "m" => "m1", "b" => "b1" })`, and its `state` returns the `books` map. A system that keeps a book's holder after `GiveBack` fails like this:
+
+```
+quint: after step 3 `GiveBack` {"b" => "b1"}, the driver differs from the trace
+  b1: trace "", driver "m1"
+steps:
+  Init {}
+  Borrow {"b" => "b1", "m" => "m1"}
+  Borrow {"b" => "b2", "m" => "m2"}
+  GiveBack {"b" => "b1"}
+trace: test_0.itf.json of Quint.test("test/recorded.qnt", "lendTest", seed: "1")
+```
+
+Without `action:`, the replay raises `QuintDriver::Unsupported`: `quint: state 0 of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it`.
+
 ## 4. Check the Ruby model
 
 Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first:
@@ -271,7 +295,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 - Each line before `steps:` names one variable that differs. `trace`, or `model` under Hegel, is what the spec says. `driver` is what the system did.
 - `steps:` lists every step from `init`. Run them on a new driver to reproduce the failure.
 - Every value prints with a set's elements and a hash's keys sorted, so the two sides of a line, a replay and the machine, and Ruby 3.3 and 3.4 print the same value the same way.
-- `trace:` names the trace. Under `simulate`, the file is gone after `simulate` returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `simulate`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `simulate:`, because the gem fills them with the trace that ran.
+- `trace:` names the trace. Under `simulate` or `test`, the file is gone after the call returns, so the line gives its file name and the call that writes the same trace again; outside `simulate`, it gives the path. A `Mismatch` reads the same whether you rescue it inside the `simulate` block or after it, and carries the same facts as `trace`, `seed`, and `written_by`. A `Mismatch` your own code raises inside the block gets the `trace:` line when it leaves the block, so raise `QuintDriver::Mismatch` from a check of your own too. Give it the message alone (`raise QuintDriver::Mismatch, "quint: the ledger lost a loan"`); `Mismatch.new` takes no `trace:`, `seed:`, or `written_by:`, because the gem fills them with the trace that ran.
 - An error a step raises, in the driver's own code or in the system beneath it, is a `QuintDriver::StepRaised`, not a `Mismatch`: the two sides were never compared. Fix the code the message points at first. A domain error the driver lets through, such as `Loans::Refused` on a `_refused` step, lands here too; rescue it into the spec's refusal value, as step 2 does. The first line names the step and the error. The `raised in:` line names the frame of your project nearest the raise, with the path relative to the directory the run started in. It skips frames in a gem, in Ruby's library, and in quint_driver, so an error a gem raises names your line that called the gem. That line is usually the one to fix; for a domain error the driver should rescue, it is where the error came from. When every frame is skipped, the line reads `raised in: no frame of the project; every frame is in a gem, in Ruby's library, or in quint_driver`; read the backtrace then. The backtrace is the error's, and `cause` is the original error. Here a driver like the one in section 2 reads `picks.fetch("member")`, but the pick is named `m`:
 
   ```text

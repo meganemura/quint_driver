@@ -138,7 +138,7 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 そのため、この行はトレースをファイル名と、同じトレースをもう一度書く呼び出しで示します。
 例えば `trace: trace_0.itf.json of Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1", step: "step", backend: "rust")` です。
 ブロックの中で捕まえても、メッセージは同じです。
-同じ事柄を `trace`、`seed`、`simulate` としても持っています。
+同じ事柄を `trace`、`seed`、`written_by` としても持っています。
 ブロックの中で自分のコードが投げた `Mismatch` も、ブロックを出るときに同じ `trace:` の行を得ます。
 例えば、再生のあとに自分で確かめた結果です。
 投げるときはメッセージだけを渡します（`raise QuintDriver::Mismatch, "..."`）。
@@ -175,6 +175,30 @@ quint が失敗したときや見つからないときは、`Spec.new` と `Quin
 各トレースは、その定義が初めて成り立つ状態で終わり、`Quint.simulate` はそこに至ったトレースだけを渡します。
 Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れたところでトレースを止めます。
 どのトレースも至らなかったときは、`quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces` のように `QuintDriver::QuintFailed` を投げます。
+
+`Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
+run がファイルの別のモジュールにあるときは `main:` を渡します。
+quint test は `mbt::actionTaken` を書かないので、仕様は各ステップが取ったアクションを自分で記録する必要があります。
+[Choreo](https://github.com/informalsystems/choreo) の仕様がそうしています。
+記録には、タグがアクションを名指し、レコードが選択値を持つ直和型の変数を使います。
+例えば `taken: Borrow({ m: m, b: b })` です。
+その変数へのパスを `Trace.replay` の `action:` に渡します。
+ドライバーが答える状態が変数の中にあるときは、そのパスを `state:` に渡します。
+例えば Choreo の仕様の 1 つの変数の `system` フィールドです。
+そのとき、ドライバーの `state` はそのレコードかマップを返します。
+`test/recorded.qnt` はこの形の小さな仕様で、`test/trace_test.rb` の `RecordedDriver` がそのドライバーです。
+
+```ruby
+QuintDriver::Quint.test("test/recorded.qnt", "lendTest", seed: "1") do |trace|
+  QuintDriver::Trace.replay(trace, RecordedDriver.new, state: %w[s books], action: %w[s taken])
+end
+```
+
+ドライバーは `step("Init", {})`、続いて `step("Borrow", { "m" => "m1", "b" => "b1" })` のように呼ばれます。
+失敗は、トレースを `trace: test_0.itf.json of Quint.test("test/recorded.qnt", "lendTest", seed: "1")` と示します。
+quint の中で run そのものが失敗したときは、quint の報告を添えて `QuintDriver::QuintFailed` を投げます。
+モジュールにない run の名前なら、`quint: no run is named lend in recorded; it has lendTest, unlentTest` のように、モジュールにある run を並べます。
+アクションのないトレース、例えば `action:` なしで再生した quint test のトレースは、パスを求める `QuintDriver::Unsupported` を投げます。
 
 `QuintDriver.machine` のオプションは次のとおりです。
 

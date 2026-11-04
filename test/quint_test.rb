@@ -3,6 +3,7 @@ require "tmpdir"
 
 class QuintTest < Minitest::Test
   MISSING = File.expand_path("missing.qnt", __dir__)
+  RECORDED = File.expand_path("recorded.qnt", __dir__)
   OPERATORS = File.expand_path("operators.qnt", __dir__)
 
   def test_simulating_runs_the_module_it_names
@@ -92,7 +93,7 @@ class QuintTest < Minitest::Test
 
       refute_empty lent, env.inspect
       lent.each { |counts| assert_equal counts.size - 1, counts.index(2), "each trace ends where two books are first lent: #{counts}" }
-      assert_match(/, reach: "two_on_loan"\)\z/, error.simulate)
+      assert_match(/, reach: "two_on_loan"\)\z/, error.written_by)
     end
   end
 
@@ -105,6 +106,27 @@ class QuintTest < Minitest::Test
       end
       assert_equal "quint: no trace of 3 reached two_on_loan within 1 steps; raise max_steps or traces", error.message, env.inspect
     end
+  end
+
+  def test_a_named_run_writes_the_states_it_ran
+    books = []
+    QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
+      books << JSON.parse(File.read(path))["states"].map { QuintDriver::Trace.decode(_1)["s"]["books"] }
+    end
+
+    assert_equal [ [ { "b1" => "", "b2" => "" }, { "b1" => "m1", "b2" => "" }, { "b1" => "m1", "b2" => "m2" }, { "b1" => "", "b2" => "m2" } ] ], books
+  end
+
+  def test_a_named_run_that_fails_in_quint_raises_with_quints_report
+    error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.test(RECORDED, "unlentTest", seed: "1") { flunk } }
+
+    assert_match(/\Aquint test failed:\n.*1\) unlentTest failed after 1 test/m, error.message)
+  end
+
+  def test_a_run_the_module_does_not_have_lists_the_runs_it_has
+    error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.test(RECORDED, "lend", seed: "1") { flunk } }
+
+    assert_equal "quint: no run is named lend in recorded; it has lendTest, unlentTest", error.message
   end
 
   def test_the_typescript_backend_runs_quint_not_the_evaluator

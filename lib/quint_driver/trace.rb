@@ -5,18 +5,41 @@ module QuintDriver
   module Trace
     Step = Struct.new(:action, :picks, :expected, :index)
 
-    def self.steps(path)
-      JSON.parse(File.read(path)).fetch("states").each_with_index.map do |state, index|
-        state = decode(state)
-        picks = state.fetch("mbt::nondetPicks").reject { _2.nil? }
-        Step.new(state.fetch("mbt::actionTaken"), picks, state.reject { _1.start_with?("mbt::") }, index)
+    # +state+ is the path to the record or map a driver is held to, such as
+    # %w[choreo::s system] in a Choreo spec, which keeps the whole state in
+    # one variable. +action+ is the path to a variable the spec records the
+    # action in, as a sum type whose tag names the action and whose record
+    # holds its picks; without it, the action is quint's mbt::actionTaken,
+    # which `quint run --mbt` writes and quint test does not.
+    def self.steps(path, state: [], action: nil)
+      JSON.parse(File.read(path)).fetch("states").each_with_index.map do |values, index|
+        values = decode(values)
+        taken, picks = if action
+                         at(values, action, index).then { _1.is_a?(String) ? [ _1, {} ] : _1 }
+                       else
+                         [ values.fetch("mbt::actionTaken") { raise Unsupported, "quint: state #{index} of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it" },
+                           values.fetch("mbt::nondetPicks") ]
+                       end
+        Step.new(taken, picks.reject { _2.nil? }, at(values.reject { _1.start_with?("mbt::") }, state, index), index)
       end
     end
 
+    def self.at(values, path, index)
+      path.each_with_index.reduce(values) do |value, (key, depth)|
+        next value[key] if value.is_a?(Hash) && value.key?(key)
+
+        within = path.take(depth).join(".")
+        raise Unsupported, "quint: state #{index} of the trace has no #{path.take(depth + 1).join('.')}" \
+                           "#{"; #{within} has #{value.keys.sort.join(', ')}" if value.is_a?(Hash)}"
+      end
+    end
+    private_class_method :at
+
     # +log+, an IO such as $stdout, gets each step before the driver runs it.
-    def self.replay(path, driver, log: nil)
+    # +state+ and +action+ are paths into each state, as Trace.steps reads them.
+    def self.replay(path, driver, log: nil, state: [], action: nil)
       ran = []
-      steps(path).each do |step|
+      steps(path, state:, action:).each do |step|
         # An unnamed action names no command for the driver to run.
         raise Unsupported, "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
 
