@@ -114,6 +114,134 @@ end
 - `choose: :rotate` gives a disabled action's turn to the next enabled one. Use it when most actions are disabled in most states. The default, `:rule`, shrinks to the shortest sequence.
 - `Hegel::Stateful.run(machine.new, tc, step_count: 50)` sets the most moves in one test case.
 
+## In a Rails app with RSpec
+
+A driver can call the app's service objects in place of the system's methods, and read the records back for `state`. The run below needs no Rails gem: `Loan` stands in for an ActiveRecord model, with the model methods that the services call. In an app, `Loan` is the model itself, and the Gemfile lines of Install go in the `:test` group.
+
+```ruby
+# app/models/loan.rb: stands in for an ActiveRecord model, one row per book on loan.
+class Loan
+  attr_reader :member, :book
+
+  def self.all = (@rows ||= [])
+  def self.delete_all = all.clear
+  def self.create!(member:, book:) = new(member, book).tap { all << _1 }
+  def self.find_by(book:) = all.find { _1.book == book }
+  def self.exists?(**attributes) = all.any? { |row| attributes.all? { row.public_send(_1) == _2 } }
+
+  def initialize(member, book) = (@member, @book = member, book)
+  def destroy! = Loan.all.delete(self)
+end
+```
+
+```ruby
+# app/services/lending.rb: service objects a controller calls. A refusal is a domain error with a reason.
+module Lending
+  class Refused < StandardError
+    attr_reader :reason
+
+    def initialize(reason) = super(@reason = reason)
+  end
+
+  class BorrowBook
+    def self.call(member:, book:)
+      raise Refused, "on_loan" if Loan.exists?(book:)
+      raise Refused, "limit_reached" if Loan.exists?(member:)
+
+      Loan.create!(member:, book:)
+    end
+  end
+
+  class GiveBack
+    def self.call(book:)
+      loan = Loan.find_by(book:) or raise Refused, "not_on_loan"
+      loan.destroy!
+    end
+  end
+end
+```
+
+The driver empties the table at `init`. One example replays many traces, and with transactional fixtures they all run in one transaction, so a trace does not start from an empty table by itself. The driver rescues the domain refusal into the spec's refusal value:
+
+```ruby
+# spec/quint/lending_driver.rb
+class LendingDriver
+  BOOKS = %w[b1 b2 b3].freeze
+
+  def step(action, picks)
+    @outcome = "Done"
+    case action.delete_suffix("_refused")
+    when "init" then Loan.delete_all
+    when "borrow" then Lending::BorrowBook.call(member: picks.fetch("m"), book: picks.fetch("b"))
+    when "give_back" then Lending::GiveBack.call(book: picks.fetch("b"))
+    end
+  rescue Lending::Refused => refusal
+    @outcome = [ "Refused", refusal.reason ]
+  end
+
+  def state
+    { "holder" => BOOKS.to_h { [ _1, Loan.find_by(book: _1)&.member || "" ] }, "outcome" => @outcome }
+  end
+end
+```
+
+The spec is `examples/loans/loans.qnt` of this repository, copied to `spec/quint/loans.qnt`. The spec path is relative, because RSpec runs from the app's root:
+
+```ruby
+# spec/quint/lending_spec.rb
+require "quint_driver"
+require "quint_driver/hegel"
+require_relative "../../app/models/loan"
+require_relative "../../app/services/lending"
+require_relative "lending_driver"
+
+RSpec.describe "lending, held to loans.qnt" do
+  spec_file = "spec/quint/loans.qnt"
+
+  it "follows every trace Quint writes" do
+    QuintDriver::Quint.simulate(spec_file, main: "loans", traces: 50, max_steps: 20, seed: "1") do |path|
+      QuintDriver::Trace.replay(path, LendingDriver.new)
+    end
+  end
+
+  it "agrees with the model on every sequence Hegel chooses" do
+    spec = QuintDriver::Spec.new(spec_file, main: "loans")
+    machine = QuintDriver.machine(spec, driver: -> { LendingDriver.new }, invariants: %i[one_book_each])
+
+    Hegel.test(test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|
+      Hegel::Stateful.run(machine.new, tc)
+    end
+  end
+end
+```
+
+```text
+$ bundle exec rspec spec/quint
+..
+
+Finished in 6.02 seconds (files took 0.18241 seconds to load)
+2 examples, 0 failures
+```
+
+Without the `rescue`, the refusal leaves the driver. The replay fails with a `StepRaised`, and its `raised in:` line names the line of the service that refused:
+
+```text
+  1) lending, held to loans.qnt follows every trace Quint writes
+     Failure/Error: raise Refused, "limit_reached" if Loan.exists?(member:)
+
+     QuintDriver::StepRaised:
+       quint: at step 4 `borrow_refused` {"b" => "b3", "m" => "m2"}, the step raised Lending::Refused: limit_reached
+       raised in: app/services/lending.rb:12:in 'Lending::BorrowBook.call'
+       steps:
+         init {}
+         borrow {"b" => "b2", "m" => "m2"}
+         give_back {"b" => "b2"}
+         borrow {"b" => "b2", "m" => "m2"}
+         borrow_refused {"b" => "b3", "m" => "m2"}
+       trace: trace_0.itf.json of Quint.simulate("spec/quint/loans.qnt", traces: 50, max_steps: 20, seed: "1", main: "loans", step: "step", backend: "rust")
+     # ./app/services/lending.rb:12:in 'Lending::BorrowBook.call'
+```
+
 ## Read a failure
 
 ```text
