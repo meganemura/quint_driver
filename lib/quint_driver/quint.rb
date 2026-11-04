@@ -1,6 +1,7 @@
 require "etc"
 require "json"
 require "open3"
+require "shellwords"
 require "tmpdir"
 
 module QuintDriver
@@ -63,7 +64,8 @@ module QuintDriver
         # out. With --out, quint writes the modules as the file has them; on
         # stdout it prints the main module flattened.
         out = File.join(dir, "ir.json")
-        output, status = capture("compile --target json #{path}#{" --main #{main}" if main} #{flat ? '>' : '--out'} #{out}")
+        words = [ "compile", "--target", "json", path, *([ "--main", main ] if main) ]
+        output, status = flat ? capture(*words, stdout: out) : capture(*words, "--out", out)
         ir = File.exist?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 
@@ -92,12 +94,12 @@ module QuintDriver
         if input
           write_traces(evaluator, input, dir)
         else
-          arguments = "run #{path} --mbt --backend #{backend} --max-steps #{max_steps} --max-samples #{traces} " \
-                      "--n-traces #{traces} --seed #{seed} --step #{step} --out-itf #{dir}/trace_{seq}.itf.json --verbosity 0"
-          arguments += " --main #{main}" if main
+          arguments = [ "run", path, "--mbt", "--backend", backend, "--max-steps", max_steps, "--max-samples", traces,
+                        "--n-traces", traces, "--seed", seed, "--step", step, "--out-itf", "#{dir}/trace_{seq}.itf.json", "--verbosity", 0 ]
+          arguments += [ "--main", main ] if main
           # quint ends a trace where its invariant breaks, and exits 1 then.
-          arguments += " --invariant 'not(#{reach})'" if reach
-          output, status = capture(arguments)
+          arguments += [ "--invariant", "not(#{reach})" ] if reach
+          output, status = capture(*arguments)
           raise QuintFailed, "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
         end
 
@@ -120,9 +122,9 @@ module QuintDriver
     # action each step took, as a Choreo spec does.
     def self.test(path, name, seed:, main: nil)
       Dir.mktmpdir("quint") do |dir|
-        arguments = "test #{path} --match '^#{name}$' --seed #{seed} --max-samples 1 --out-itf #{dir}/test_{seq}.itf.json --verbosity 1"
-        arguments += " --main #{main}" if main
-        output, status = capture(arguments)
+        arguments = [ "test", path, "--match", "^#{name}$", "--seed", seed, "--max-samples", 1, "--out-itf", "#{dir}/test_{seq}.itf.json", "--verbosity", 1 ]
+        arguments += [ "--main", main ] if main
+        output, status = capture(*arguments)
         raise QuintFailed, "quint test failed:\n#{output}" unless status.success?
 
         written = Dir["#{dir}/test_*.itf.json"]
@@ -239,8 +241,12 @@ module QuintDriver
       result["bestTraces"].each_with_index { |trace, index| File.write(File.join(dir, "trace_#{index}.itf.json"), JSON.generate(trace["states"])) }
     end
 
-    def self.capture(arguments)
-      output, status = Open3.capture2e("#{command} #{arguments}")
+    # QUINT is a shell command, such as `npx --yes ...`, so the line runs
+    # through a shell, and each word after it is quoted: an app's folder can
+    # have a space in its name. +stdout+ is a file quint's output goes into.
+    def self.capture(*words, stdout: nil)
+      line = "#{command} #{Shellwords.join(words.map(&:to_s))}#{" > #{Shellwords.escape(stdout)}" if stdout}"
+      output, status = Open3.capture2e(line)
       # Only npm prefixes its lines with "npm error", so these mean npx did
       # not get as far as running quint.
       fetch = output[/^npm (?:error|ERR!) code .*/] if !status.success? && !ENV.key?("QUINT")

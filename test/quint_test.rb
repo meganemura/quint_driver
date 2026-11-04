@@ -206,6 +206,29 @@ class QuintTest < Minitest::Test
     end
   end
 
+  # An app's checkout can sit in a folder such as "Work Projects", and quint
+  # runs through a shell.
+  def test_a_spec_in_a_folder_whose_name_a_shell_splits_compiles_simulates_and_runs
+    Dir.mktmpdir do |dir|
+      folder = File.join(dir, "it's a $folder")
+      Dir.mkdir(folder)
+      spec = File.join(folder, "recorded.qnt")
+      File.write(spec, File.read(RECORDED).sub(/\n}\s*\z/, "\n  val lent = s.books.get(\"b1\") != \"\"\n}\n"))
+      File.write(File.join(folder, "lending.qnt"), "module lending {\n  import recorded.* from \"./recorded\"\n  action step2 = step\n}\n")
+
+      assert_equal %w[borrow give_back], QuintDriver::Spec.new(spec, main: "recorded").rules("step").map(&:action)
+      assert_equal %w[borrow give_back], QuintDriver::Spec.new(File.join(folder, "lending.qnt"), main: "lending").rules("step").map(&:action)
+      [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+        traces = 0
+        with_env(env) { QuintDriver::Quint.simulate(spec, traces: 2, max_steps: 2, seed: "1", reach: "lent") { traces += 1 } }
+        assert_operator traces, :>, 0, env.inspect
+      end
+      written = []
+      QuintDriver::Quint.test(spec, "lendTest", seed: "1") { written << JSON.parse(File.read(_1))["states"].size }
+      assert_equal [ 4 ], written
+    end
+  end
+
   def test_a_module_that_imports_its_definitions_and_actions_runs_on_the_model
     Dir.mktmpdir do |dir|
       Dir.mkdir(File.join(dir, "lib"))
