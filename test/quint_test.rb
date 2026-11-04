@@ -78,6 +78,35 @@ class QuintTest < Minitest::Test
     assert_match(/seed/, error.message)
   end
 
+  def test_a_simulation_that_reaches_a_definition_ends_each_trace_at_the_first_state_where_it_holds
+    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+      lent = []
+      simulate = ->(&block) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 5, max_steps: 10, seed: "1", reach: "two_on_loan", &block) }
+      error = with_env(env) do
+        simulate.() do |path|
+          lent << QuintDriver::Trace.steps(path).map { |step| step.expected["holder"].values.count { _1 != "" } }
+          QuintDriver::Trace.replay(path, LoansDriver.new)
+        end
+        assert_raises(QuintDriver::Mismatch) { simulate.() { raise QuintDriver::Mismatch, "quint: checked" } }
+      end
+
+      refute_empty lent, env.inspect
+      lent.each { |counts| assert_equal counts.size - 1, counts.index(2), "each trace ends where two books are first lent: #{counts}" }
+      assert_match(/, reach: "two_on_loan"\)\z/, error.simulate)
+    end
+  end
+
+  def test_a_simulation_where_no_trace_reaches_the_definition_raises
+    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+      error = with_env(env) do
+        assert_raises(QuintDriver::QuintFailed) do
+          QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 1, seed: "1", reach: "two_on_loan") { flunk }
+        end
+      end
+      assert_equal "quint: no trace of 3 reached two_on_loan within 1 steps; raise max_steps or traces", error.message, env.inspect
+    end
+  end
+
   def test_the_typescript_backend_runs_quint_not_the_evaluator
     states = with_env("QUINT_EVALUATOR" => "/nonexistent/quint_evaluator") do
       list = []

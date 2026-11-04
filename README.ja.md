@@ -170,6 +170,12 @@ Hegel のもとでは、ステップの番号は Hegel のレポートがその�
 `Spec.new` に渡すのと同じ名前です。
 quint が失敗したときや見つからないときは、`Spec.new` と `Quint.simulate` が quint の理由を添えて `QuintDriver::QuintFailed` を投げます。
 
+ある状態に至る手順を試すときは、その状態で成り立つ定義の名前を `reach:` に渡します。
+例えば `val two_on_loan = BOOKS.filter(b => onLoan(holder, b)).size() == 2` なら `reach: "two_on_loan"` です。
+各トレースは、その定義が初めて成り立つ状態で終わり、`Quint.simulate` はそこに至ったトレースだけを渡します。
+Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れたところでトレースを止めます。
+どのトレースも至らなかったときは、`quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces` のように `QuintDriver::QuintFailed` を投げます。
+
 `QuintDriver.machine` のオプションは次のとおりです。
 
 - `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。モジュールにないアクションを `step:` に渡すと、モジュールのアクションを並べた `ArgumentError` を投げます（`quint: no action is named steps; the module has counting, init, step`）。

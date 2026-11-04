@@ -52,4 +52,6 @@ module loans {
   val one_book_each = MEMBERS.forall(m => BOOKS.filter(b => holder.get(b) == m).size() <= 1)
   // False once a book is lent: the tests use it to see a broken invariant reported.
   val nothing_on_loan = BOOKS.forall(b => not(onLoan(holder, b)))
+  // True once two books are lent: the tests ask quint for traces that reach it.
+  val two_on_loan = BOOKS.filter(b => onLoan(holder, b)).size() == 2
 }

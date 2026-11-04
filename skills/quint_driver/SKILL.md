@@ -86,6 +86,17 @@ end
 ```
 
 Quint chooses the steps, so replay reaches deep states quickly. It works the same in a Minitest test and in an RSpec example. Pass `log: $stdout` to `Trace.replay` to print each step before the driver runs it.
+
+To test the steps that lead to one state, write a definition that holds there and pass its name as `reach:`. Each trace then ends at the first state where it holds, and only the traces that get there are yielded:
+
+```ruby
+# In loans.qnt: val two_on_loan = BOOKS.filter(b => onLoan(holder, b)).size() == 2
+QuintDriver::Quint.simulate("spec.qnt", main: "loans", traces: 20, max_steps: 10, seed: "1", reach: "two_on_loan") do |path|
+  QuintDriver::Trace.replay(path, LoansDriver.new)
+end
+```
+
+One of those traces runs `init give_back_refused borrow borrow`. When no trace gets there, `Quint.simulate` raises `QuintDriver::QuintFailed`: `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`. Raise `max_steps` or `traces` then.
 ## 4. Check the Ruby model
 
 Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first:

@@ -113,6 +113,8 @@ An error a step raises comes out as `QuintDriver::StepRaised`, not as a `Mismatc
 
 `Quint.simulate` runs the module named after the file. Pass `main:` to run another module of that file, the same name `Spec.new` takes. When quint fails or is not installed, `Spec.new` and `Quint.simulate` raise `QuintDriver::QuintFailed` with quint's reason.
 
+To test the steps that lead to one state, pass `reach:` the name of a definition that holds there, such as `reach: "two_on_loan"` for `val two_on_loan = BOOKS.filter(b => onLoan(holder, b)).size() == 2`. Each trace then ends at the first state where the definition holds, and `Quint.simulate` yields only the traces that get there. Quint checks `not(two_on_loan)` as the invariant and stops a trace where it breaks. When no trace gets there, it raises `QuintDriver::QuintFailed`, such as `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`.
+
 `QuintDriver.machine` takes these options:
 
 - `step:` is the action that lists the moves, `"step"` by default. Each move must call a named action. Arguments come from `nondet x = S.oneOf()`. A `step:` that is no action of the module raises `ArgumentError` with the actions it has, such as `quint: no action is named steps; the module has counting, init, step`.

@@ -68,26 +68,37 @@ module QuintDriver
 
     # Writes +traces+ traces of the spec's +step+ action and yields each file.
     # +main+ names the module to run; without it, quint runs the module named
-    # after the file.
-    def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust")
+    # after the file. +reach+ names a definition of the module that holds at
+    # the state a test is after: each trace then ends at the first state where
+    # it holds, and only the traces that get there are yielded.
+    def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil)
       Dir.mktmpdir("quint") do |dir|
         evaluator = self.evaluator if backend == "rust"
-        input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:) if evaluator
+        input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:) if evaluator
         if input
           write_traces(evaluator, input, dir)
         else
           arguments = "run #{path} --mbt --backend #{backend} --max-steps #{max_steps} --max-samples #{traces} " \
                       "--n-traces #{traces} --seed #{seed} --step #{step} --out-itf #{dir}/trace_{seq}.itf.json --verbosity 0"
           arguments += " --main #{main}" if main
+          # quint ends a trace where its invariant breaks, and exits 1 then.
+          arguments += " --invariant 'not(#{reach})'" if reach
           output, status = capture(arguments)
-          raise QuintFailed, "quint run failed:\n#{output}" unless status.success?
+          raise QuintFailed, "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
+        end
+
+        # A trace that broke the invariant is one that reached +reach+.
+        traces_written = Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }
+        traces_written.select! { JSON.parse(File.read(_1)).dig("#meta", "status") == "violation" } if reach
+        if reach && traces_written.empty?
+          raise QuintFailed, "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
         end
 
         # The trace files go with dir, so Trace.replay names a trace by the
         # call that writes it again instead of by its path.
         call = "Quint.simulate(#{Agreement.relative(File.expand_path(path)).inspect}, " +
-               { traces:, max_steps:, seed:, main:, step:, backend: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
-        Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
+               { traces:, max_steps:, seed:, main:, step:, backend:, reach: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
+        traces_written.each do |trace|
           @simulated[trace] = { seed:, simulate: call }
           yield trace
         rescue Mismatch, StepRaised => failure
@@ -127,8 +138,9 @@ module QuintDriver
     end
 
     # What `quint run --mbt` sends the evaluator for this call, or nil when
-    # +step+ is no action of the module, so `quint run` reports it.
-    def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:)
+    # +step+ is no action of the module or +reach+ no definition of it, so
+    # `quint run` reports it.
+    def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
       table = ir.fetch("table").dup
@@ -140,9 +152,15 @@ module QuintDriver
         table[(id += 1).to_s] = definition
         { "id" => id, "kind" => "name", "name" => action }
       end
+      invariant = if reach
+                    table[(id += 1).to_s] = declarations.find { _1["kind"] == "def" && _1["name"] == reach } || return
+                    { id: id + 1, kind: "app", opcode: "not", args: [ { id:, kind: "name", name: reach } ] }
+                  else
+                    { id: id + 1, kind: "bool", value: true }
+                  end
       seed = Integer(seed.to_s, exception: false) or raise QuintFailed, "quint: the seed #{seed.inspect} is not an integer"
       { parsed: { modules: ir["modules"], table:, main: ir["main"], init: named[0], step: named[1],
-                  invariants: [ { id: id + 1, kind: "bool", value: true } ], witnesses: [] },
+                  invariants: [ invariant ], witnesses: [] },
         source: path, nruns: traces, nsteps: max_steps, ntraces: traces, nthreads: [ traces, Etc.nprocessors ].min,
         seed:, mbt: true, verbosity: 0 }
     end
@@ -166,7 +184,10 @@ module QuintDriver
                            "it reads the #{EVALUATOR_VERSION} evaluator quint 0.33.0 runs. Set QUINT_EVALUATOR to that " \
                            "evaluator, or to an empty string to simulate through `quint run`"
       end
-      raise QuintFailed, "quint run failed:\n#{result.fetch('errors', []).map { "Error [#{_1['code']}]: #{_1['message']}" }.join("\n")}" unless result["status"] == "ok"
+      # A violation is only possible when simulate asks to reach a definition.
+      unless %w[ok violation].include?(result["status"])
+        raise QuintFailed, "quint run failed:\n#{result.fetch('errors', []).map { "Error [#{_1['code']}]: #{_1['message']}" }.join("\n")}"
+      end
 
       result["bestTraces"].each_with_index { |trace, index| File.write(File.join(dir, "trace_#{index}.itf.json"), JSON.generate(trace["states"])) }
     end
