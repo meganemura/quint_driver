@@ -1,6 +1,7 @@
 require_relative "../test_helper"
 require "quint_driver/hegel"
 require "stringio"
+require "tmpdir"
 
 class MachineTest < Minitest::Test
   SETTINGS = { test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow] }.freeze
@@ -43,6 +44,7 @@ class MachineTest < Minitest::Test
 
       moves = report.string.scan(/^\s+(borrow\S*|give_back\S*) \{.*\}$/).flatten
       assert_equal %w[borrow borrow_refused], moves
+      assert_equal(choose == :rule ? moves : %w[step] * moves.size, report.string.scan(/^  Step \d+: (\S+)$/).flatten, "Hegel's report names a move by its action")
       step = error.message[/\Aquint: after step (\d+) `borrow_refused` /, 1]
       assert_equal report.string.scan(/^  Step (\d+): /).flatten.last, step, "the message numbers the move as Hegel's report does"
       assert_match(/outcome: model \["Refused", "limit_reached"\], driver "Done"/, error.message)
@@ -139,6 +141,38 @@ class MachineTest < Minitest::Test
     assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
     assert_equal KeyError, error.cause.class
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
+  end
+
+  def test_an_error_the_driver_s_state_raises_after_a_move_lists_the_steps_to_it
+    unreadable = Class.new(LoansDriver) { def state = super.tap { raise "no holder" if _1["holder"].value?("m1") } }
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { unreadable.new })
+
+    error = assert_raises(QuintDriver::StepRaised) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    first, _raised_in, *steps = error.message.lines
+    assert_match(/\Aquint: at step \d+ `borrow` (\{"b" => "b\d", "m" => "m1"\}), the step raised RuntimeError: no holder$/, first)
+    assert_equal [ "steps:\n", "  init {}\n", "  borrow #{first[/(\{.*\})/, 1]}" ], steps
+  end
+
+  # Quint keeps a set's elements in no order a reader sees, so the machine
+  # draws from them sorted, and a failure shrinks to the first by name.
+  def test_a_failure_shrinks_to_the_first_pick_by_name_whatever_order_the_spec_writes
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "shuffled.qnt")
+      File.write(path, "module shuffled {\n  var picked: str\n  action init = picked' = \"\"\n  action pick(x: str): bool = picked' = x\n" \
+                       "  action step = {\n    nondet x = Set(\"c\", \"a\", \"b\").oneOf()\n    any { pick(x) }\n  }\n}\n")
+      spec = QuintDriver::Spec.new(path, main: "shuffled")
+      lagging = Class.new { define_method(:initialize) { @model = spec.model }; def step(*move) = @model.step(*move); def state = { "picked" => "" } }
+      machine = QuintDriver.machine(spec, driver: -> { lagging.new })
+
+      error = assert_raises(QuintDriver::Mismatch) do
+        Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+      end
+
+      assert_match(/^  picked: model "a", driver ""$/, error.message)
+    end
   end
 
   def test_an_error_the_driver_raises_at_init_fails_before_hegel_takes_a_step
