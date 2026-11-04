@@ -4,6 +4,8 @@ require "hegel"
 require_relative "../quint_driver"
 
 module QuintDriver
+  Agreement.hide(File.dirname(Hegel::Stateful.method(:run).source_location.first))
+
   # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,
   # the model takes it, the driver runs the same command on the system, and
   # the two states have to be equal afterwards. Hegel owns every choice, so a

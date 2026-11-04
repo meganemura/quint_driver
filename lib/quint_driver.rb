@@ -87,14 +87,14 @@ module QuintDriver
             outside(error.backtrace_locations || error.backtrace)
     end
 
-    # +frames+ without quint_driver's own, so the first line a test runner
-    # prints of a Mismatch or a StepRaised is the driver's, the system's, or
-    # the test's: RSpec hides the frames of an installed gem, but not of one
-    # a Gemfile loads from a path, and Minitest hides none. Hegel groups the
-    # failures it shrinks by the first frame, so the frames stay Locations
-    # where Ruby can set them, from 3.4 on.
+    # +frames+ without quint_driver's own, nor Hegel's under the machine, so
+    # the first line a test runner prints of a Mismatch or a StepRaised is
+    # the driver's, the system's, or the test's: RSpec hides the frames of an
+    # installed gem, but not of one a Gemfile loads from a path, and Minitest
+    # hides none. Hegel groups the failures it shrinks by the first frame, so
+    # the frames stay Locations where Ruby can set them, from 3.4 on.
     def self.outside(frames)
-      kept = frames.reject { _1.to_s.start_with?(QUINT_DRIVER) }
+      kept = frames.reject { _1.to_s.start_with?(*@hidden) }
       kept = frames if kept.empty?
       RUBY_VERSION >= "3.4" ? kept : kept.map(&:to_s)
     end
@@ -125,6 +125,12 @@ module QuintDriver
     STARTED_IN = File.join(Dir.pwd, "")
 
     QUINT_DRIVER = File.join(__dir__, "quint_driver")
+    @hidden = [ QUINT_DRIVER ]
+
+    # The Hegel adapter hides Hegel's frames too, as it is the one file that
+    # knows where Hegel is.
+    def self.hide(prefix) = @hidden << prefix
+
     LIBRARIES = [ QUINT_DRIVER, "<internal:", RbConfig::CONFIG["rubylibprefix"] + File::SEPARATOR,
                   *(defined?(Gem) ? Gem.path : []).map { File.join(_1, "") } ].freeze
 

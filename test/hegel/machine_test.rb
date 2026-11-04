@@ -6,6 +6,7 @@ require "tmpdir"
 class MachineTest < Minitest::Test
   SETTINGS = { test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow] }.freeze
   GEM_FRAME = /\A#{Regexp.escape(File.expand_path("../../lib", __dir__))}\//
+  HEGEL_FRAME = /\A#{Regexp.escape(File.dirname(Hegel::Stateful.method(:run).source_location.first))}/
 
   %i[rule rotate].each do |choose|
     define_method(:"test_#{choose}_passes_a_system_that_follows_the_spec") do
@@ -125,6 +126,7 @@ class MachineTest < Minitest::Test
     end
     assert_equal "quint: the model broke `nothing_on_loan`", error.message
     assert_empty error.backtrace.grep(GEM_FRAME)
+    assert_empty error.backtrace.grep(HEGEL_FRAME)
   end
 
   def test_an_error_the_driver_raises_names_its_move_and_the_shrunk_steps
@@ -203,6 +205,8 @@ class MachineTest < Minitest::Test
     assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  outcome: model "Done", driver "Busy"\nsteps:\n  init \{\}\z/, error.message)
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
     assert_empty error.backtrace.grep(GEM_FRAME)
+    assert_empty error.backtrace.grep(HEGEL_FRAME)
+    assert_equal __FILE__, error.backtrace_locations.first.path, "the test's own line leads"
   end
 
   # A test database keeps its rows from one test case to the next unless

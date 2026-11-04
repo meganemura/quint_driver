@@ -148,8 +148,8 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 投げるときはメッセージだけを渡します（`raise QuintDriver::Mismatch, "..."`）。
 実際に走ったトレースは gem が示すので、`Mismatch.new` はトレース、シード、呼び出しを受け取りません。
 自分で用意したトレースファイルを再生したときは、そのパスを示します。
-`Mismatch` のバックトレースからは quint_driver 自身のフレームを除きます。
-そのため RSpec でも Minitest でも、再生を呼んだ行か、`Mismatch` を投げた行が最初に出ます。
+`Mismatch` のバックトレースからは quint_driver 自身のフレームを除き、マシンでは Hegel のフレームも除きます。
+そのため RSpec でも Minitest でも、再生か `Hegel.test` を呼んだ行か、`Mismatch` を投げた行が最初に出ます。
 Gemfile が gem をパスから読み込むときも同じです。
 その手が選ばなかった選択値は `picks` にありません。
 その手が仕様の `None` を選んだ選択値は、`nil` として `picks` にあります。
