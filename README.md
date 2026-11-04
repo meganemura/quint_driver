@@ -133,6 +133,8 @@ The driver gets `step("Init", {})`, then `step("Borrow", { "m" => "m1", "b" => "
 
 Each test case starts a new system through the driver's `init` when the machine starts, before Hegel's first step, so a driver that fails at `init` fails with no step in Hegel's report. A sequence of moves that the system already agreed on is not run again, because shrinking asks for the same sequence many times. This assumes that the system answers the same sequence the same way each time. A disagreement always runs on the system again.
 
+A Hegel run has no Quint seed. Hegel's own report ends with a blob, such as `reproduce_failure: "AXicXYmhDQAADMJWu/3/70BgQJCmvdEWPwRiKlCBBwzbAGE="`; pass it to `Hegel.test` as `reproduce_failure:` to run that one failing case again, with the same message.
+
 ## Check the Ruby model
 
 The Hegel way trusts the Ruby evaluation of the spec. The model answers the driver protocol, so you can hold it to Quint's own traces:

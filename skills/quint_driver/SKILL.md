@@ -320,6 +320,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
   ```
 
   Under Hegel the line reads the same, and the number is the one Hegel's report gives the move (`Step 1: borrow`). A rule Hegel rejected counts too, so the number can be larger than the moves under `steps:`. A failure while the `driver:` lambda makes the driver, or at its first state, reads ``quint: at step 0 `init` {}, ...``, as on a replay. The machine makes its driver when it starts, so Hegel's report for that failure lists no step.
+- Under Hegel, there is no seed: Hegel's report ends with `To reproduce this failure, pass the blob below to Hegel.test:` and a blob. Pass it as `Hegel.test(reproduce_failure: "...")` to run that one case again with the same message.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
 | Error | Cause |

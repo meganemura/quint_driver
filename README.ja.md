@@ -222,6 +222,10 @@ Hegel の失敗の報告は、引いた値を nondet の選択値の名前で示
 これは、同じ手順にはシステムが毎回同じ答えを返すことを前提にしています。
 食い違った手順は、毎回システムで動かし直します。
 
+Hegel の実行には Quint のシード値がありません。
+Hegel のレポートは、`reproduce_failure: "AXicXYmhDQAADMJWu/3/70BgQJCmvdEWPwRiKlCBBwzbAGE="` のような値で終わります。
+それを `Hegel.test` の `reproduce_failure:` に渡すと、その失敗したケースだけを同じメッセージでもう一度動かします。
+
 ## Ruby のモデルを確かめる
 
 Hegel のやり方は、仕様の Ruby での評価を信じています。
