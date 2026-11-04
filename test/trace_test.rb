@@ -50,7 +50,7 @@ class TraceTest < Minitest::Test
     assert_nil error.cause, "Ruby prints a cause with the path of the trace"
     steps = ran.drop(ran.rindex { _1.first == "init" }).map { |action, picks| "  #{action} {#{picks.sort.map { |k, v| "#{k.inspect} => #{v.inspect}" }.join(", ")}}" }
     assert_includes error.message, "steps:\n#{steps.join("\n")}\n"
-    call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
+    call = %(Quint.simulate("examples/loans/loans.qnt", traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
     trace = File.basename(error.trace)
     assert_match(/\Atrace_\d+\.itf\.json\z/, trace)
     assert_equal [ "1", call ], [ error.seed, error.simulate ]
@@ -86,7 +86,7 @@ class TraceTest < Minitest::Test
       end
     end
 
-    call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 3, max_steps: 5, seed: "1", step: "step", backend: "rust"))
+    call = %(Quint.simulate("examples/loans/loans.qnt", traces: 3, max_steps: 5, seed: "1", step: "step", backend: "rust"))
     assert_equal [ names.last, "1", call ], [ File.basename(error.trace), error.seed, error.simulate ]
     assert_equal "quint: the ledger lost a loan\ntrace: #{names.last} of #{call}", error.message
     assert_nil error.cause
@@ -126,7 +126,7 @@ class TraceTest < Minitest::Test
     steps = rest.take_while { !_1.start_with?("trace:") }
     assert_equal [ "steps:\n", "  init {}\n" ], steps.first(2)
     assert_equal [ Integer(step) + 2, "  give_back #{picks}\n" ], [ steps.size, steps.last ]
-    call = %(Quint.simulate(#{LoansDriver::SPEC.inspect}, traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
+    call = %(Quint.simulate("examples/loans/loans.qnt", traces: 40, max_steps: 20, seed: "1", step: "step", backend: "rust"))
     assert_equal [ "1", call ], [ error.seed, error.simulate ]
     assert_equal "trace: #{File.basename(error.trace)} of #{call}", rest.last
     assert_equal [ KeyError, "book" ], [ error.cause.class, error.cause.key ]

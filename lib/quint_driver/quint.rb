@@ -69,7 +69,7 @@ module QuintDriver
 
         # The trace files go with dir, so Trace.replay names a trace by the
         # call that writes it again instead of by its path.
-        call = "Quint.simulate(#{path.inspect}, " +
+        call = "Quint.simulate(#{Agreement.relative(File.expand_path(path)).inspect}, " +
                { traces:, max_steps:, seed:, main:, step:, backend: }.compact.map { "#{_1}: #{_2.inspect}" }.join(", ") + ")"
         Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }.each do |trace|
           @simulated[trace] = { seed:, simulate: call }
