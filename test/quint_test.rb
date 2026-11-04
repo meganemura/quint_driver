@@ -108,6 +108,33 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_simulation_toward_a_definition_runs_on_the_evaluator
+    skip "quint has not downloaded its Rust evaluator #{QuintDriver::Quint::EVALUATOR_VERSION}" unless QuintDriver::Quint.evaluator
+    Dir.mktmpdir do |dir|
+      counting = File.join(dir, "counting-quint")
+      File.write(counting, "#!/bin/sh\necho \"$1\" >> #{dir}/ran\nexec #{QuintDriver::Quint.command} \"$@\"\n")
+      File.chmod(0o755, counting)
+      reached = 0
+      with_env("QUINT" => counting) do
+        QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 5, max_steps: 10, seed: "1", reach: "two_on_loan") { reached += 1 }
+      end
+
+      assert_operator reached, :>, 0
+      refute_includes File.exist?(File.join(dir, "ran")) ? File.readlines(File.join(dir, "ran")) : [], "run\n"
+    end
+  end
+
+  def test_a_simulation_toward_a_name_the_spec_does_not_define_raises_with_quints_report
+    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+      error = with_env(env) do
+        assert_raises(QuintDriver::QuintFailed) do
+          QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", reach: "nowhere") { flunk }
+        end
+      end
+      assert_match(/\Aquint run failed:\n.*Name 'nowhere' not found/m, error.message, env.inspect)
+    end
+  end
+
   def test_a_named_run_writes_the_states_it_ran
     books = []
     QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
@@ -121,6 +148,17 @@ class QuintTest < Minitest::Test
     error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.test(RECORDED, "unlentTest", seed: "1") { flunk } }
 
     assert_match(/\Aquint test failed:\n.*1\) unlentTest failed after 1 test/m, error.message)
+  end
+
+  def test_a_named_run_in_a_module_not_named_after_its_file_runs_with_main
+    Dir.mktmpdir do |dir|
+      shelf = File.join(dir, "shelf.qnt")
+      File.write(shelf, "module shelf {\n  pure val BOOKS = Set(\"b1\")\n}\n" + File.read(RECORDED))
+      written = []
+      QuintDriver::Quint.test(shelf, "lendTest", seed: "1", main: "recorded") { written << JSON.parse(File.read(_1))["states"].size }
+
+      assert_equal [ 4 ], written
+    end
   end
 
   def test_a_run_the_module_does_not_have_lists_the_runs_it_has
