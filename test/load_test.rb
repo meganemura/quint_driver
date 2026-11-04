@@ -31,6 +31,30 @@ class LoadTest < Minitest::Test
     assert_match(/hegel is hidden/, output)
   end
 
+  # Ruby names each file it requires by its real path, so a gem reached
+  # through a symlink, as a vendored or a linked checkout is, still leaves
+  # its own frames out.
+  def test_a_gem_loaded_through_a_symlink_leaves_its_frames_out_of_a_failure
+    Dir.mktmpdir do |dir|
+      File.symlink(LIB, File.join(dir, "lib"))
+      output, status = Open3.capture2e(RbConfig.ruby, "-I", File.join(dir, "lib"), "-e", <<~RUBY)
+        require "quint_driver"
+        require #{LOANS.inspect}
+        begin
+          QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 5, max_steps: 10, seed: "1") do |path|
+            QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans))
+          end
+        rescue QuintDriver::Mismatch => error
+          puts error.backtrace
+        end
+      RUBY
+
+      assert status.success?, output
+      assert_equal "-e:5:in 'block in <main>'", output.lines.first.chomp.sub("`", "'")
+      assert_empty output.lines.grep(/quint_driver/)
+    end
+  end
+
   private
     # A hegel.rb ahead of every gem on the load path stands in for a missing hegeltest.
     def without_hegel(script)
