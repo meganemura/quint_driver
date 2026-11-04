@@ -38,6 +38,7 @@ Each move of `step` must name the action that a driver runs.
 
 - Write `step` as `any { ... }` whose arms call named actions, even for one action: `action step = any { tick }`. Without `any`, Quint names every move `step`, so a driver cannot tell the moves apart, and replay through the model raises `QuintDriver::Unsupported`.
 - Take arguments only from `nondet x = S.oneOf()` before the call: `nondet b = BOOKS.oneOf() any { give_back(b), give_back_refused(b) }`.
+- Draw each pick in the arm whose action takes it. A pick drawn above `any` is in the `picks` of every arm, so a failure lists it on a move that does not use it.
 - A parameterless action whose body is `any { ... }` opens in place, so `action step = any { lending, returning }` works.
 - Do not assign inline in an arm of `step` (`any { n' = n + 1 }`). The move names no action, and `spec.rules` raises `QuintDriver::Unsupported` with the action that holds the arm: `quint: counting assigns n' in an arm that names no action; name every action in step`.
 - Give each command a refused twin that holds when the command is disabled and records why, such as `borrow_refused`. Traces then check refusals too.
@@ -293,12 +294,147 @@ Without the `rescue`, the refusal leaves the driver. The replay fails with a `St
 
 ### With ActiveRecord and a test database
 
-The same shape runs on a real ActiveRecord model in a Rails 8.1 app with rspec-rails, transactional fixtures, and SQLite or PostgreSQL. Name the records in the spec (`l1`, `l2`) and keep the id that `create!` returns for each name, because ids keep growing from one trace to the next:
+The same shape runs on a real ActiveRecord model in a Rails 8.1 app with rspec-rails, factory_bot_rails, transactional fixtures, and SQLite or PostgreSQL. This run is on Ruby 3.3, so it replays traces only; Hegel needs Ruby 3.4. The app's `Loan` belongs to a `Borrower` with a `limit`, validates `amount > 0`, and `Loan#approve(officer)` answers `:already`, `:over_limit` when the borrower's approved loans and this one pass the limit, `:needs_senior` above 10,000 for an officer who is not senior, or `:approved` after `update!(approved_at:, approved_by:)`.
+
+Name the records in the spec (`l1`, `l2`) and keep the id that `create!` returns for each name, because ids keep growing from one trace to the next. Put the amounts at each limit the code compares with (10,000, and 20,000 in two loans), or a `>` written as `>=` passes every trace:
+
+```quint
+// spec/quint/loan.qnt: one borrower's loans and their approval.
+module loan {
+  val LOANS = Set("l1", "l2", "l3")
+  val AMOUNTS = Set(0, 5000, 10000, 15000)
+  val OFFICERS = Set("grace", "ada")
+  val SENIOR = Set("grace")
+  val LIMIT = 20000
+
+  type Outcome = Done | Invalid | Approved | Already | OverLimit | NeedsSenior
+
+  var amount: str -> int
+  var approvedBy: str -> str
+  var outcome: Outcome
+
+  def requested(l) = amount.get(l) > 0
+  def approvedSum = LOANS.filter(l => approvedBy.get(l) != "").fold(0, (sum, l) => sum + amount.get(l))
+  def decision(l, o) =
+    if (approvedBy.get(l) != "") Already
+    else if (approvedSum + amount.get(l) > LIMIT) OverLimit
+    else if (amount.get(l) > 10000 and not(SENIOR.contains(o))) NeedsSenior
+    else Approved
+
+  action init = all {
+    amount' = LOANS.mapBy(_ => 0),
+    approvedBy' = LOANS.mapBy(_ => ""),
+    outcome' = Done,
+  }
+
+  action request(l, a) = all {
+    not(requested(l)),
+    amount' = if (a > 0) amount.set(l, a) else amount,
+    approvedBy' = approvedBy,
+    outcome' = if (a > 0) Done else Invalid,
+  }
+
+  action approve(l, o) = all {
+    requested(l),
+    amount' = amount,
+    approvedBy' = if (decision(l, o) == Approved) approvedBy.set(l, o) else approvedBy,
+    outcome' = decision(l, o),
+  }
+
+  action step = any {
+    nondet l = LOANS.oneOf()
+    nondet a = AMOUNTS.oneOf()
+    request(l, a),
+    nondet l = LOANS.oneOf()
+    nondet o = OFFICERS.oneOf()
+    approve(l, o),
+  }
+
+  val withinLimit = approvedSum <= LIMIT
+}
+```
+
+The driver makes its records with the app's factories, so a record gets every attribute the factory sets, and rescues the validation error into the spec's `Invalid`:
 
 ```ruby
-when "init" then Loan.delete_all; @ids = {}
-when "request" then @ids[picks.fetch("l")] = Loan.create!(amount_cents: picks.fetch("a")).id
-when "approve" then Loan.find(@ids.fetch(picks.fetch("l"))).approve!
+# spec/quint/loan_driver.rb
+class LoanDriver
+  LOANS = %w[l1 l2 l3].freeze
+  OFFICERS = { "grace" => { name: "grace", senior: true }, "ada" => { name: "ada", senior: false } }.freeze
+  OUTCOMES = { approved: "Approved", already: "Already", over_limit: "OverLimit", needs_senior: "NeedsSenior" }.freeze
+
+  def step(action, picks)
+    @outcome = "Done"
+    case action
+    when "init"
+      @borrower = FactoryBot.create(:borrower, limit: 20_000)
+      @ids = {}
+    when "request"
+      @ids[picks.fetch("l")] = FactoryBot.create(:loan, borrower: @borrower, amount: picks.fetch("a")).id
+    when "approve"
+      @outcome = OUTCOMES.fetch(Loan.find(@ids.fetch(picks.fetch("l"))).approve(OFFICERS.fetch(picks.fetch("o"))))
+    end
+  rescue ActiveRecord::RecordInvalid
+    @outcome = "Invalid"
+  end
+
+  def state
+    loans = LOANS.to_h { [ _1, @ids[_1] && Loan.find(@ids[_1]) ] }
+    { "amount" => loans.transform_values { _1&.amount || 0 },
+      "approvedBy" => loans.transform_values { _1&.approved_by || "" },
+      "outcome" => @outcome }
+  end
+end
+```
+
+With `quint_driver` in the Gemfile's `:test` group, `Bundler.require` in `config/application.rb` loads it, so the spec file needs only `rails_helper`. `Rails.root.join` names the spec from any directory RSpec starts in, and a failure still prints it relative to the app's root:
+
+```ruby
+# spec/quint/loan_spec.rb
+require "rails_helper"
+require_relative "loan_driver"
+
+RSpec.describe Loan, "held to loan.qnt" do
+  def rolled_back
+    ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+      yield
+      raise ActiveRecord::Rollback
+    end
+  end
+
+  it "decides every approval the way the spec does" do
+    outcomes = Set.new
+    QuintDriver::Quint.simulate(Rails.root.join("spec/quint/loan.qnt"), traces: 50, max_steps: 12, seed: "1") do |path|
+      rolled_back { QuintDriver::Trace.replay(path, LoanDriver.new).each { outcomes << _1.expected["outcome"] } }
+    end
+
+    expect(outcomes).to include("Approved", "Already", "OverLimit", "NeedsSenior", "Invalid")
+    expect(Loan.count).to eq(0)
+  end
+end
+```
+
+```text
+$ bundle exec rspec spec/quint
+.
+
+Finished in 2.41 seconds (files took 1.59 seconds to load)
+1 example, 0 failures
+```
+
+`expect(Loan.count).to eq(0)` shows that every trace rolled back. With `amount > 10_000` written as `amount >= 10_000` in `Loan#approve`, the same example fails:
+
+```text
+QuintDriver::Mismatch:
+  quint: after step 3 `approve` {"l" => "l1", "o" => "ada"}, the driver differs from the trace
+    approvedBy: trace {"l1" => "ada", "l2" => "", "l3" => ""}, driver {"l1" => "", "l2" => "", "l3" => ""}
+    outcome: trace "Approved", driver "NeedsSenior"
+  steps:
+    init {}
+    request {"a" => 10000, "l" => "l1"}
+    request {"a" => 5000, "l" => "l2"}
+    approve {"l" => "l1", "o" => "ada"}
+  trace: trace_3.itf.json of Quint.simulate("spec/quint/loan.qnt", traces: 50, max_steps: 12, seed: "1", step: "step", backend: "rust")
 ```
 
 Transactional fixtures roll back once, after the example, not after each trace or Hegel test case. A row one trace writes is still there in the next, so the driver deletes the rows at `init`, or each trace and each test case rolls back to a savepoint:
@@ -321,7 +457,7 @@ end
 
 With `rolled_back`, the driver's `init` needs no `delete_all`. Pass `joinable: false`. A joinable savepoint takes in the model's own `transaction` blocks, so a `raise ActiveRecord::Rollback` inside one rolls nothing back: a loan that a model transaction approved and then rolled back read `"approved"` under `transaction(requires_new: true)`, and `"requested"` under `joinable: false`, as under the fixture's transaction alone.
 
-A driver that neither deletes nor rolls back fails at init, with the rows an earlier trace or test case left:
+A driver that neither deletes nor rolls back fails at init when its `state` reads the rows an earlier trace or test case left:
 
 ```text
 quint: after step 0 `init` {}, the driver differs from the model
@@ -329,6 +465,8 @@ quint: after step 0 `init` {}, the driver differs from the model
 steps:
   init {}
 ```
+
+`LoanDriver` above passes without `rolled_back` too, because its `init` makes a new borrower and `state` reads only the loans it made: the example left 145 loans behind for the fixture's rollback. Keep `rolled_back` anyway. App code that reads past the borrower, such as a count of all loans, sees the rows of earlier traces, and the failure then names a move, not the leftover rows.
 
 On 4 CPUs at load average 1.3 to 1.6, a trace of 13 steps took 15 ms on SQLite and 35 ms on PostgreSQL, and a Hegel test case 25 ms and 42 ms. Deleting at init and rolling back to a savepoint took the same time within 10%.
 
