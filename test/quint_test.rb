@@ -100,7 +100,7 @@ class QuintTest < Minitest::Test
     error = assert_raises(QuintDriver::QuintFailed) do
       QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "one") { flunk }
     end
-    assert_match(/seed/, error.message)
+    assert_equal 'quint: the seed "one" is not an integer', error.message
   end
 
   def test_a_simulation_that_reaches_a_definition_ends_each_trace_at_the_first_state_where_it_holds

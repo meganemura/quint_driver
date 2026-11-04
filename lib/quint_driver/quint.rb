@@ -208,11 +208,11 @@ module QuintDriver
                   else
                     { id: id + 1, kind: "bool", value: true }
                   end
-      seed = Integer(seed.to_s, exception: false) or raise QuintFailed, "quint: the seed #{seed.inspect} is not an integer"
+      number = Integer(seed.to_s, exception: false) or raise QuintFailed, "quint: the seed #{seed.inspect} is not an integer"
       { parsed: { modules: ir["modules"], table:, main: ir["main"], init: named[0], step: named[1],
                   invariants: [ invariant ], witnesses: [] },
         source: path, nruns: traces, nsteps: max_steps, ntraces: traces, nthreads: [ traces, Etc.nprocessors ].min,
-        seed:, mbt: true, verbosity: 0 }
+        seed: number, mbt: true, verbosity: 0 }
     end
 
     # Writes each trace the evaluator returns as quint would: trace_0.itf.json
