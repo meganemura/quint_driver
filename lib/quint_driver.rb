@@ -67,7 +67,7 @@ module QuintDriver
 
       diff = actual.keys.reject { expected[_1] == actual[_1] }
                    .map { "  #{_1}: #{by} #{show(expected[_1])}, driver #{show(actual[_1])}" }
-      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\n#{ran(steps)}"
+      raise Mismatch, "quint: after #{after}, the driver differs from the #{by}\n#{diff.join("\n")}\n#{ran(steps)}", outside(caller_locations)
     end
 
     # Runs the block, the driver's part of the step named +at+, and returns
@@ -75,14 +75,30 @@ module QuintDriver
     # StepRaised with +steps+; the gem's own errors pass through.
     def self.drive(at, steps:)
       yield
-    rescue Mismatch, StepRaised, Unsupported, QuintFailed
+    rescue Mismatch, StepRaised => failure
+      raise lead_outside(failure)
+    rescue Unsupported, QuintFailed
       raise
     rescue StandardError => error
-      # Hegel groups the failures it shrinks by the first frame of the
-      # backtrace, so the driver's frames have to stay Locations; Ruby 3.3
-      # sets a backtrace from Strings only.
-      backtrace = RUBY_VERSION >= "3.4" ? error.backtrace_locations || error.backtrace : error.backtrace
-      raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in(error)}#{ran(steps)}", backtrace
+      raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in(error)}#{ran(steps)}",
+            outside(error.backtrace_locations || error.backtrace)
+    end
+
+    # +frames+ without quint_driver's own, so the first line a test runner
+    # prints of a Mismatch or a StepRaised is the driver's, the system's, or
+    # the test's: RSpec hides the frames of an installed gem, but not of one
+    # a Gemfile loads from a path, and Minitest hides none. Hegel groups the
+    # failures it shrinks by the first frame, so the frames stay Locations
+    # where Ruby can set them, from 3.4 on.
+    def self.outside(frames)
+      kept = frames.reject { _1.to_s.start_with?(QUINT_DRIVER) }
+      kept = frames if kept.empty?
+      RUBY_VERSION >= "3.4" ? kept : kept.map(&:to_s)
+    end
+
+    # A failure the driver or a caller's block raised, its backtrace +outside+.
+    def self.lead_outside(failure)
+      failure.tap { _1.set_backtrace(outside(_1.backtrace_locations || _1.backtrace)) }
     end
 
     # The project's frame nearest the raise, the one to read first: an error

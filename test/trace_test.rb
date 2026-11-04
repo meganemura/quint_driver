@@ -7,6 +7,7 @@ require "json"
 class TraceTest < Minitest::Test
   ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
   RECORDED = File.expand_path("recorded.qnt", __dir__)
+  GEM_FRAME = /\A#{Regexp.escape(File.expand_path("../lib", __dir__))}\//
 
   # Runs Loans from recorded.qnt, whose one variable s holds the books and
   # the action each step took, as a Choreo spec keeps its state.
@@ -78,6 +79,15 @@ class TraceTest < Minitest::Test
     assert_match(/outcome: trace \["Refused", "limit_reached"\], driver "Done"/, error.message)
   end
 
+  # RSpec hides an installed gem's frames, but not those of a gem a Gemfile
+  # loads from a path, and Minitest hides none, so the gem leaves its own out.
+  def test_a_mismatch_s_backtrace_starts_at_the_line_that_called_replay_and_holds_no_frame_of_the_gem
+    error = assert_raises(QuintDriver::Mismatch) { replay(LoansDriver.new(BrokenLoans)) }
+
+    assert error.backtrace.first.start_with?("#{__FILE__}:#{REPLAY_LINE}:"), "the first frame calls replay"
+    assert_empty error.backtrace.grep(GEM_FRAME)
+  end
+
   def test_a_failed_replay_lists_the_steps_it_ran_and_the_call_that_rewrites_its_trace
     ran = []
     recording = Class.new(LoansDriver) { define_method(:step) { |action, picks| ran << [ action, picks ]; super(action, picks) } }
@@ -123,6 +133,9 @@ class TraceTest < Minitest::Test
         raise QuintDriver::Mismatch, "quint: the ledger lost a loan" if names.size == 2
       end
     end
+    line = __LINE__ - 3
+    assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts at the raise"
+    assert_empty error.backtrace.grep(GEM_FRAME)
 
     call = %(Quint.simulate("examples/loans/loans.qnt", traces: 3, max_steps: 5, seed: "1", step: "step", backend: "rust"))
     assert_equal [ names.last, "1", call ], [ File.basename(error.trace), error.seed, error.written_by ]
@@ -169,6 +182,7 @@ class TraceTest < Minitest::Test
     assert_equal "trace: #{File.basename(error.trace)} of #{call}", rest.last
     assert_equal [ KeyError, "book" ], [ error.cause.class, error.cause.key ]
     assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts in the driver"
+    assert_empty error.backtrace.grep(GEM_FRAME)
   end
 
   def test_an_error_the_system_raises_names_the_system_frame_it_came_from
@@ -229,9 +243,12 @@ class TraceTest < Minitest::Test
 
   def test_a_mismatch_the_driver_raises_stays_a_mismatch
     checking = Class.new(LoansDriver) { def step(*) = raise(QuintDriver::Mismatch, "quint: the ledger lost a loan") }
+    line = __LINE__ - 1
     error = assert_raises(QuintDriver::Mismatch) { replay(checking.new) }
 
     assert_equal "quint: the ledger lost a loan", error.message.lines.first.chomp
+    assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the backtrace starts in the driver"
+    assert_empty error.backtrace.grep(GEM_FRAME)
   end
 
   def test_a_mismatch_on_a_trace_file_of_your_own_names_its_path
@@ -410,4 +427,5 @@ class TraceTest < Minitest::Test
       end
       count
     end
+    REPLAY_LINE = __LINE__ - 5
 end

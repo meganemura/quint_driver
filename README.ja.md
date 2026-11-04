@@ -146,6 +146,9 @@ Hegel.test(test_cases: 100) { |tc| Hegel::Stateful.run(machine.new, tc) }
 投げるときはメッセージだけを渡します（`raise QuintDriver::Mismatch, "..."`）。
 実際に走ったトレースは gem が示すので、`Mismatch.new` はトレース、シード、呼び出しを受け取りません。
 自分で用意したトレースファイルを再生したときは、そのパスを示します。
+`Mismatch` のバックトレースからは quint_driver 自身のフレームを除きます。
+そのため RSpec でも Minitest でも、再生を呼んだ行か、`Mismatch` を投げた行が最初に出ます。
+Gemfile が gem をパスから読み込むときも同じです。
 その手が選ばなかった選択値、つまり Quint の `None` は `picks` にありません。
 なくてもよい選択値は `picks["name"]` で読み、そのときは `nil` です。
 欠かせない選択値は `picks.fetch("name")` で読みます。
@@ -173,7 +176,7 @@ gem、Ruby のライブラリ、quint_driver の中のフレームは飛ばす�
 Hegel のもとでは、ステップの番号は Hegel のレポートがその手に付けた番号（`Step 2: take` など）で、再生と同じく `init` はステップ 0 です。
 そのあとに `init` からの手順を並べます。
 再生では、最後に同じ `trace:` の行が付きます。
-バックトレースはそのエラーのもので、`cause` はそのエラーです。
+バックトレースはそのエラーのものから quint_driver 自身のフレームを除いたもので、`cause` はそのエラーです。
 
 `Quint.simulate` は、ファイル名と同じ名前のモジュールを動かします。
 同じファイルの別のモジュールを動かすときは `main:` を渡します。

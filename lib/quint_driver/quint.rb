@@ -163,11 +163,13 @@ module QuintDriver
 
     # Names +trace+ on a +failure+ that names none and, while a simulate or
     # test block is yielding it, the seed and the call that write it again.
-    # It keeps its class, backtrace and cause. Trace.replay calls it too, so
+    # It keeps its class and cause, and leaves quint_driver's frames out of its
+    # backtrace, as Agreement.outside says. Trace.replay calls it too, so
     # a block that rescues a replay's failure reads what the caller of
     # simulate reads.
     def self.name_trace(failure, trace)
       failure.send(:name_trace, trace, **@written[trace].to_h) unless failure.trace
+      Agreement.lead_outside(failure)
     end
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.

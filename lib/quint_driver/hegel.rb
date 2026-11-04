@@ -122,7 +122,7 @@ module QuintDriver
       # an invariant here holds after every move.
       invariants.each do |name|
         invariant(name, always_run: true) do
-          raise Mismatch, "quint: the model broke `#{name}`" unless @model.value(name.to_s) == true
+          raise Mismatch, "quint: the model broke `#{name}`", Agreement.outside(caller_locations) unless @model.value(name.to_s) == true
         end
       end
     end

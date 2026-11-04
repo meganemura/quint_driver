@@ -11,6 +11,19 @@ RSpec.describe "a lending shelf held to loans.qnt" do
     expect(count).to eq(20)
   end
 
+  # This suite loads the gem from lib/, as a Gemfile's path: does, and RSpec
+  # hides only frames under a gem directory.
+  it "prints a mismatch's backtrace from the line that called the replay, with no frame of the gem" do
+    expect do
+      QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 20, max_steps: 20, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans))
+      end
+    end.to raise_error(QuintDriver::Mismatch) { |error|
+      expect(RSpec.configuration.backtrace_formatter.format_backtrace(error.backtrace).first).to start_with("./spec/loans_spec.rb:#{__LINE__ - 3}:")
+      expect(error.backtrace).not_to include(start_with(File.expand_path("../lib", __dir__) + "/"))
+    }
+  end
+
   it "names the step, the steps and the trace where the driver's own code raised" do
     misspelled = Class.new(LoansDriver) { def step(action, picks) = action == "give_back" ? picks.fetch("book") : super }
     line = __LINE__ - 1

@@ -5,6 +5,7 @@ require "tmpdir"
 
 class MachineTest < Minitest::Test
   SETTINGS = { test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much too_slow] }.freeze
+  GEM_FRAME = /\A#{Regexp.escape(File.expand_path("../../lib", __dir__))}\//
 
   %i[rule rotate].each do |choose|
     define_method(:"test_#{choose}_passes_a_system_that_follows_the_spec") do
@@ -123,6 +124,7 @@ class MachineTest < Minitest::Test
       Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
     assert_equal "quint: the model broke `nothing_on_loan`", error.message
+    assert_empty error.backtrace.grep(GEM_FRAME)
   end
 
   def test_an_error_the_driver_raises_names_its_move_and_the_shrunk_steps
@@ -141,6 +143,7 @@ class MachineTest < Minitest::Test
     assert_equal [ "steps:\n", "  init {}\n", "  #{first[/`(.*)`/, 1]} #{first[/(\{.*\})/, 1]}" ], steps
     assert_equal KeyError, error.cause.class
     assert_equal [ __FILE__, line ], error.backtrace_locations.first.then { [ _1.path, _1.lineno ] }, "Hegel groups failures by the first frame"
+    assert_empty error.backtrace.grep(GEM_FRAME)
   end
 
   def test_an_error_the_driver_s_state_raises_after_a_move_lists_the_steps_to_it
@@ -199,6 +202,7 @@ class MachineTest < Minitest::Test
 
     assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  outcome: model "Done", driver "Busy"\nsteps:\n  init \{\}\z/, error.message)
     refute_match(/Step \d/, report.string, "Hegel's report lists no step the driver did not reach")
+    assert_empty error.backtrace.grep(GEM_FRAME)
   end
 
   # A test database keeps its rows from one test case to the next unless
