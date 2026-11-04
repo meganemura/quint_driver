@@ -97,15 +97,14 @@ module QuintDriver
 
       # The path as the project names it, as RSpec prints one, when the
       # frame is under the directory the run started in.
-      "raised in: #{file(frame).delete_prefix(File.join(Dir.pwd, ""))}#{frame.to_s.delete_prefix(frame.path)}\n"
+      "raised in: #{frame.to_s.delete_prefix(File.join(Dir.pwd, ""))}\n"
     end
 
     QUINT_DRIVER = File.join(__dir__, "quint_driver")
     LIBRARIES = [ QUINT_DRIVER, "<internal:", RbConfig::CONFIG["rubylibprefix"] + File::SEPARATOR,
                   *(defined?(Gem) ? Gem.path : []).map { File.join(_1, "") } ].freeze
 
-    def self.library?(frame, *prefixes) = file(frame).start_with?(*prefixes)
-    def self.file(frame) = frame.absolute_path || frame.path
+    def self.library?(frame, *prefixes) = frame.path.start_with?(*prefixes)
 
     def self.ran(steps) = "steps:\n#{steps.map { |action, picks| "  #{action} #{show(picks)}" }.join("\n")}"
 
