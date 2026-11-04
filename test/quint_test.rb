@@ -361,6 +361,22 @@ class QuintTest < Minitest::Test
     end
   end
 
+  # quint adds .qnt to every name an import gives, one that ends in .qnt too.
+  def test_a_spec_compiles_again_when_the_file_an_import_ending_in_qnt_names_changes
+    Dir.mktmpdir do |dir|
+      imported = File.join(dir, "start.qnt.qnt")
+      File.write(imported, "module start {\n  pure val START = 2\n}\n")
+      File.write(File.join(dir, "start.qnt"), "module start {\n  pure val START = 9\n}\n")
+      spec = File.join(dir, "countdown.qnt")
+      File.write(spec, "module countdown {\n  import start.* from \"./start.qnt\"\n  var n: int\n  action init = n' = START\n  action step = n' = n - 1\n}\n")
+      start = -> { QuintDriver::Quint.compile(spec, main: "countdown")["modules"].find { _1["name"] == "start" }["declarations"].first["expr"]["value"] }
+
+      assert_equal 2, start.()
+      File.write(imported, "module start {\n  pure val START = 3\n}\n")
+      assert_equal 3, start.()
+    end
+  end
+
   def test_a_file_compiles_once_for_every_module_it_has
     Dir.mktmpdir do |dir|
       counting = File.join(dir, "counting-quint")

@@ -45,7 +45,8 @@ module QuintDriver
 
     # The text of +path+ and of each file it imports, directly or through
     # another, by path. Quint resolves `from "name"` against the directory of
-    # the file that writes it, and adds .qnt when the name has none. A name in
+    # the file that writes it, and adds .qnt to the name, also to one that
+    # ends in .qnt, so `from "start.qnt"` reads start.qnt.qnt. A name in
     # a comment reads as an import too, which costs only a file read.
     def self.sources(path, read = {})
       path = File.expand_path(path)
@@ -53,7 +54,7 @@ module QuintDriver
 
       read[path] = File.read(path)
       read[path].scan(/\bfrom\s+"([^"]+)"/) do |(name)|
-        sources(File.join(File.dirname(path), name.end_with?(".qnt") ? name : "#{name}.qnt"), read)
+        sources(File.join(File.dirname(path), "#{name}.qnt"), read)
       end
       read
     end
