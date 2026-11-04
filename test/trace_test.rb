@@ -165,6 +165,7 @@ class TraceTest < Minitest::Test
     error = assert_raises(QuintDriver::StepRaised) { replay(pasted.new) }
 
     assert_equal "quint: at step 0 `init` {}, the step raised KeyError: no holder\nsteps:\n", error.message.lines.first(2).join
+    assert_equal [ "lib/desk.rb:3:in 'Desk#holder'" ], error.backtrace, "the error's own backtrace, though it has no Locations"
   end
 
   def test_an_error_the_driver_raises_reporting_its_state_names_the_step_it_followed
