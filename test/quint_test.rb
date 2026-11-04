@@ -373,7 +373,12 @@ class QuintTest < Minitest::Test
       ENV.delete("QUINT")
       ENV.update("npm_config_registry" => "http://127.0.0.1:9/", "npm_config_cache" => dir, "npm_config_fetch_retries" => "0")
 
-      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(OPERATORS) }
+      # A copy at a path of its own, because a test that ran earlier with
+      # QUINT unset leaves OPERATORS compiled under this very command.
+      copy = File.join(dir, "operators.qnt")
+      File.write(copy, File.read(OPERATORS))
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(copy) }
       assert_match(/\Aquint: QUINT is unset, and `npx --yes @informalsystems\/quint@0\.33\.0` could not fetch quint/, error.message)
       assert_match(/set QUINT/, error.message)
       refute_match(/^npm error/, error.message)
