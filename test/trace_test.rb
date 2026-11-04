@@ -378,6 +378,17 @@ class TraceTest < Minitest::Test
     assert_equal "quint: state 0 of the trace has no s.shelf; s has books, taken", error.message
   end
 
+  def test_a_state_path_that_names_no_record_or_map_says_what_it_names
+    error = assert_raises(QuintDriver::Unsupported) do
+      QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
+        QuintDriver::Trace.replay(path, RecordedDriver.new, state: %w[s taken], action: %w[s taken])
+      end
+    end
+
+    assert_equal "quint: state 0 of the trace has s.taken = \"Init\", which is no record or map; " \
+                 "pass state: the path to the record or map the driver reports", error.message
+  end
+
   private
     def replay(driver)
       count = 0

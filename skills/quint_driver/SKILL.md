@@ -133,6 +133,8 @@ trace: test_0.itf.json of Quint.test("test/recorded.qnt", "lendTest", seed: "1")
 
 Without `action:`, the replay raises `QuintDriver::Unsupported`: `quint: state 0 of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it`.
 
+A `state:` path that ends at a value that is no record or map raises `QuintDriver::Unsupported` before the driver runs, since the driver's `state` answers a record or map: `quint: state 0 of the trace has s.taken = "Init", which is no record or map; pass state: the path to the record or map the driver reports`.
+
 ## 4. Check the Ruby model
 
 Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first. A module that imports, such as a test module that imports the spec's actions, reads what it imports as its own:

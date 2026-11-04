@@ -20,7 +20,12 @@ module QuintDriver
                          [ values.fetch("mbt::actionTaken") { raise Unsupported, "quint: state #{index} of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it" },
                            values.fetch("mbt::nondetPicks") ]
                        end
-        Step.new(taken, picks.reject { _2.nil? }, at(values.reject { _1.start_with?("mbt::") }, state, index), index)
+        expected = at(values.reject { _1.start_with?("mbt::") }, state, index)
+        unless expected.is_a?(Hash)
+          raise Unsupported, "quint: state #{index} of the trace has #{state.join('.')} = #{Agreement.show(expected)}, " \
+                             "which is no record or map; pass state: the path to the record or map the driver reports"
+        end
+        Step.new(taken, picks.reject { _2.nil? }, expected, index)
       end
     end
 
