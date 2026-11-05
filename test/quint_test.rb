@@ -318,6 +318,22 @@ class QuintTest < Minitest::Test
     assert_equal %w[base_step init shared], names.("one_name"), "a module that imports names one by one"
   end
 
+  # quint 0.33.0 flattens every module of the file, and one it cannot
+  # flatten fails the others; it then prints the module text, not JSON.
+  def test_a_flat_compile_quint_cannot_flatten_raises_with_quints_reason
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "aliased.qnt")
+      File.write(path, "module base {\n  var shared: int\n  action init = shared' = 0\n}\n\n" \
+                       "module aliased {\n  import base.*\n  export base as C\n}\n\n" \
+                       "module other {\n  import base.*\n}\n")
+
+      error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Spec.new(path, main: "other") }
+      assert_match(/\Aquint compile failed for #{Regexp.escape(path)} at the flattening stage\nError: Internal error while flattening \[QNT404\] Name 'shared' not found/, error.message)
+      assert_match(/\nquint flattens every module of the file, so the module that lacks the name may be another one\z/, error.message)
+      refute_match(/^\s+at /, error.message, "node's stack is quint's, not the spec's")
+    end
+  end
+
   def test_traces_through_quint_run_come_in_the_order_quint_numbers_them
     names = with_env("QUINT_EVALUATOR" => "") do
       [].tap { |list| QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 12, max_steps: 2, seed: "1") { list << File.basename(_1) } }

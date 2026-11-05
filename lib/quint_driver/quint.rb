@@ -77,7 +77,14 @@ module QuintDriver
                          else
                            capture(*words, "--step", "true", "--out", out)
                          end
-        ir = File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
+        ir = begin
+          File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
+        rescue JSON::ParserError
+          # A flat compile that fails to flatten prints the module text
+          # instead, and its error with the stack of quint's own code.
+          output = "#{output.gsub(/^ +at .*\n?/, '').rstrip}\nquint flattens every module of the file, so the module that lacks the name may be another one"
+          { "stage" => "flattening" }
+        end
         return ir if status.success? && ir.key?("modules")
 
         # With --out, quint writes its errors into the file and prints nothing;
