@@ -50,6 +50,7 @@ module QuintDriver
     # any { ... } }`; an `all` of more holds a condition no rule can carry.
     def rules(step)
       actions = declarations.select { _1["qualifier"] == "action" }.to_h { [ _1["name"], _1 ] }
+      raise ArgumentError, Quint.send(:without_init, @main) unless actions.key?("init")
       choice = ->(node) { node["kind"] == "app" && node["opcode"] == "actionAny" }
       walk = lambda do |node, domains, within|
         if choice.(node)

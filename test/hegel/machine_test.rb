@@ -257,6 +257,13 @@ class MachineTest < Minitest::Test
     assert_match(/\Aquint: observe names borrow, which is no definition without parameters of loans; it has /, error.message)
   end
 
+  def test_the_machine_refuses_a_module_without_an_action_named_init
+    spec = QuintDriver::Spec.new(File.expand_path("../kinds.qnt", __dir__), main: "begins")
+    error = assert_raises(ArgumentError) { QuintDriver.machine(spec, driver: -> { flunk }) }
+
+    assert_match(/\Aquint: begins neither declares nor imports an action named init; /, error.message)
+  end
+
   # Reports the last approver as an app does: a name, or nil for none.
   class ApprovalDriver
     def step(action, picks)

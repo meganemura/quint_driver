@@ -210,6 +210,12 @@ Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れ
 例えば `quint: reach names borrow, an action with parameters of loans; reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan` です。
 モジュールが宣言もインポートもしていない名前を渡すと、quint が動いたあとに同じ形で `ArgumentError` を投げます。
 例えば `quint: step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step` です。
+トレースも、モデルも、マシンも、quint の既定と同じく `init` という名前のアクションから始まります。
+`init` のないモジュールは `ArgumentError` を投げます。
+例えば ``quint: begins neither declares nor imports an action named init; quint_driver starts every trace and every model at init, so declare `action init = ...` with what starts begins`` です。
+quint_driver はほかの名前を受け取りません。
+トレースは最初のステップをそのアクションの名前で呼び、ドライバーとモデルはそのステップを `init` として読むからです。
+代わりに、モジュールに `action init = begin` を足してください。
 
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。

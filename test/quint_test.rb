@@ -244,6 +244,17 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_module_without_an_action_named_init_raises_with_the_name_it_needs
+    message = "quint: begins neither declares nor imports an action named init; quint_driver starts every trace " \
+              "and every model at init, so declare `action init = ...` with what starts begins"
+    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+      error = with_env(env) { assert_raises(ArgumentError) { QuintDriver::Quint.simulate(KINDS, main: "begins", traces: 1, max_steps: 1, seed: "1") { flunk } } }
+      assert_equal message, error.message, env.inspect
+    end
+    error = assert_raises(ArgumentError) { QuintDriver::Spec.new(KINDS, main: "begins").model }
+    assert_equal message, error.message
+  end
+
   # uses_base declares no action of its own, not even one named step.
   def test_a_step_the_module_imports_runs
     actions = []

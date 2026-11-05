@@ -182,9 +182,18 @@ module QuintDriver
       end
       lambda do |output|
         unfound = output[/\[QNT404\] Name '(.+)' not found/, 1]
+        raise ArgumentError, without_init(ir["main"]) if unfound == "init"
         argument, = wanted.find { |_, (name)| name == unfound } if unfound
         refuse.(argument, "which #{ir['main']} neither declares nor imports") if argument
       end
+    end
+
+    # Quint's own --init could name another action, but a trace names its
+    # first step after that action, the model and the machine step through
+    # init, and a driver reads init: one name keeps the four alike.
+    def self.without_init(main)
+      "quint: #{main} neither declares nor imports an action named init; quint_driver starts every trace " \
+        "and every model at init, so declare `action init = ...` with what starts #{main}"
     end
 
     # What a declaration is, as a step or a reach has to tell: a variant
@@ -352,6 +361,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :call, :capture, :compile_now, :evaluator_input, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :write_traces, :yield_traces
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :without_init, :write_traces, :yield_traces
   end
 end

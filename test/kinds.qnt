@@ -30,3 +30,16 @@ module kinds {
   run walk = init.then(base_step)
   temporal always_small = always(n < 10)
 }
+
+module helpers {
+  pure def double(x: int): int = x * 2
+}
+
+// Starts with an action that is not named init, and imports only a pure def.
+module begins {
+  import helpers.*
+  var m: int
+  action begin = m' = 0
+  action tick = m' = double(m) + 1
+  action step = any { tick }
+}
