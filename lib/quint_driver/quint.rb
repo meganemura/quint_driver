@@ -89,7 +89,7 @@ module QuintDriver
         wanted = main || File.basename(path, ".qnt")
         missing = "no module is named #{wanted}; #{path} has #{modules.join(', ')}" if modules.any? && !modules.include?(wanted)
         reasons = [ output.strip, *ir.fetch("errors", []).map { _1["explanation"] }, missing.to_s ].reject(&:empty?)
-        raise QuintFailed, "quint compile failed for #{path} at the #{ir.fetch('stage', 'start')} stage\n#{reasons.join("\n")}"
+        failed "quint compile failed for #{path} at the #{ir.fetch('stage', 'start')} stage\n#{reasons.join("\n")}"
       end
     end
 
@@ -139,14 +139,14 @@ module QuintDriver
           arguments += [ "--invariant", "not(#{reach})" ] if reach
           output, status = capture(*arguments)
           refuse_unfound.(output)
-          raise QuintFailed, "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
+          failed "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
         end
 
         # A trace that broke the invariant is one that reached +reach+.
         traces_written = Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }
         traces_written.select! { JSON.parse(File.read(_1)).dig("#meta", "status") == "violation" } if reach
         if reach && traces_written.empty?
-          raise QuintFailed, "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
+          failed "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
         end
 
         written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:)
@@ -222,13 +222,13 @@ module QuintDriver
         arguments = [ "test", path, "--match", "^#{name}$", "--seed", seed, "--max-samples", 1, "--out-itf", "#{dir}/test_{seq}.itf.json", "--verbosity", 1 ]
         arguments += [ "--main", main ] if main
         output, status = capture(*arguments)
-        raise QuintFailed, "quint test failed:\n#{output}" unless status.success?
+        failed "quint test failed:\n#{output}" unless status.success?
 
         written = Dir["#{dir}/test_*.itf.json"]
         if written.empty?
           ir = compile(path, main:)
           runs = ir["modules"].find { _1["name"] == ir["main"] }["declarations"].select { _1["qualifier"] == "run" }.map { _1["name"] }
-          raise QuintFailed, "quint: no run is named #{name} in #{ir['main']}; it has #{runs.sort.join(', ')}"
+          failed "quint: no run is named #{name} in #{ir['main']}; it has #{runs.sort.join(', ')}"
         end
         yield_traces(written, seed:, written_by: call("test", path, name, seed:, main:)) { yield _1 }
       end
@@ -306,7 +306,7 @@ module QuintDriver
                   else
                     { id: id + 1, kind: "bool", value: true }
                   end
-      number = Integer(seed.to_s, exception: false) or raise QuintFailed, "quint: the seed #{seed.inspect} is not an integer"
+      number = Integer(seed.to_s, exception: false) or failed "quint: the seed #{seed.inspect} is not an integer"
       { parsed: { modules: ir["modules"], table:, main: ir["main"], init: named[0], step: named[1],
                   invariants: [ invariant ], witnesses: [] },
         source: path, nruns: traces, nsteps: max_steps, ntraces: traces, nthreads: [ traces, Etc.nprocessors ].min,
@@ -319,22 +319,22 @@ module QuintDriver
       output, errors, status = begin
         Open3.capture3(evaluator, "simulate-from-stdin", stdin_data: JSON.generate(input))
       rescue SystemCallError => error
-        raise QuintFailed, "quint: cannot run the Rust evaluator #{evaluator}; set QUINT_EVALUATOR to it, or to an empty string to simulate through `quint run` (#{error.message})"
+        failed "quint: cannot run the Rust evaluator #{evaluator}; set QUINT_EVALUATOR to it, or to an empty string to simulate through `quint run` (#{error.message})"
       end
-      raise QuintFailed, "quint: the Rust evaluator #{evaluator} failed:\n#{errors}" unless status.success?
+      failed "quint: the Rust evaluator #{evaluator} failed:\n#{errors}" unless status.success?
 
       result = begin
         JSON.parse(output.lines.reverse.find { _1.start_with?("{") }.to_s)
       rescue JSON::ParserError
       end
       unless result.is_a?(Hash) && result["bestTraces"].is_a?(Array) && result["bestTraces"].all? { _1["states"].is_a?(Hash) }
-        raise QuintFailed, "quint: the Rust evaluator #{evaluator} answered in a format quint_driver does not read; " \
+        failed "quint: the Rust evaluator #{evaluator} answered in a format quint_driver does not read; " \
                            "it reads the #{EVALUATOR_VERSION} evaluator quint 0.33.0 runs. Set QUINT_EVALUATOR to that " \
                            "evaluator, or to an empty string to simulate through `quint run`"
       end
       # A violation is only possible when simulate asks to reach a definition.
       unless %w[ok violation].include?(result["status"])
-        raise QuintFailed, "quint run failed:\n#{result.fetch('errors', []).map { "Error [#{_1['code']}]: #{_1['message']}" }.join("\n")}"
+        failed "quint run failed:\n#{result.fetch('errors', []).map { "Error [#{_1['code']}]: #{_1['message']}" }.join("\n")}"
       end
 
       result["bestTraces"].each_with_index { |trace, index| File.write(File.join(dir, "trace_#{index}.itf.json"), JSON.generate(trace["states"])) }
@@ -349,12 +349,17 @@ module QuintDriver
       # Only npm prefixes its lines with "npm error", so these mean npx did
       # not get as far as running quint.
       fetch = output[/^npm (?:error|ERR!) code .*/] if !status.success? && !ENV.key?("QUINT")
-      raise QuintFailed, "quint: QUINT is unset, and `#{command}` could not fetch quint (#{fetch}); install quint and set QUINT to its command" if fetch
+      failed "quint: QUINT is unset, and `#{command}` could not fetch quint (#{fetch}); install quint and set QUINT to its command" if fetch
 
       [ output, status ]
     rescue SystemCallError => error
-      raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
+      failed "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :call, :capture, :compile_now, :evaluator_input, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :without_init, :write_traces, :yield_traces
+
+    # A failure of quint's, raised from the caller's line: the spec is the
+    # caller's, so its frame leads, as a refused argument's does.
+    def self.failed(message) = Agreement.refuse(message, QuintFailed)
+
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :failed, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :without_init, :write_traces, :yield_traces
   end
 end

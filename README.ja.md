@@ -529,6 +529,7 @@ Hegel のもとでは、ステップの番号は Hegel のレポートがその�
 同じファイルの別のモジュールを動かすときは `main:` を渡します。
 `Spec.new` に渡すのと同じ名前です。
 quint が失敗したときや見つからないときは、`Spec.new` と `Quint.simulate` が quint の理由を添えて `QuintDriver::QuintFailed` を投げます。
+そのバックトレースは gem を呼んだあなたの行から始まり、その前に quint_driver のフレームはありません。
 
 ある状態に至る手順を試すときは、その状態で成り立つ定義の名前を `reach:` に渡します。
 例えば `val two_on_loan = BOOKS.filter(b => onLoan(holder, b)).size() == 2` なら `reach: "two_on_loan"` です。

@@ -269,6 +269,19 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_quint_failure_names_the_callers_line_first
+    { "a missing spec" => -> { QuintDriver::Quint.compile(MISSING) },
+      "no such module" => -> { QuintDriver::Spec.new(OPERATORS, main: "nope") },
+      "a failed run" => -> { with_env("QUINT_EVALUATOR" => "") { QuintDriver::Quint.simulate(MISSING, traces: 1, max_steps: 1, seed: "1") { flunk } } },
+      "a seed that is no integer" => -> { QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 1, max_steps: 1, seed: "one") { flunk } },
+      "a failed test" => -> { QuintDriver::Quint.test(RECORDED, "unlentTest", seed: "1") { flunk } },
+      "no such run" => -> { QuintDriver::Quint.test(RECORDED, "lend", seed: "1") { flunk } },
+      "quint not found" => -> { with_env("QUINT" => "/nonexistent/quint") { QuintDriver::Quint.compile(OPERATORS) } } }.each do |what, call|
+      error = assert_raises(QuintDriver::QuintFailed, what, &call)
+      assert error.backtrace.first.start_with?("#{__FILE__}:"), "#{what}: #{error.backtrace.first}"
+    end
+  end
+
   def test_a_name_the_spec_lacks_raises_with_the_names_it_has_in_order
     spec = QuintDriver::Spec.new(KINDS, main: "uses_base")
 
