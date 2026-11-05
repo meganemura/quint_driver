@@ -5,6 +5,7 @@ class QuintTest < Minitest::Test
   MISSING = File.expand_path("missing.qnt", __dir__)
   RECORDED = File.expand_path("recorded.qnt", __dir__)
   OPERATORS = File.expand_path("operators.qnt", __dir__)
+  KINDS = File.expand_path("kinds.qnt", __dir__)
 
   def test_simulating_runs_the_module_it_names
     states = []
@@ -224,6 +225,15 @@ class QuintTest < Minitest::Test
         refute_includes ran, "run", names.inspect
       end
     end
+  end
+
+  # uses_base declares no action of its own, not even one named step.
+  def test_a_step_the_module_imports_runs
+    actions = []
+    QuintDriver::Quint.simulate(KINDS, main: "uses_base", traces: 1, max_steps: 2, seed: "1", step: "base_step") do |path|
+      actions = QuintDriver::Trace.steps(path).map(&:action)
+    end
+    assert_equal %w[init base_step base_step], actions
   end
 
   def test_traces_through_quint_run_come_in_the_order_quint_numbers_them

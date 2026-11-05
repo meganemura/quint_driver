@@ -17,13 +17,16 @@ module QuintDriver
     # second or two of node, and every Spec.new asks for one. Its other
     # modules reuse that compile: quint typechecks every module of the file
     # whichever is main, and --main only sets "main" and adds q::init and
-    # q::step, which nothing here reads. Threads that ask for one file at
-    # once wait for one compile; other files compile beside it.
+    # q::step, which nothing here reads. They are `true` here: quint names
+    # init and step there by default, and fails a module that lacks either,
+    # though a caller can pass step: another action. Threads that ask for one
+    # file at once wait for one compile; other files compile beside it.
     #
     # With +flat+, the IR holds only +main+, with each definition it imports
     # among its own declarations, as quint flattens a module before it runs
     # it. That is one compile per module, so only a module that imports asks
-    # for it.
+    # for it. It keeps quint's init and step, as quint drops each imported
+    # definition that q::init and q::step do not reach.
     def self.compile(path, main: nil, flat: false)
       key = [ command, File.expand_path(path), (main if flat) ]
       wanted = main || File.basename(path, ".qnt")
@@ -67,7 +70,7 @@ module QuintDriver
         # before quint runs, so a flat compile that fails leaves it empty.
         out = File.join(dir, "ir.json")
         words = [ "compile", "--target", "json", path, *([ "--main", main ] if main) ]
-        output, status = flat ? capture(*words, stdout: out) : capture(*words, "--out", out)
+        output, status = flat ? capture(*words, stdout: out) : capture(*words, "--init", "true", "--step", "true", "--out", out)
         ir = File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 
