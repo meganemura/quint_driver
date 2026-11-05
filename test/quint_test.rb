@@ -269,6 +269,15 @@ class QuintTest < Minitest::Test
     end
   end
 
+  def test_a_name_the_spec_lacks_raises_with_the_names_it_has_in_order
+    spec = QuintDriver::Spec.new(KINDS, main: "uses_base")
+
+    error = assert_raises(ArgumentError) { spec.model("steps") }
+    assert_equal "quint: no action is named steps; the module has base_step, init, moves", error.message
+    error = assert_raises(ArgumentError) { spec.observable!(%w[moves]) }
+    assert_equal "quint: observe names moves, which is no definition without parameters of uses_base; it has doubled, started", error.message
+  end
+
   # uses_base declares no action of its own, not even one named step.
   def test_a_step_the_module_imports_runs
     actions = []
