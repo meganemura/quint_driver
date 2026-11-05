@@ -342,9 +342,10 @@ class QuintTest < Minitest::Test
                        "module other {\n  import base.*\n}\n")
 
       error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Spec.new(path, main: "other") }
-      assert_match(/\Aquint compile failed for #{Regexp.escape(path)} at the flattening stage\nError: Internal error while flattening \[QNT404\] Name 'shared' not found/, error.message)
-      assert_match(/\nquint flattens every module of the file, so the module that lacks the name may be another one\z/, error.message)
-      refute_match(/^\s+at /, error.message, "node's stack is quint's, not the spec's")
+      assert_equal "quint compile failed for #{path} at the flattening stage\n" \
+                   "Error: Internal error while flattening [QNT404] Name 'shared' not found\n" \
+                   "quint flattens every module of the file, so the module that lacks the name may be another one", error.message,
+                   "quint's line without node's stack of quint's own code"
     end
   end
 
@@ -601,6 +602,18 @@ class QuintTest < Minitest::Test
   def test_simulating_a_spec_quint_rejects_raises
     assert_raises(QuintDriver::QuintFailed) do
       QuintDriver::Quint.simulate(MISSING, traces: 1, max_steps: 1, seed: "1") { flunk "no trace for a missing spec" }
+    end
+  end
+
+  def test_a_spec_that_fails_while_quint_runs_it_raises_with_quints_report
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "divides.qnt")
+      File.write(path, "module divides {\n  var n: int\n  action init = n' = 1 / 0\n  action step = n' = n\n}\n")
+
+      error = with_env("QUINT_EVALUATOR" => "") do
+        assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.simulate(path, traces: 1, max_steps: 1, seed: "1") { flunk } }
+      end
+      assert_match(/\Aquint run failed:\n.*Error \[QNT503\]: Division by zero.*^error: Runtime error$/m, error.message)
     end
   end
 

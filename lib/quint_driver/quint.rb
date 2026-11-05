@@ -114,7 +114,7 @@ module QuintDriver
       named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }
       shown = lambda do |name|
         declarations = modules.fetch(name, [])
-        aliases = declarations.select { _1["kind"] == "import" && _1["qualifiedName"] }.to_h { [ _1["qualifiedName"], _1["protoName"] ] }
+        aliases = declarations.select { _1["kind"] == "import" }.to_h { [ _1["qualifiedName"], _1["protoName"] ] }
         declarations.flat_map do |declaration|
           case declaration["kind"]
           when "def" then [ declaration ]
