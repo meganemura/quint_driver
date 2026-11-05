@@ -139,7 +139,7 @@ A Hegel run has no Quint seed. Hegel's own report ends with a blob, such as `rep
 
 ## Check the Ruby model
 
-The Hegel way trusts the Ruby evaluation of the spec. The model answers the driver protocol, so you can hold it to Quint's own traces. A module that imports definitions or actions from another module or file reads them as its own, as quint does when it runs the module; that costs one more compile for that module:
+The Hegel way trusts the Ruby evaluation of the spec. The model answers the driver protocol, so you can hold it to Quint's own traces. A module that imports definitions or actions from another module or file reads them as its own, as quint does when it runs the module. It keeps each action and each definition without parameters it imports, also one that nothing in the module reaches, and it needs no action named `step`; that costs one more compile for that module:
 
 ```ruby
 QuintDriver::Quint.simulate("loans.qnt", traces: 200, max_steps: 30, seed: "7") do |path|

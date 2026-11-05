@@ -253,6 +253,20 @@ class QuintTest < Minitest::Test
     assert_equal %w[init base_step base_step], actions
   end
 
+  # Nothing uses_base declares reaches started or B::base_step, and quint keeps
+  # an imported definition only where one of the module reaches it.
+  def test_a_module_without_a_step_keeps_every_definition_it_imports_on_the_model
+    model = QuintDriver::Spec.new(KINDS, main: "uses_base").model("moves")
+    model.step("init", {})
+    assert_equal({ "started" => false }, model.observe(%w[started]))
+    model.step("base_step", {})
+    assert_equal({ "shared" => 1 }, model.state)
+    assert_equal({ "started" => true }, model.observe(%w[started]))
+
+    names = QuintDriver::Spec.new(KINDS, main: "names_base").declarations.map { _1["name"] }
+    assert_includes names, "B::base_step"
+  end
+
   def test_traces_through_quint_run_come_in_the_order_quint_numbers_them
     names = with_env("QUINT_EVALUATOR" => "") do
       [].tap { |list| QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 12, max_steps: 2, seed: "1") { list << File.basename(_1) } }
@@ -481,8 +495,8 @@ class QuintTest < Minitest::Test
       assert_match(/at the typechecking stage/, error.message)
       refute_match(/no module is named/, error.message)
 
-      # A flat compile reads quint's stdout, which holds nothing when it fails.
-      { invalid => /unexpected '='/, mistyped => /typechecking failed/ }.each do |path, reason|
+      # A flat compile compiles the modules as the file has them first, so it fails with the same reasons.
+      { invalid => /unexpected '='/, mistyped => /at the typechecking stage\n\[QNT000\] Couldn.t unify int and str/ }.each do |path, reason|
         error = assert_raises(QuintDriver::QuintFailed) { QuintDriver::Quint.compile(path, main: File.basename(path, ".qnt"), flat: true) }
         assert_match(reason, error.message)
       end

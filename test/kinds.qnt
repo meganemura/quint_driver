@@ -2,10 +2,16 @@ module base {
   var shared: int
   action init = shared' = 0
   action base_step = shared' = shared + 1
+  action moves = any { base_step }
+  val started = shared > 0
 }
 
 module uses_base {
   import base.*
+}
+
+module names_base {
+  import base as B
 }
 
 // One declaration of each kind a step or a reach can name by mistake.

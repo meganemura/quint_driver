@@ -25,8 +25,10 @@ module QuintDriver
     # With +flat+, the IR holds only +main+, with each definition it imports
     # among its own declarations, as quint flattens a module before it runs
     # it. That is one compile per module, so only a module that imports asks
-    # for it. It keeps quint's init and step, as quint drops each imported
-    # definition that q::init and q::step do not reach.
+    # for it. quint drops each imported definition that neither q::init, nor
+    # q::step, nor a declaration of +main+ reaches, so q::step there names
+    # every one it can (imported_names): a module needs no action named step
+    # to compile, and a definition only the caller reads stays.
     def self.compile(path, main: nil, flat: false)
       key = [ command, File.expand_path(path), (main if flat) ]
       wanted = main || File.basename(path, ".qnt")
@@ -69,8 +71,12 @@ module QuintDriver
         # stdout it prints the main module flattened. The shell makes that file
         # before quint runs, so a flat compile that fails leaves it empty.
         out = File.join(dir, "ir.json")
-        words = [ "compile", "--target", "json", path, *([ "--main", main ] if main) ]
-        output, status = flat ? capture(*words, stdout: out) : capture(*words, "--init", "true", "--step", "true", "--out", out)
+        words = [ "compile", "--target", "json", path, *([ "--main", main ] if main), "--init", "true" ]
+        output, status = if flat
+                           capture(*words, "--step", "and(true, #{imported_names(compile(path, main:), main).join(', ')})", stdout: out)
+                         else
+                           capture(*words, "--step", "true", "--out", out)
+                         end
         ir = File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
         return ir if status.success? && ir.key?("modules")
 
@@ -85,6 +91,38 @@ module QuintDriver
         reasons = [ output.strip, *ir.fetch("errors", []).map { _1["explanation"] }, missing.to_s ].reject(&:empty?)
         raise QuintFailed, "quint compile failed for #{path} at the #{ir.fetch('stage', 'start')} stage\n#{reasons.join("\n")}"
       end
+    end
+
+    # Each name +main+ imports, as an operand of `and` in an action, so a flat
+    # compile whose --step names them keeps every definition +main+ imports,
+    # not only the ones its own declarations reach. A value that is no
+    # boolean is the comparison with itself. A definition with parameters
+    # needs arguments, and a run or a temporal formula fits no action, so
+    # those stay out: quint keeps one only where something else reaches it.
+    # An instance names its definitions after the instance, so it adds none.
+    def self.imported_names(ir, main)
+      modules = ir.fetch("modules").to_h { [ _1["name"], _1 ] }
+      shown = lambda do |name|
+        modules.fetch(name).fetch("declarations").flat_map do |declaration|
+          if declaration["kind"] == "def" then [ declaration ]
+          elsif declaration["kind"] == "export" then shown.(declaration["protoName"]).map { renamed(_1, declaration) }
+          else []
+          end
+        end
+      end
+      imported = modules.fetch(main).fetch("declarations").select { _1["kind"] == "import" }.flat_map do |import|
+        shown.(import["protoName"]).select { [ nil, "*", _1["name"] ].include?(import["defName"]) }.map { renamed(_1, import) }
+      end
+      imported.uniq { _1["name"] }.filter_map do |declaration|
+        next if declaration["expr"]["kind"] == "lambda" || %w[run temporal].include?(declaration["qualifier"])
+
+        bool = declaration["qualifier"] == "action" || ir.dig("types", declaration["id"].to_s, "type", "kind") == "bool"
+        bool ? declaration["name"] : "#{declaration['name']} == #{declaration['name']}"
+      end
+    end
+
+    def self.renamed(declaration, import)
+      import["qualifiedName"] ? declaration.merge("name" => "#{import['qualifiedName']}::#{declaration['name']}") : declaration
     end
 
     # Writes +traces+ traces of the spec's +step+ action and yields each file.
@@ -314,6 +352,6 @@ module QuintDriver
     rescue SystemCallError => error
       raise QuintFailed, "quint: cannot run `#{command}`; set QUINT to the quint command (#{error.message})"
     end
-    private_class_method :call, :capture, :compile_now, :evaluator_input, :kind_of, :name_trace, :runnable!, :sources, :write_traces, :yield_traces
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :write_traces, :yield_traces
   end
 end
