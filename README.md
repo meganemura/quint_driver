@@ -514,11 +514,11 @@ npx skills add meganemura/quint_driver -a claude-code
 
 `--skill` selects this skill, `-g` installs it for every project, and `-a` targets one agent. Add `-y` to skip prompts.
 
-To copy or symlink it instead:
+The gem ships the skill and the `examples/loans` spec, so after `bundle install` you can copy or symlink the installed copy instead, with no GitHub access:
 
 ```sh
 mkdir -p .agents/skills
-ln -s /path/to/quint_driver/skills/quint_driver .agents/skills/quint_driver
+ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/quint_driver
 ```
 
 `.claude/skills/` and `.cursor/skills/` work the same way.

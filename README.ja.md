@@ -574,11 +574,13 @@ npx skills add meganemura/quint_driver -a claude-code
 `--skill` はこのスキルを選び、`-g` はすべてのプロジェクトに入れ、`-a` は 1 つのエージェントを対象にします。
 `-y` を付けると確認を省きます。
 
-コピーやシンボリックリンクで入れることもできます。
+gem にはスキルと `examples/loans` の仕様が入っています。
+`bundle install` のあとは、インストールされたコピーをコピーやシンボリックリンクで入れることもできます。
+この方法では GitHub へのアクセスは要りません。
 
 ```sh
 mkdir -p .agents/skills
-ln -s /path/to/quint_driver/skills/quint_driver .agents/skills/quint_driver
+ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/quint_driver
 ```
 
 `.claude/skills/` と `.cursor/skills/` でも同じです。

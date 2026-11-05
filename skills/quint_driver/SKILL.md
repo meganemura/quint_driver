@@ -240,7 +240,7 @@ class LendingDriver
 end
 ```
 
-The spec is `examples/loans/loans.qnt` of this repository, copied to `spec/quint/loans.qnt`. The spec path is relative, because RSpec runs from the app's root:
+The spec is `examples/loans/loans.qnt`, which the gem ships (`bundle info --path quint_driver` prints where), copied to `spec/quint/loans.qnt`. The spec path is relative, because RSpec runs from the app's root:
 
 ```ruby
 # spec/quint/lending_spec.rb

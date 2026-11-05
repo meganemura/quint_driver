@@ -9,5 +9,5 @@ First release. quint_driver holds Ruby code to a [Quint](https://github.com/quin
 - `QuintDriver::Mismatch` names each variable that differs and the steps from `init`, so the failure can be run again by hand. An error a step raises, in the driver or in the system, comes out as `QuintDriver::StepRaised`, and a failed `quint` command as `QuintDriver::QuintFailed`.
 - The spec is read from Quint's JSON IR and evaluated in the Ruby process (`Spec#model`), so a Hegel step starts no other process. The model can be held to Quint's own traces with `Trace.replay`. An operator it does not know raises `QuintDriver::Unsupported`.
 - `Quint.simulate` runs Quint's Rust evaluator directly when quint has downloaded it, without node.
-- An agent skill in `skills/quint_driver/`.
+- An agent skill in `skills/quint_driver/`. The gem ships it with the `examples/loans` spec and `README.ja.md`, so `bundle info --path quint_driver` finds them without GitHub access.
 - Ruby 3.3 or newer, with no runtime dependency. The Hegel adapter needs hegeltest 0.4.1 and Ruby 3.4 or newer, in your own Gemfile.
