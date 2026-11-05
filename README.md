@@ -1,113 +1,132 @@
 # quint_driver
 
-Test a Ruby system against a [Quint](https://github.com/quint-co/quint) spec.
-The spec says what each command must do, and quint_driver runs the same commands on your code and compares the two after every step.
+quint_driver holds your Ruby code to a [Quint](https://github.com/quint-co/quint) spec: the spec says what each command must do, and quint_driver runs the same commands on your code and compares the two after every step.
 
-## Quick start
+## Quick start in your Rails app
 
-### Install
+### Add the gem
 
-```sh
-gem install quint_driver rspec
-npm install --global @informalsystems/quint@0.33.0
-export QUINT=quint
+```ruby
+# Gemfile
+group :test do
+  gem "quint_driver", require: false
+end
 ```
 
-quint_driver needs Ruby 3.3 or later. It calls the `quint` command that `QUINT` names. Without `QUINT`, it runs `npx --yes @informalsystems/quint@0.33.0`, which needs Node.js. The first npx run downloads quint (43 MB) before the test starts, and every later run starts node once more, so a global install with `QUINT=quint` is faster. The first quint run also downloads quint's Rust evaluator from GitHub into `~/.quint`. When your network blocks that download, the [skill](skills/quint_driver/SKILL.md#install) shows how to fetch it by hand.
-
-### Write a spec, a class, and a test
-
-Run this in an empty folder. It writes three files: a spec of a box office that sells at most 3 tickets, the class that implements it, and an RSpec file with the driver that connects the two.
-
 ```sh
-cat > tickets.qnt <<'QNT'
-// A box office that sells at most 3 tickets.
-module tickets {
-  var sold: int
-  var outcome: str
+bundle install
+npm install --global @informalsystems/quint@0.33.0
+```
 
-  action init = all { sold' = 0, outcome' = "ok" }
-  action sell = all { sold < 3, sold' = sold + 1, outcome' = "ok" }
-  action sell_refused = all { sold >= 3, sold' = sold, outcome' = "sold_out" }
-  action refund = all { sold > 0, sold' = sold - 1, outcome' = "ok" }
+quint_driver needs Ruby 3.3 or later. It calls the `quint` command that `QUINT` names, so the run below sets `QUINT=quint`; put `export QUINT=quint` in your shell profile to leave it out. Without `QUINT`, the gem runs `npx --yes @informalsystems/quint@0.33.0`, which downloads quint (43 MB) on its first run and starts node once more on every run. The first quint run also downloads quint's Rust evaluator from GitHub into `~/.quint`. When your network blocks that download, the [skill](skills/quint_driver/SKILL.md#install) shows how to fetch it by hand.
 
-  action step = any { sell, sell_refused, refund }
+### Pick a first model
+
+Pick a model with a status column, such as `state` or `status`, and a method that changes it, such as `Order#cancel` or `Loan#approve`. A model whose status a recent commit changed is a good start, because the spec then checks that change: `git log --oneline -- app/models` lists those commits.
+
+The steps below use `Loan`. A new loan is `"pending"`, and `Loan#approve(officer)` makes it `"approved"`. Replace `Loan`, the record that the driver's `init` creates, the method, and the state names with yours.
+
+### Write the spec
+
+```quint
+// spec/quint/loan_state.qnt
+// A loan starts pending. Approving it once makes it approved, and
+// approving it again leaves it approved.
+module loan_state {
+  var state: str
+
+  action init = state' = "pending"
+  action approve = all { state == "pending", state' = "approved" }
+  action approve_refused = all { state == "approved", state' = state }
+
+  action step = any { approve, approve_refused }
 }
-QNT
+```
 
-cat > box_office.rb <<'RUBY'
-class BoxOffice
-  LIMIT = 3
+The `var` is the column. `init` is the value a new record has. Every other action is one call of the method, and its first condition says when the call does what the action says: `approve` makes a pending loan approved, and `approve_refused` leaves an approved loan as it is. `step` lists the actions that a trace picks from. `Quint.simulate` runs the module named after the file, so keep the two names the same.
 
-  attr_reader :sold
+### Write the driver
 
-  def initialize = @sold = 0
-
-  def sell
-    return :sold_out if @sold >= LIMIT
-
-    @sold += 1
-    :ok
-  end
-
-  def refund
-    @sold -= 1
-    :ok
-  end
-end
-RUBY
-
-cat > box_office_spec.rb <<'RUBY'
-require "quint_driver"
-require_relative "box_office"
-
-# Runs each action of tickets.qnt on a BoxOffice and reads it back as the spec's variables.
-class BoxOfficeDriver
+```ruby
+# spec/quint/loan_state_driver.rb
+# Runs each action of loan_state.qnt on a Loan and reads its state back.
+class LoanStateDriver
   def step(action, _picks)
-    @office = BoxOffice.new if action == "init"
-    @outcome =
-      case action
-      when "init" then "ok"
-      when "sell", "sell_refused" then @office.sell.to_s
-      when "refund" then @office.refund.to_s
-      end
+    case action
+    when "init"
+      borrower = Borrower.create!(name: "Ada", limit_cents: 20_000)
+      @loan = Loan.create!(borrower: borrower, amount_cents: 500)
+    when "approve", "approve_refused"
+      @loan.approve({name: "Grace", senior: true})
+    end
   end
 
-  def state = { "sold" => @office.sold, "outcome" => @outcome }
+  def state = {"state" => @loan.reload.state}
 end
+```
 
-RSpec.describe BoxOffice do
-  it "sells tickets the way tickets.qnt says" do
-    QuintDriver::Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1") do |trace|
-      QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+`step` runs one action on a real record: `init` creates it, and every other action calls the method. `state` returns the spec's variables, read back from the database.
+
+### Write the example
+
+```ruby
+# spec/quint/loan_state_spec.rb
+require "rails_helper"
+require "quint_driver"
+require_relative "loan_state_driver"
+
+RSpec.describe Loan, type: :model do
+  # The transactional fixture rolls back once, after the example. Each trace
+  # rolls back to a savepoint of its own, so no trace sees the rows of another.
+  def rolled_back
+    ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+      yield
+      raise ActiveRecord::Rollback
+    end
+  end
+
+  it "moves its state the way loan_state.qnt says" do
+    QuintDriver::Quint.simulate("spec/quint/loan_state.qnt", traces: 20, max_steps: 5, seed: "1") do |trace|
+      rolled_back { QuintDriver::Trace.replay(trace, LoanStateDriver.new) }
     end
   end
 end
-RUBY
 ```
 
-### Run it
+Quint writes 20 traces of up to 5 steps, and each trace runs on a new loan.
+
+### Run the example
 
 ```sh
-rspec box_office_spec.rb
+QUINT=quint bundle exec rspec spec/quint/loan_state_spec.rb
 ```
+
+## What you will see
+
+This output is from a small sample app, a lending desk with a `Borrower` and a `Loan` model.
 
 ```text
 .
 
-Finished in 0.47699 seconds (files took 0.08795 seconds to load)
+Finished in 0.60298 seconds (files took 0.88104 seconds to load)
 1 example, 0 failures
 ```
 
-Quint wrote 20 traces of up to 10 steps each, and the driver ran every step on a new `BoxOffice`. After each step, the class had the same `sold` and `outcome` as the spec.
+Every trace created a loan in the test database, approved it, approved it again, and read the state back after each step. After each step, the loan had the state the spec has.
 
-### Break it
+Now a commit makes a new loan a draft:
 
-Let the box office sell one ticket too many:
+```diff
+--- a/app/models/loan.rb
++++ b/app/models/loan.rb
+   def mark_pending
+-    self.state ||= "pending"
++    self.state ||= "draft"
+   end
+```
 
 ```sh
-ruby -pi -e 'sub("@sold >= LIMIT", "@sold > LIMIT")' box_office.rb
-rspec box_office_spec.rb
+QUINT=quint bundle exec rspec spec/quint/loan_state_spec.rb
 ```
 
 ```text
@@ -115,51 +134,36 @@ F
 
 Failures:
 
-  1) BoxOffice sells tickets the way tickets.qnt says
-     Failure/Error: QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+  1) Loan moves its state the way loan_state.qnt says
+     Failure/Error: rolled_back { QuintDriver::Trace.replay(trace, LoanStateDriver.new) }
 
      QuintDriver::Mismatch:
-       quint: after step 8 `sell_refused` {}, the driver differs from the trace
-         sold: trace 3, driver 4
-         outcome: trace "sold_out", driver "ok"
+       quint: after step 0 `init` {}, the driver differs from the trace
+         state: trace "pending", driver "draft"
        steps:
          init {}
-         sell {}
-         refund {}
-         sell {}
-         sell {}
-         refund {}
-         sell {}
-         sell {}
-         sell_refused {}
-       trace: trace_2.itf.json of Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1", step: "step", backend: "rust")
-     # ./box_office_spec.rb:22:in 'block (3 levels) in <top (required)>'
-     # ./box_office_spec.rb:21:in 'block (2 levels) in <top (required)>'
+       trace: trace_0.itf.json of Quint.simulate("spec/quint/loan_state.qnt", traces: 20, max_steps: 5, seed: "1", step: "step", backend: "rust")
+     # ./spec/quint/loan_state_spec.rb:18:in 'block (4 levels) in <top (required)>'
+     # ./spec/quint/loan_state_spec.rb:11:in 'block in RSpec::ExampleGroups::Loan#rolled_back'
+     # ./spec/quint/loan_state_spec.rb:10:in 'RSpec::ExampleGroups::Loan#rolled_back'
+     # ./spec/quint/loan_state_spec.rb:18:in 'block (3 levels) in <top (required)>'
+     # ./spec/quint/loan_state_spec.rb:17:in 'block (2 levels) in <top (required)>'
 
-Finished in 0.5298 seconds (files took 0.08509 seconds to load)
+Finished in 0.61377 seconds (files took 0.90689 seconds to load)
 1 example, 1 failure
 
 Failed examples:
 
-rspec ./box_office_spec.rb:20 # BoxOffice sells tickets the way tickets.qnt says
+rspec ./spec/quint/loan_state_spec.rb:16 # Loan moves its state the way loan_state.qnt says
 ```
 
-The first line names the step where the class and the spec disagree: at step 8, with 3 tickets sold, the spec refuses the sale, and the class sells a 4th. `steps:` lists every step from `init`, so you can run the same commands by hand, and `trace:` names the call that writes the same trace again. Fix the class and run `rspec` again.
+The first line names the step where the model and the spec differ: right after `init`, the spec has a pending loan, and the model has a draft. `steps:` lists every step from `init`, so you can run the same commands by hand, and `trace:` names the call that writes the same trace again. When the change is a bug, fix the model. When the change is what you want, change `init` in the spec in the same commit, so the spec keeps saying what the app does.
 
-Next, [write a driver](#write-a-driver) for your own class, or let [Hegel](#run-it-1) choose the steps and shrink a failure to the shortest sequence.
+Next, give an action a pick, such as the officer or the amount, and compare a second variable, such as the outcome of each call: [a bigger spec](#a-bigger-spec-refusals-and-picks) does both.
 
-## Use it in a Rails app (RSpec)
+## A bigger spec: refusals and picks
 
-Add the gem to the test group:
-
-```ruby
-# Gemfile
-group :test do
-  gem "quint_driver"
-end
-```
-
-Put the spec and its driver next to your other specs, such as `spec/quint/approval.qnt` and `spec/quint/approval_driver.rb`. The driver calls your models and reads the rows back as the spec's variables. Here, `Loan#approve(officer)` refuses a loan that is already approved, one over the borrower's limit, and one above 10000 cents when the officer is not senior:
+The quick start's spec has one record and one variable. This spec of the same app has two loans of one borrower, picks the amount and the officer for each action, and compares the outcome of every call too. The driver keeps the id each loan of the spec got, and reads the rows back as the spec's variables. `Loan#approve(officer)` refuses a loan that is already approved, one over the borrower's limit, and one above 10000 cents when the officer is not senior:
 
 ```ruby
 # spec/quint/approval_driver.rb
@@ -316,6 +320,151 @@ Each of the 50 traces ran on the real models and the test database, and rolled b
 
 To delete the rows in the driver's `init` instead of a savepoint, and for the reason the savepoint must not be joinable, see the [skill](skills/quint_driver/SKILL.md).
 
+## Try it without an app
+
+### Install
+
+```sh
+gem install quint_driver rspec
+npm install --global @informalsystems/quint@0.33.0
+export QUINT=quint
+```
+
+Here the gems install without a Gemfile. [Add the gem](#add-the-gem) says what `QUINT` does.
+
+### Write a spec, a class, and a test
+
+Run this in an empty folder. It writes three files: a spec of a box office that sells at most 3 tickets, the class that implements it, and an RSpec file with the driver that connects the two.
+
+```sh
+cat > tickets.qnt <<'QNT'
+// A box office that sells at most 3 tickets.
+module tickets {
+  var sold: int
+  var outcome: str
+
+  action init = all { sold' = 0, outcome' = "ok" }
+  action sell = all { sold < 3, sold' = sold + 1, outcome' = "ok" }
+  action sell_refused = all { sold >= 3, sold' = sold, outcome' = "sold_out" }
+  action refund = all { sold > 0, sold' = sold - 1, outcome' = "ok" }
+
+  action step = any { sell, sell_refused, refund }
+}
+QNT
+
+cat > box_office.rb <<'RUBY'
+class BoxOffice
+  LIMIT = 3
+
+  attr_reader :sold
+
+  def initialize = @sold = 0
+
+  def sell
+    return :sold_out if @sold >= LIMIT
+
+    @sold += 1
+    :ok
+  end
+
+  def refund
+    @sold -= 1
+    :ok
+  end
+end
+RUBY
+
+cat > box_office_spec.rb <<'RUBY'
+require "quint_driver"
+require_relative "box_office"
+
+# Runs each action of tickets.qnt on a BoxOffice and reads it back as the spec's variables.
+class BoxOfficeDriver
+  def step(action, _picks)
+    @office = BoxOffice.new if action == "init"
+    @outcome =
+      case action
+      when "init" then "ok"
+      when "sell", "sell_refused" then @office.sell.to_s
+      when "refund" then @office.refund.to_s
+      end
+  end
+
+  def state = { "sold" => @office.sold, "outcome" => @outcome }
+end
+
+RSpec.describe BoxOffice do
+  it "sells tickets the way tickets.qnt says" do
+    QuintDriver::Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1") do |trace|
+      QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+    end
+  end
+end
+RUBY
+```
+
+### Run it
+
+```sh
+rspec box_office_spec.rb
+```
+
+```text
+.
+
+Finished in 0.47699 seconds (files took 0.08795 seconds to load)
+1 example, 0 failures
+```
+
+Quint wrote 20 traces of up to 10 steps each, and the driver ran every step on a new `BoxOffice`. After each step, the class had the same `sold` and `outcome` as the spec.
+
+### Break it
+
+Let the box office sell one ticket too many:
+
+```sh
+ruby -pi -e 'sub("@sold >= LIMIT", "@sold > LIMIT")' box_office.rb
+rspec box_office_spec.rb
+```
+
+```text
+F
+
+Failures:
+
+  1) BoxOffice sells tickets the way tickets.qnt says
+     Failure/Error: QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+
+     QuintDriver::Mismatch:
+       quint: after step 8 `sell_refused` {}, the driver differs from the trace
+         sold: trace 3, driver 4
+         outcome: trace "sold_out", driver "ok"
+       steps:
+         init {}
+         sell {}
+         refund {}
+         sell {}
+         sell {}
+         refund {}
+         sell {}
+         sell {}
+         sell_refused {}
+       trace: trace_2.itf.json of Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1", step: "step", backend: "rust")
+     # ./box_office_spec.rb:22:in 'block (3 levels) in <top (required)>'
+     # ./box_office_spec.rb:21:in 'block (2 levels) in <top (required)>'
+
+Finished in 0.5298 seconds (files took 0.08509 seconds to load)
+1 example, 1 failure
+
+Failed examples:
+
+rspec ./box_office_spec.rb:20 # BoxOffice sells tickets the way tickets.qnt says
+```
+
+The first line names the step where the class and the spec disagree: at step 8, with 3 tickets sold, the spec refuses the sale, and the class sells a 4th. `steps:` lists every step from `init`, so you can run the same commands by hand, and `trace:` names the call that writes the same trace again. Fix the class and run `rspec` again.
+
+Next, [write a driver](#write-a-driver) for your own class, or let [Hegel](#run-it-1) choose the steps and shrink a failure to the shortest sequence.
+
 ## How it works
 
 There are two ways to choose the steps, and both use the same driver:
@@ -337,7 +486,7 @@ Trace replay and the model load with `require "quint_driver"`. They need Ruby 3.
 
 The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 0.4.1, which needs Ruby 3.4 or later. The gem does not depend on hegeltest, so add it to your own Gemfile.
 
-The gem calls the `quint` command line that `QUINT` names, as the [quick start](#install) shows. Without `QUINT`, the gem runs `npx --yes @informalsystems/quint@0.33.0`. When npx cannot fetch quint, for example offline, the gem raises `QuintDriver::QuintFailed` that says so and asks you to set `QUINT`.
+The gem calls the `quint` command line that `QUINT` names, as the [quick start](#add-the-gem) shows. Without `QUINT`, the gem runs `npx --yes @informalsystems/quint@0.33.0`. When npx cannot fetch quint, for example offline, the gem raises `QuintDriver::QuintFailed` that says so and asks you to set `QUINT`.
 
 `Spec.new` compiles a file once per process and quint command, and compiles it again when the text of the file, or of a file it imports, changes. Every module of the file shares that compile, so a `Spec.new` or `Quint.simulate` for another `main:` of the same file starts no node. Threads that ask for the same file at once wait for one compile, so a parallel test run needs no memo of its own.
 
@@ -485,6 +634,8 @@ BUNDLE_WITHOUT=hegel bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.r
 ```
 
 The tests run `quint`. Set `QUINT` to skip `npx`.
+
+`test/readme_test.rb` runs "Try it without an app" in an empty folder. It runs the Rails quick start and "What you will see" only when `QUINT_DRIVER_README_APP` names a Rails app to copy, with rspec-rails, `Borrower`, and `Loan` as in the sample app, and no quint_driver in its Gemfile. The test adds the gem built from this checkout, writes the files, runs the command, applies the diff, and compares each output with the README.
 
 ## License
 

@@ -169,6 +169,8 @@ end
 
 ## In a Rails app with RSpec
 
+For a first spec in an app, start from one status column and the method that changes it: the README's quick start writes `spec/quint/loan_state.qnt` with one variable, `init`, and two actions, and a driver that creates the record in `init` and reads the column back with `reload`.
+
 A driver can call the app's service objects in place of the system's methods, and read the records back for `state`. The run below needs no Rails gem: `Loan` stands in for an ActiveRecord model, with the model methods that the services call. In an app, `Loan` is the model itself, and the Gemfile lines of Install go in the `:test` group.
 
 ```ruby
@@ -390,7 +392,7 @@ class LoanDriver
 end
 ```
 
-With `quint_driver` in the Gemfile's `:test` group, `Bundler.require` in `config/application.rb` loads it, so the spec file needs only `rails_helper`. `Rails.root.join` names the spec from any directory RSpec starts in, and a failure still prints it relative to the app's root:
+With `quint_driver` in the Gemfile's `:test` group, `Bundler.require` in `config/application.rb` loads it, so the spec file needs only `rails_helper`. With `require: false` on that line, as the README's quick start writes it so the app does not load the gem outside the specs, add `require "quint_driver"` after `rails_helper`. `Rails.root.join` names the spec from any directory RSpec starts in, and a failure still prints it relative to the app's root:
 
 ```ruby
 # spec/quint/loan_spec.rb
