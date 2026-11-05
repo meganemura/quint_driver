@@ -128,7 +128,7 @@ module QuintDriver
     # modules it imports too.
     def self.runnable!(path, main:, step:, reach:)
       ir = compile(path, main:)
-      declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
+      declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }.fetch("declarations")
       kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
       such_as = ->(kind) { kinds.select { |name, of| of == kind && name != "init" && !name.start_with?("q::") }.keys.sort.join(", ") }
       if kinds.key?(step) && kinds[step] != "an action"
@@ -141,7 +141,9 @@ module QuintDriver
     end
 
     # What a declaration is, as a step or a reach has to tell: a variant
-    # quint declares as a val, or as a def when it carries a value.
+    # quint declares as a val, or as a def when it carries a value. A val and
+    # a def without parameters both read as a value: the keyword changes
+    # nothing a step or a reach needs.
     def self.kind_of(declaration, types)
       expr = declaration["expr"] || {}
       lambda = expr["kind"] == "lambda"
@@ -156,7 +158,7 @@ module QuintDriver
       when declaration["qualifier"] == "temporal" then "a temporal formula"
       when lambda then "a def with parameters"
       when type == "bool" then "a predicate"
-      else "#{type.match?(/\A[aeiou]/) ? 'an' : 'a'} #{type} #{declaration['qualifier'].end_with?('val') ? 'val' : 'def'}"
+      else "#{type.match?(/\A[aeiou]/) ? 'an' : 'a'} #{type} value"
       end
     end
 

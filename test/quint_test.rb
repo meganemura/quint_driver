@@ -215,7 +215,7 @@ class QuintTest < Minitest::Test
       { reach: "step" } => "reach names step, an action of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
       { reach: "holder" } => "reach names holder, a variable of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
       { reach: "onLoan" } => "reach names onLoan, a def with parameters of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
-      { reach: "BOOKS" } => "reach names BOOKS, a set val of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { reach: "BOOKS" } => "reach names BOOKS, a set value of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
       { reach: "Done" } => "reach names Done, a case of a sum type of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}" }.each do |names, message|
       [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
         ran = quint_subcommands do
@@ -224,6 +224,23 @@ class QuintTest < Minitest::Test
         end
         refute_includes ran, "run", names.inspect
       end
+    end
+  end
+
+  def test_a_step_or_a_reach_of_each_kind_of_declaration_raises_with_that_kind
+    actions = "step takes an action without parameters, such as step"
+    predicates = "reach takes a predicate, a boolean val or def without parameters, such as at_limit, done"
+    { { step: "Status" } => "step names Status, a type of kinds; #{actions}",
+      { step: "LIMIT" } => "step names LIMIT, a constant of kinds; #{actions}",
+      { step: "Lent" } => "step names Lent, a case of a sum type of kinds; #{actions}",
+      { step: "add" } => "step names add, an action with parameters of kinds; #{actions}",
+      { step: "walk" } => "step names walk, a run of kinds; #{actions}",
+      { reach: "always_small" } => "reach names always_small, a temporal formula of kinds; #{predicates}",
+      { reach: "double" } => "reach names double, a def with parameters of kinds; #{predicates}",
+      { reach: "MAX" } => "reach names MAX, an int value of kinds; #{predicates}",
+      { reach: "BOOKS" } => "reach names BOOKS, a set value of kinds; #{predicates}" }.each do |names, message|
+      error = assert_raises(ArgumentError) { QuintDriver::Quint.simulate(KINDS, main: "kinds", traces: 1, max_steps: 1, seed: "1", **names) { flunk } }
+      assert_equal "quint: #{message}", error.message, names.inspect
     end
   end
 
