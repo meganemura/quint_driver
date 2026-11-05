@@ -31,7 +31,7 @@ Do not reference private tools, private repositories, or internal working docume
 - An IR operator the model does not know, or a step shape no driver can run, raises `QuintDriver::Unsupported`. Never guess an operator's meaning. A failed `quint` command raises `QuintDriver::QuintFailed`.
 - Comments say why: the constraint, or the alternative that was refused. Each module starts with its responsibility.
 - Tests prove behavior by running Quint and the example system. A test never greps source.
-- A release or a change of the repository's visibility is the owner's to run.
+- A release or a change of the repository's visibility is the owner's to run. A commit that changes `lib/quint_driver/version.rb` and lands on `main` starts `.github/workflows/release.yml`, and [docs/releasing.md](docs/releasing.md) has the steps. Every change that a gem user can notice adds a line under `## [Unreleased]` in `CHANGELOG.md`.
 
 ## Commands
 
