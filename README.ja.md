@@ -208,6 +208,8 @@ Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れ
 `step:` が受け取るのは、パラメーターのないアクションです。
 ほかの種類の名前を渡すと、quint を動かす前に `ArgumentError` を投げます。
 例えば `quint: reach names borrow, an action with parameters of loans; reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan` です。
+モジュールが宣言もインポートもしていない名前を渡すと、quint が動いたあとに同じ形で `ArgumentError` を投げます。
+例えば `quint: step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step` です。
 
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。

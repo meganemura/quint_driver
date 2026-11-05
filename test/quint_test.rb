@@ -149,17 +149,6 @@ class QuintTest < Minitest::Test
     end
   end
 
-  def test_a_simulation_toward_a_name_the_spec_does_not_define_raises_with_quints_report
-    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
-      error = with_env(env) do
-        assert_raises(QuintDriver::QuintFailed) do
-          QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", reach: "nowhere") { flunk }
-        end
-      end
-      assert_match(/\Aquint run failed:\n.*Name 'nowhere' not found/m, error.message, env.inspect)
-    end
-  end
-
   def test_a_named_run_writes_the_states_it_ran
     books = []
     QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
@@ -241,6 +230,17 @@ class QuintTest < Minitest::Test
       { reach: "BOOKS" } => "reach names BOOKS, a set value of kinds; #{predicates}" }.each do |names, message|
       error = assert_raises(ArgumentError) { QuintDriver::Quint.simulate(KINDS, main: "kinds", traces: 1, max_steps: 1, seed: "1", **names) { flunk } }
       assert_equal "quint: #{message}", error.message, names.inspect
+    end
+  end
+
+  def test_a_step_or_a_reach_that_names_nothing_raises_with_the_names_that_fit
+    { { step: "borow" } => "step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step",
+      { reach: "two_lent" } => "reach names two_lent, which loans neither declares nor imports; " \
+                               "reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan" }.each do |names, message|
+      [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+        error = with_env(env) { assert_raises(ArgumentError) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 1, max_steps: 1, seed: "1", **names) { flunk } } }
+        assert_equal "quint: #{message}", error.message, [ names, env ].inspect
+      end
     end
   end
 

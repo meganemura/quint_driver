@@ -94,7 +94,7 @@ module QuintDriver
     # it holds, and only the traces that get there are yielded.
     def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil)
       Dir.mktmpdir("quint") do |dir|
-        runnable!(path, main:, step:, reach:)
+        refuse_unfound = runnable!(path, main:, step:, reach:)
         evaluator = self.evaluator if backend == "rust"
         input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:) if evaluator
         if input
@@ -106,6 +106,7 @@ module QuintDriver
           # quint ends a trace where its invariant breaks, and exits 1 then.
           arguments += [ "--invariant", "not(#{reach})" ] if reach
           output, status = capture(*arguments)
+          refuse_unfound.(output)
           raise QuintFailed, "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
         end
 
@@ -124,20 +125,28 @@ module QuintDriver
     # Raises ArgumentError when +step+ names no action without parameters, or
     # +reach+ no predicate. quint finds that out only while it runs, and its
     # two evaluators each say "Expected boolean" in words of their own. A
-    # name the module does not declare is left to quint, which reads the
-    # modules it imports too.
+    # name the module does not declare may be one it imports, which this IR
+    # does not hold, so the check it returns reads quint's output for a name
+    # quint did not find either.
     def self.runnable!(path, main:, step:, reach:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }.fetch("declarations")
       kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
-      such_as = ->(kind) { kinds.select { |name, of| of == kind && name != "init" && !name.start_with?("q::") }.keys.sort.join(", ") }
-      if kinds.key?(step) && kinds[step] != "an action"
-        raise ArgumentError, "quint: step names #{step}, #{kinds[step]} of #{ir['main']}; step takes an action without parameters, such as #{such_as.("an action")}"
+      wanted = { "step" => [ step, "an action", "an action without parameters" ],
+                 "reach" => [ reach, "a predicate", "a predicate, a boolean val or def without parameters" ] }
+      refuse = lambda do |argument, what|
+        name, kind, takes = wanted.fetch(argument)
+        such_as = kinds.select { |of_name, of| of == kind && of_name != "init" && !of_name.start_with?("q::") }.keys.sort.join(", ")
+        raise ArgumentError, "quint: #{argument} names #{name}, #{what}; #{argument} takes #{takes}, such as #{such_as}"
       end
-      return unless kinds.key?(reach) && kinds[reach] != "a predicate"
-
-      raise ArgumentError, "quint: reach names #{reach}, #{kinds[reach]} of #{ir['main']}; " \
-                           "reach takes a predicate, a boolean val or def without parameters, such as #{such_as.("a predicate")}"
+      wanted.each do |argument, (name, kind)|
+        refuse.(argument, "#{kinds[name]} of #{ir['main']}") if kinds.key?(name) && kinds[name] != kind
+      end
+      lambda do |output|
+        unfound = output[/\[QNT404\] Name '(.+)' not found/, 1]
+        argument, = wanted.find { |_, (name)| name == unfound } if unfound
+        refuse.(argument, "which #{ir['main']} neither declares nor imports") if argument
+      end
     end
 
     # What a declaration is, as a step or a reach has to tell: a variant
