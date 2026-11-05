@@ -95,10 +95,11 @@ module QuintDriver
 
     # Each name +main+ imports, as an operand of `and` in an action, so a flat
     # compile whose --step names them keeps every definition +main+ imports,
-    # not only the ones its own declarations reach. A value that is no
-    # boolean is the comparison with itself. A definition with parameters
-    # needs arguments, and a run or a temporal formula fits no action, so
-    # those stay out: quint keeps one only where something else reaches it.
+    # not only the ones its own declarations reach. A definition that is no
+    # action is the comparison with itself, which every value has. A
+    # definition with parameters needs arguments, and a run or a temporal
+    # formula fits no action, so those stay out: quint keeps one only where
+    # something else reaches it.
     # An instance names its definitions after the instance, so it adds none.
     def self.imported_names(ir, main)
       modules = ir.fetch("modules").to_h { [ _1["name"], _1 ] }
@@ -113,11 +114,10 @@ module QuintDriver
       imported = modules.fetch(main).fetch("declarations").select { _1["kind"] == "import" }.flat_map do |import|
         shown.(import["protoName"]).select { [ nil, "*", _1["name"] ].include?(import["defName"]) }.map { renamed(_1, import) }
       end
-      imported.uniq { _1["name"] }.filter_map do |declaration|
+      imported.filter_map do |declaration|
         next if declaration["expr"]["kind"] == "lambda" || %w[run temporal].include?(declaration["qualifier"])
 
-        bool = declaration["qualifier"] == "action" || ir.dig("types", declaration["id"].to_s, "type", "kind") == "bool"
-        bool ? declaration["name"] : "#{declaration['name']} == #{declaration['name']}"
+        declaration["qualifier"] == "action" ? declaration["name"] : "#{declaration['name']} == #{declaration['name']}"
       end
     end
 
