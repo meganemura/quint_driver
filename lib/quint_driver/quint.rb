@@ -104,9 +104,11 @@ module QuintDriver
     # them keeps every definition +main+ imports, not only the ones its own
     # declarations reach. quint 0.33.0 resolves the names of --step there
     # and checks no type, so a value, a run, or a def with parameters stands
-    # in it as an action does. An instance names its definitions after the
-    # instance, and an export of what an import calls a module names no
-    # module, so neither adds a name.
+    # in it as an action does. An instance adds no name: its definitions
+    # would bring its variables, which a trace of `quint run` lacks when
+    # nothing of +main+ reaches them, and init would leave them unassigned.
+    # An export of what an import calls a module names no module, so it
+    # adds no name either.
     def self.imported_names(ir, main)
       modules = ir.fetch("modules").to_h { [ _1["name"], _1["declarations"] ] }
       named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }

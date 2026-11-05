@@ -316,6 +316,19 @@ class QuintTest < Minitest::Test
     assert_equal every.map { "B::#{_1}" }, names.("names_base")
     assert_equal every, names.("via_export"), "a module that imports what another exports"
     assert_equal %w[base_step init shared], names.("one_name"), "a module that imports names one by one"
+    assert_equal every, names.("instances"), "an instance nothing reaches adds no name"
+  end
+
+  def test_an_instance_nothing_reaches_adds_no_variable_to_the_model
+    trace_vars = nil
+    QuintDriver::Quint.simulate(KINDS, main: "instances", traces: 1, max_steps: 1, seed: "1", step: "moves") do |path|
+      trace_vars = QuintDriver::Trace.steps(path).first.expected.keys
+    end
+    model = QuintDriver::Spec.new(KINDS, main: "instances").model("moves")
+    model.step("init", {})
+
+    assert_equal %w[shared], trace_vars
+    assert_equal trace_vars, model.state.keys
   end
 
   # quint 0.33.0 flattens every module of the file, and one it cannot

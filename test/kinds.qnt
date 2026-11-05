@@ -62,3 +62,16 @@ module begins {
   action tick = m' = double(m) + 1
   action step = any { tick }
 }
+
+module bounded {
+  const LIMIT: int
+  var count: int
+  action init = count' = 0
+  action bump = all { count < LIMIT, count' = count + 1 }
+}
+
+// An instance nothing of this module reaches, which quint run drops.
+module instances {
+  import base.*
+  import bounded(LIMIT = 2) as Two
+}
