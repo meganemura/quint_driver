@@ -16,7 +16,7 @@ export QUINT=quint
 
 ```ruby
 # Gemfile
-gem "quint_driver", github: "meganemura/quint_driver"
+gem "quint_driver"
 gem "hegeltest", "= 0.4.1" # only for step 5
 ```
 

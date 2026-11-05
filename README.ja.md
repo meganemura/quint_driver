@@ -2,11 +2,343 @@
 
 Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に照らしてテストします。
 仕様は各コマンドが何をすべきかを決めます。
-テストは同じコマンドを本物のシステムで動かし、1 手ごとに両者を比べます。
+quint_driver は同じコマンドを自分のコードで動かし、1 手ごとに両者を比べます。
+
+## クイックスタート
+
+### インストール
+
+```sh
+gem install quint_driver rspec
+npm install --global @informalsystems/quint@0.33.0
+export QUINT=quint
+```
+
+quint_driver には Ruby 3.3 以降が必要です。
+この gem は `QUINT` が指す `quint` コマンドを呼びます。
+`QUINT` の指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js が必要です。
+初回の npx は、テストが始まる前に quint(43 MB)をダウンロードします。
+その後も毎回 node を 1 回多く起動するので、グローバルにインストールして `QUINT=quint` を指定するほうが速く動きます。
+初回の quint の実行では、quint の Rust 評価器も GitHub から `~/.quint` にダウンロードします。
+ネットワークがこのダウンロードを止めるときは、[スキル](skills/quint_driver/SKILL.md#install)に手で取得する方法があります。
+
+### 仕様とクラスとテストを書く
+
+空のフォルダーで次を実行します。
+3 つのファイルを書きます。
+チケットを 3 枚まで売るチケット売り場の仕様、それを実装するクラス、そして両者をつなぐドライバーを含む RSpec のファイルです。
+
+```sh
+cat > tickets.qnt <<'QNT'
+// A box office that sells at most 3 tickets.
+module tickets {
+  var sold: int
+  var outcome: str
+
+  action init = all { sold' = 0, outcome' = "ok" }
+  action sell = all { sold < 3, sold' = sold + 1, outcome' = "ok" }
+  action sell_refused = all { sold >= 3, sold' = sold, outcome' = "sold_out" }
+  action refund = all { sold > 0, sold' = sold - 1, outcome' = "ok" }
+
+  action step = any { sell, sell_refused, refund }
+}
+QNT
+
+cat > box_office.rb <<'RUBY'
+class BoxOffice
+  LIMIT = 3
+
+  attr_reader :sold
+
+  def initialize = @sold = 0
+
+  def sell
+    return :sold_out if @sold >= LIMIT
+
+    @sold += 1
+    :ok
+  end
+
+  def refund
+    @sold -= 1
+    :ok
+  end
+end
+RUBY
+
+cat > box_office_spec.rb <<'RUBY'
+require "quint_driver"
+require_relative "box_office"
+
+# Runs each action of tickets.qnt on a BoxOffice and reads it back as the spec's variables.
+class BoxOfficeDriver
+  def step(action, _picks)
+    @office = BoxOffice.new if action == "init"
+    @outcome =
+      case action
+      when "init" then "ok"
+      when "sell", "sell_refused" then @office.sell.to_s
+      when "refund" then @office.refund.to_s
+      end
+  end
+
+  def state = { "sold" => @office.sold, "outcome" => @outcome }
+end
+
+RSpec.describe BoxOffice do
+  it "sells tickets the way tickets.qnt says" do
+    QuintDriver::Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1") do |trace|
+      QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+    end
+  end
+end
+RUBY
+```
+
+### 動かす
+
+```sh
+rspec box_office_spec.rb
+```
+
+```text
+.
+
+Finished in 0.47699 seconds (files took 0.08795 seconds to load)
+1 example, 0 failures
+```
+
+Quint が最大 10 手のトレースを 20 本書き、ドライバーがその各手を新しい `BoxOffice` で動かしました。
+どの手の後でも、クラスの `sold` と `outcome` は仕様と同じでした。
+
+### 壊す
+
+チケット売り場が 1 枚多く売るようにします。
+
+```sh
+ruby -pi -e 'sub("@sold >= LIMIT", "@sold > LIMIT")' box_office.rb
+rspec box_office_spec.rb
+```
+
+```text
+F
+
+Failures:
+
+  1) BoxOffice sells tickets the way tickets.qnt says
+     Failure/Error: QuintDriver::Trace.replay(trace, BoxOfficeDriver.new)
+
+     QuintDriver::Mismatch:
+       quint: after step 8 `sell_refused` {}, the driver differs from the trace
+         sold: trace 3, driver 4
+         outcome: trace "sold_out", driver "ok"
+       steps:
+         init {}
+         sell {}
+         refund {}
+         sell {}
+         sell {}
+         refund {}
+         sell {}
+         sell {}
+         sell_refused {}
+       trace: trace_2.itf.json of Quint.simulate("tickets.qnt", traces: 20, max_steps: 10, seed: "1", step: "step", backend: "rust")
+     # ./box_office_spec.rb:22:in 'block (3 levels) in <top (required)>'
+     # ./box_office_spec.rb:21:in 'block (2 levels) in <top (required)>'
+
+Finished in 0.5298 seconds (files took 0.08509 seconds to load)
+1 example, 1 failure
+
+Failed examples:
+
+rspec ./box_office_spec.rb:20 # BoxOffice sells tickets the way tickets.qnt says
+```
+
+最初の行は、クラスと仕様が食い違った手を示します。
+8 手目で、3 枚売れた状態から、仕様は販売を断り、クラスは 4 枚目を売りました。
+`steps:` は `init` からのすべての手を並べるので、同じコマンドを手で動かせます。
+`trace:` は、同じトレースをもう一度書く呼び出しを示します。
+クラスを直して、もう一度 `rspec` を実行します。
+
+次は、自分のクラスの[ドライバーを書く](#ドライバーを書く)か、[Hegel](#動かす-1) に手順を選ばせて、失敗を最短の手順まで縮めます。
+
+## Rails アプリで使う(RSpec)
+
+gem を test グループに追加します。
+
+```ruby
+# Gemfile
+group :test do
+  gem "quint_driver"
+end
+```
+
+仕様とドライバーは、`spec/quint/approval.qnt` と `spec/quint/approval_driver.rb` のように、ほかの spec の隣に置きます。
+ドライバーはアプリのモデルを呼び、行を仕様の変数として読み戻します。
+この例の `Loan#approve(officer)` は、承認済みのローン、借り手の上限を超えるローン、そして担当者がシニアでないときの 10000 セントを超えるローンを断ります。
+
+```ruby
+# spec/quint/approval_driver.rb
+class ApprovalDriver
+  LOANS = %w[l1 l2].freeze
+
+  def step(action, picks)
+    @outcome = "Done"
+    case action.delete_suffix("_refused")
+    when "init"
+      @borrower = Borrower.create!(name: "Ada", limit_cents: 20_000)
+      @ids = {}
+    when "open"
+      @ids[picks.fetch("l")] = LoanDesk.open(@borrower, picks.fetch("a")).id
+    when "approve"
+      officer = {name: "Grace", senior: picks.fetch("senior")}
+      result = Loan.find(@ids.fetch(picks.fetch("l"))).approve(officer)
+      @outcome = ["Refused", result.to_s] unless result == :approved
+    end
+  end
+
+  def state
+    loans = LOANS.to_h { [_1, @ids[_1] && Loan.find(@ids[_1])] }
+    {
+      "amount" => loans.transform_values { _1&.amount_cents || 0 },
+      "approved" => loans.transform_values { _1&.state == "approved" },
+      "outcome" => @outcome
+    }
+  end
+end
+```
+
+トランザクションのフィクスチャは例の後に 1 回だけロールバックしますが、1 つの例は多くのトレースを再生します。
+各トレースを専用のセーブポイントで包み、どのトレースもほかのトレースの行を読まないようにします。
+
+```ruby
+# spec/quint/approval_spec.rb
+require "rails_helper"
+require "quint_driver"
+require_relative "approval_driver"
+
+RSpec.describe Loan, type: :model do
+  def rolled_back
+    ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+      yield
+      raise ActiveRecord::Rollback
+    end
+  end
+
+  it "follows every trace Quint writes for approval.qnt" do
+    QuintDriver::Quint.simulate("spec/quint/approval.qnt", traces: 50, max_steps: 8, seed: "1") do |path|
+      rolled_back { QuintDriver::Trace.replay(path, ApprovalDriver.new) }
+    end
+  end
+end
+```
+
+<details>
+<summary>spec/quint/approval.qnt</summary>
+
+```quint
+// Two loans of one borrower with a limit of 20000 cents. A clerk approves
+// up to 10000 cents, and a senior officer approves any amount. approve has
+// a refused twin, so a trace checks the refusals too.
+module approval {
+  type Outcome = Done | Refused(str)
+
+  pure val LOANS = Set("l1", "l2")
+  pure val AMOUNTS = Set(500, 10000, 15000)
+  pure val LIMIT = 20000
+
+  // 0 means the loan is not open yet.
+  var amount: str -> int
+  var approved: str -> bool
+  var outcome: Outcome
+
+  pure def approvedCents(a: str -> int, ap: str -> bool): int =
+    LOANS.filter(l => ap.get(l)).fold(0, (sum, l) => sum + a.get(l))
+  pure def refusal(a: str -> int, ap: str -> bool, l: str, senior: bool): str =
+    if (ap.get(l)) "already"
+    else if (approvedCents(a, ap) + a.get(l) > LIMIT) "over_limit"
+    else if (a.get(l) > 10000 and not(senior)) "needs_senior"
+    else ""
+
+  action init = all {
+    amount' = LOANS.mapBy(_ => 0),
+    approved' = LOANS.mapBy(_ => false),
+    outcome' = Done,
+  }
+
+  action open(l: str, a: int): bool = all {
+    amount.get(l) == 0,
+    amount' = amount.put(l, a),
+    approved' = approved,
+    outcome' = Done,
+  }
+  action approve(l: str, senior: bool): bool = all {
+    amount.get(l) > 0,
+    refusal(amount, approved, l, senior) == "",
+    amount' = amount,
+    approved' = approved.put(l, true),
+    outcome' = Done,
+  }
+  action approve_refused(l: str, senior: bool): bool = all {
+    amount.get(l) > 0,
+    refusal(amount, approved, l, senior) != "",
+    amount' = amount,
+    approved' = approved,
+    outcome' = Refused(refusal(amount, approved, l, senior)),
+  }
+
+  action step = any {
+    nondet l = LOANS.oneOf()
+    nondet a = AMOUNTS.oneOf()
+    any { open(l, a) },
+    nondet l = LOANS.oneOf()
+    nondet senior = Set(true, false).oneOf()
+    any { approve(l, senior), approve_refused(l, senior) },
+  }
+
+  val within_limit = approvedCents(amount, approved) <= LIMIT
+}
+```
+
+</details>
+
+```sh
+QUINT=quint bundle exec rspec spec/quint/approval_spec.rb
+```
+
+```text
+.
+
+Finished in 1.22 seconds (files took 0.91182 seconds to load)
+1 example, 0 failures
+```
+
+50 本の各トレースが、本物のモデルとテストのデータベースで動き、ロールバックしました。
+`Loan#approve` がちょうど 10000 セントでシニアを求める(`> 10_000` の代わりに `amount_cents >= 10_000`)と、同じコマンドは、そのようなローンを承認する最初のトレースで失敗します。
+
+```text
+     QuintDriver::Mismatch:
+       quint: after step 6 `approve` {"l" => "l1", "senior" => false}, the driver differs from the trace
+         approved: trace {"l1" => true, "l2" => true}, driver {"l1" => false, "l2" => true}
+         outcome: trace "Done", driver ["Refused", "needs_senior"]
+       steps:
+         init {}
+         open {"a" => 500, "l" => "l2"}
+         approve {"l" => "l2", "senior" => false}
+         open {"a" => 10000, "l" => "l1"}
+         approve_refused {"l" => "l2", "senior" => false}
+         approve_refused {"l" => "l2", "senior" => true}
+         approve {"l" => "l1", "senior" => false}
+       trace: trace_1.itf.json of Quint.simulate("spec/quint/approval.qnt", traces: 50, max_steps: 8, seed: "1", step: "step", backend: "rust")
+```
+
+セーブポイントの代わりにドライバーの `init` で行を消す方法と、セーブポイントを joinable にしてはいけない理由は、[スキル](skills/quint_driver/SKILL.md)にあります。
+
+## 仕組み
 
 手順の選び方は 2 つあり、どちらも同じドライバーを使います。
 
-- **トレース再生。** `quint run --mbt` がトレースを書き、各トレースを 1 手ずつシステムで動かします。手順は Quint が選ぶので、深い状態にすぐ届きます。
+- **トレース再生。** `quint run --mbt` がトレースを書き、各トレースを 1 手ずつシステムで動かします。手順は Quint が選ぶので、深い状態にすぐ届きます。クイックスタートはこの方法を使います。
 - **Hegel。** [Hegel](https://github.com/meganemura/hegel-ruby) が、仕様がいま許すアクションから 1 手ずつ選びます。システムが仕様と食い違うと、Hegel は失敗を短いコマンド列まで縮めます。
 
 仕様は Quint の JSON IR から読み、Ruby のプロセスの中で評価します。
@@ -16,7 +348,7 @@ Ruby のシステムを [Quint](https://github.com/quint-co/quint) の仕様に�
 
 ```ruby
 # Gemfile
-gem "quint_driver", github: "meganemura/quint_driver"
+gem "quint_driver"
 gem "hegeltest", "= 0.4.1" # Hegel アダプターを使うときだけ
 ```
 
@@ -27,9 +359,8 @@ Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
 こちらには hegeltest 0.4.1 が必要で、hegeltest は Ruby 3.4 以降を必要とします。
 この gem は hegeltest に依存しないので、自分の Gemfile に追加してください。
 
-この gem は `quint` コマンドを呼びます。
-使うコマンドは `QUINT` で指定します(手元にインストールしたものなど)。
-指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行するので、Node.js と、初回は npm レジストリへの接続が必要です。
+この gem は、[クイックスタート](#インストール)のとおり、`QUINT` が指す `quint` コマンドを呼びます。
+`QUINT` の指定がなければ `npx --yes @informalsystems/quint@0.33.0` を実行します。
 オフラインなどで npx が quint を取得できないときは、そのことを伝えて `QUINT` の指定を促す `QuintDriver::QuintFailed` を投げます。
 
 `Spec.new` は、1 つのプロセスの中で、ファイルと quint コマンドの組ごとに 1 回だけコンパイルします。
