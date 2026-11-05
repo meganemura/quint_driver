@@ -4,10 +4,22 @@ module base {
   action base_step = shared' = shared + 1
   action moves = any { base_step }
   val started = shared > 0
+  val doubled = shared * 2
+  pure def twice(x: int): int = x * 2
+  run twice_then = init.then(base_step)
 }
 
 module uses_base {
   import base.*
+}
+
+module reexports {
+  import base.*
+  export base.*
+}
+
+module via_export {
+  import reexports.*
 }
 
 module names_base {
