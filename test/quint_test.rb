@@ -316,6 +316,7 @@ class QuintTest < Minitest::Test
     assert_equal every.map { "B::#{_1}" }, names.("names_base")
     assert_equal every, names.("via_export"), "a module that imports what another exports"
     assert_equal %w[base_step init shared], names.("one_name"), "a module that imports names one by one"
+    assert_equal every, names.("via_alias_export"), "a module that imports what another exports of an alias"
     assert_equal every, names.("instances"), "an instance nothing reaches adds no name"
   end
 

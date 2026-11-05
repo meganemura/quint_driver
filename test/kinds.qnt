@@ -63,6 +63,16 @@ module begins {
   action step = any { tick }
 }
 
+// Exports what it imports under an alias, unqualified.
+module reexports_alias {
+  import base as A
+  export A.*
+}
+
+module via_alias_export {
+  import reexports_alias.*
+}
+
 module bounded {
   const LIMIT: int
   var count: int

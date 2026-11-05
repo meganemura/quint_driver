@@ -107,16 +107,18 @@ module QuintDriver
     # in it as an action does. An instance adds no name: its definitions
     # would bring its variables, which a trace of `quint run` lacks when
     # nothing of +main+ reaches them, and init would leave them unassigned.
-    # An export of what an import calls a module names no module, so it
-    # adds no name either.
+    # An export can name a module by what an import of it calls it, such as
+    # A in `import base as A` and `export A.*`.
     def self.imported_names(ir, main)
       modules = ir.fetch("modules").to_h { [ _1["name"], _1["declarations"] ] }
       named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }
       shown = lambda do |name|
-        modules.fetch(name, []).flat_map do |declaration|
+        declarations = modules.fetch(name, [])
+        aliases = declarations.select { _1["kind"] == "import" && _1["qualifiedName"] }.to_h { [ _1["qualifiedName"], _1["protoName"] ] }
+        declarations.flat_map do |declaration|
           case declaration["kind"]
           when "def" then [ declaration ]
-          when "export" then named.(shown.(declaration["protoName"]), declaration)
+          when "export" then named.(shown.(aliases.fetch(declaration["protoName"], declaration["protoName"])), declaration)
           else []
           end
         end
