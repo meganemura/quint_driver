@@ -115,6 +115,16 @@ module QuintDriver
       RUBY_VERSION >= "3.4" ? kept : kept.map(&:to_s)
     end
 
+    # Raises ArgumentError with +message+ from the line that called
+    # quint_driver: the argument it is about is that caller's. The frames of
+    # Ruby's library between two of quint_driver's, such as Dir.mktmpdir's,
+    # go too.
+    def self.refuse(message)
+      frames = caller_locations
+      last = frames.rindex { _1.to_s.start_with?(*@hidden) }
+      raise ArgumentError, message, outside(last ? frames.drop(last + 1) : frames)
+    end
+
     # A failure the driver or a caller's block raised, its backtrace +outside+.
     def self.lead_outside(failure)
       failure.tap { _1.set_backtrace(outside(_1.backtrace_locations || _1.backtrace)) }

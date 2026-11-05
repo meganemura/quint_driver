@@ -83,7 +83,7 @@ module QuintDriver
     # so the mbt:: entries stay.
     def self.observed(path, spec, observe)
       return Hash.new({}) if observe.empty?
-      raise ArgumentError, "quint: observe needs spec:, the Spec that evaluates #{observe.join(', ')}" unless spec
+      Agreement.refuse "quint: observe needs spec:, the Spec that evaluates #{observe.join(', ')}" unless spec
 
       spec.observable!(observe)
       model = spec.model(nil)

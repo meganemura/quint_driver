@@ -175,14 +175,14 @@ module QuintDriver
       refuse = lambda do |argument, what|
         name, kind, takes = wanted.fetch(argument)
         such_as = kinds.select { |of_name, of| of == kind && of_name != "init" && !of_name.start_with?("q::") }.keys.sort.join(", ")
-        raise ArgumentError, "quint: #{argument} names #{name}, #{what}; #{argument} takes #{takes}, such as #{such_as}"
+        Agreement.refuse "quint: #{argument} names #{name}, #{what}; #{argument} takes #{takes}, such as #{such_as}"
       end
       wanted.each do |argument, (name, kind)|
         refuse.(argument, "#{kinds[name]} of #{ir['main']}") if kinds.key?(name) && kinds[name] != kind
       end
       lambda do |output|
         unfound = output[/\[QNT404\] Name '(.+)' not found/, 1]
-        raise ArgumentError, without_init(ir["main"]) if unfound == "init"
+        Agreement.refuse(without_init(ir["main"])) if unfound == "init"
         argument, = wanted.find { |_, (name)| name == unfound } if unfound
         refuse.(argument, "which #{ir['main']} neither declares nor imports") if argument
       end

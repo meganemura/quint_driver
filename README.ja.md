@@ -216,6 +216,7 @@ Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れ
 quint_driver はほかの名前を受け取りません。
 トレースは最初のステップをそのアクションの名前で呼び、ドライバーとモデルはそのステップを `init` として読むからです。
 代わりに、モジュールに `action init = begin` を足してください。
+quint_driver が投げる `ArgumentError` のバックトレースは、それを呼んだあなたの行から始まり、その前に quint_driver のフレームはありません。
 
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。

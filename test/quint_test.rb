@@ -255,6 +255,20 @@ class QuintTest < Minitest::Test
     assert_equal message, error.message
   end
 
+  def test_an_argument_error_names_the_callers_line_first
+    begins = QuintDriver::Spec.new(KINDS, main: "begins")
+    loans = QuintDriver::Spec.new(LoansDriver::SPEC, main: "loans")
+    { "a step of another kind" => -> { QuintDriver::Quint.simulate(KINDS, main: "kinds", traces: 1, max_steps: 1, seed: "1", step: "add") { flunk } },
+      "a step quint did not find" => -> { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 1, max_steps: 1, seed: "1", step: "borow") { flunk } },
+      "no init on simulate" => -> { QuintDriver::Quint.simulate(KINDS, main: "begins", traces: 1, max_steps: 1, seed: "1") { flunk } },
+      "no init on the model" => -> { begins.model },
+      "no such step on the model" => -> { loans.model("steps") },
+      "no such observed name" => -> { loans.observable!(%w[borrow]) } }.each do |what, call|
+      error = assert_raises(ArgumentError, what, &call)
+      assert error.backtrace.first.start_with?("#{__FILE__}:"), "#{what}: #{error.backtrace.first}"
+    end
+  end
+
   # uses_base declares no action of its own, not even one named step.
   def test_a_step_the_module_imports_runs
     actions = []

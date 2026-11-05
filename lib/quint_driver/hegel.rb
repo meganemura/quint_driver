@@ -122,7 +122,7 @@ module QuintDriver
           tc.note { "#{action} #{Model.plain(picks)}" }
           move!(action, picks, after)
         end
-      else raise ArgumentError, "quint: choose is :rule or :rotate"
+      else Agreement.refuse "quint: choose is :rule or :rotate"
       end
 
       # Hegel samples an invariant between moves unless always_run is set;

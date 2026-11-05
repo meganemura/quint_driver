@@ -32,7 +32,7 @@ module QuintDriver
     # and not a sum type's case, which quint declares as a val too.
     def observable!(names)
       name = names.find { !observable.include?(_1) } or return
-      raise ArgumentError, "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
+      Agreement.refuse "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
     end
 
     # The definition that writes each IR node, by node id, so the model names
@@ -50,7 +50,7 @@ module QuintDriver
     # any { ... } }`; an `all` of more holds a condition no rule can carry.
     def rules(step)
       actions = declarations.select { _1["qualifier"] == "action" }.to_h { [ _1["name"], _1 ] }
-      raise ArgumentError, Quint.send(:without_init, @main) unless actions.key?("init")
+      Agreement.refuse(Quint.send(:without_init, @main)) unless actions.key?("init")
       choice = ->(node) { node["kind"] == "app" && node["opcode"] == "actionAny" }
       walk = lambda do |node, domains, within|
         if choice.(node)
@@ -69,7 +69,7 @@ module QuintDriver
           raise Unsupported, "quint: #{within} #{arm} in an arm that names no action; name every action in #{step}"
         end
       end
-      top = actions.fetch(step) { raise ArgumentError, "quint: no action is named #{step}; the module has #{actions.keys.sort.join(', ')}" }
+      top = actions.fetch(step) { Agreement.refuse "quint: no action is named #{step}; the module has #{actions.keys.sort.join(', ')}" }
       walk.(top["expr"], {}, step)
     end
 
