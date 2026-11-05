@@ -287,8 +287,8 @@ class QuintTest < Minitest::Test
     assert_equal %w[init base_step base_step], actions
   end
 
-  # Nothing uses_base declares reaches started, doubled, or B::base_step, and quint keeps
-  # an imported definition only where one of the module reaches it.
+  # Nothing uses_base declares reaches what it imports, and quint keeps an
+  # imported definition only where one of the module reaches it.
   def test_a_module_without_a_step_keeps_every_definition_it_imports_on_the_model
     model = QuintDriver::Spec.new(KINDS, main: "uses_base").model("moves")
     model.step("init", {})
@@ -297,11 +297,12 @@ class QuintTest < Minitest::Test
     assert_equal({ "shared" => 1 }, model.state)
     assert_equal({ "started" => true, "doubled" => 2 }, model.observe(%w[started doubled]))
 
-    names = ->(main) { QuintDriver::Spec.new(KINDS, main:).declarations.map { _1["name"] } }
-    assert_includes names.("names_base"), "B::base_step"
-    assert_includes names.("via_export"), "doubled", "a module that imports what another exports"
-    refute_includes names.("uses_base"), "twice", "a def with parameters no action reaches"
-    refute_includes names.("uses_base"), "twice_then", "a run"
+    names = ->(main) { QuintDriver::Spec.new(KINDS, main:).declarations.map { _1["name"] }.sort }
+    every = %w[base_step doubled init moves shared started stays_small twice twice_then]
+    assert_equal every, names.("uses_base")
+    assert_equal every.map { "B::#{_1}" }, names.("names_base")
+    assert_equal every, names.("via_export"), "a module that imports what another exports"
+    assert_equal %w[base_step init shared], names.("one_name"), "a module that imports names one by one"
   end
 
   def test_traces_through_quint_run_come_in_the_order_quint_numbers_them

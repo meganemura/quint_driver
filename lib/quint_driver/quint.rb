@@ -93,32 +93,26 @@ module QuintDriver
       end
     end
 
-    # Each name +main+ imports, as an operand of `and` in an action, so a flat
-    # compile whose --step names them keeps every definition +main+ imports,
-    # not only the ones its own declarations reach. A definition that is no
-    # action is the comparison with itself, which every value has. A
-    # definition with parameters needs arguments, and a run or a temporal
-    # formula fits no action, so those stay out: quint keeps one only where
-    # something else reaches it.
-    # An instance names its definitions after the instance, so it adds none.
+    # Each name +main+ imports, so a flat compile whose --step is `and` of
+    # them keeps every definition +main+ imports, not only the ones its own
+    # declarations reach. quint 0.33.0 resolves the names of --step there
+    # and checks no type, so a value, a run, or a def with parameters stands
+    # in it as an action does. An instance names its definitions after the
+    # instance, and an export of what an import calls a module names no
+    # module, so neither adds a name.
     def self.imported_names(ir, main)
-      modules = ir.fetch("modules").to_h { [ _1["name"], _1 ] }
+      modules = ir.fetch("modules").to_h { [ _1["name"], _1["declarations"] ] }
+      named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }
       shown = lambda do |name|
-        modules.fetch(name).fetch("declarations").flat_map do |declaration|
-          if declaration["kind"] == "def" then [ declaration ]
-          elsif declaration["kind"] == "export" then shown.(declaration["protoName"]).map { renamed(_1, declaration) }
+        modules.fetch(name, []).flat_map do |declaration|
+          case declaration["kind"]
+          when "def" then [ declaration ]
+          when "export" then named.(shown.(declaration["protoName"]), declaration)
           else []
           end
         end
       end
-      imported = modules.fetch(main).fetch("declarations").select { _1["kind"] == "import" }.flat_map do |import|
-        shown.(import["protoName"]).select { [ nil, "*", _1["name"] ].include?(import["defName"]) }.map { renamed(_1, import) }
-      end
-      imported.filter_map do |declaration|
-        next if declaration["expr"]["kind"] == "lambda" || %w[run temporal].include?(declaration["qualifier"])
-
-        declaration["qualifier"] == "action" ? declaration["name"] : "#{declaration['name']} == #{declaration['name']}"
-      end
+      modules.fetch(main).select { _1["kind"] == "import" }.flat_map { named.(shown.(_1["protoName"]), _1) }.map { _1["name"] }
     end
 
     def self.renamed(declaration, import)

@@ -141,7 +141,7 @@ A `state:` path that ends at a value that is no record or map raises `QuintDrive
 
 ## 4. Check the Ruby model
 
-Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first. A module that imports, such as a test module that imports the spec's actions, reads what it imports as its own, also an action or a definition without parameters that nothing in it reaches, and needs no action named `step`:
+Hegel trusts the Ruby evaluation of the spec. Hold the model to Quint's own traces first. A module that imports, such as a test module that imports the spec's actions, reads what it imports as its own, also a definition that nothing in it reaches, and needs no action named `step`:
 
 ```ruby
 spec = QuintDriver::Spec.new("spec.qnt", main: "loans")
