@@ -170,25 +170,26 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     QuintDriver::Quint.simulate(OPERATORS, main: "switch", traces: 20, max_steps: 10, seed: "1") do |path|
       QuintDriver::Trace.replay(path, spec.model).each { picks << [ _1.action, _1.picks["b"] ] }
     end
-  
+
     assert_includes picks, [ "flip", false ]
     assert_equal Set[false, true], picks.select { |action, _| action == "press" }.to_set { |_, b| b }
   end
-  
+
   def test_the_model_refuses_to_list_int_or_nat
     rule = QuintDriver::Spec.new(OPERATORS, main: "unsupported").rules("step").find { _1.action == "count" }
     error = assert_raises(QuintDriver::Unsupported) { unsupported.moves(rule) }
-  
+
     assert_equal "quint: no evaluation for the name Nat in step; Nat is infinite, so no move can list its picks; draw from a finite set such as 0.to(9)", error.message
+    int = assert_raises(QuintDriver::Unsupported) { unsupported.value("Int") }
+    assert_equal "quint: no evaluation for the name Int outside any definition; Int is infinite, so no move can list its picks; draw from a finite set such as 0.to(9)", int.message
   end
-  
+
   def test_the_model_refuses_a_pick_outside_its_domain
     model = QuintDriver::Spec.new(OPERATORS, main: "painting").model
     model.step("init", {})
 
     error = assert_raises(QuintDriver::Mismatch) { model.step("paint", { "c" => "Green" }) }
-    assert_match(/c/, error.message)
-    assert_match(/"Green"/, error.message)
+    assert_equal %(quint: the model cannot pick c = "Green" for paint), error.message
   end
 
   def test_the_model_refuses_a_move_that_lacks_a_pick

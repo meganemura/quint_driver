@@ -308,6 +308,17 @@ class TraceTest < Minitest::Test
     assert_equal "quint: ignore names outcomes, which is not in the trace's state; it has holder, outcome", error.message
   end
 
+  # A trace file of your own can hold no state, so ignore: has no names to
+  # check against.
+  def test_a_trace_with_no_state_replays_nothing_whatever_ignore_names
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "empty.itf.json")
+      File.write(path, JSON.generate("states" => []))
+
+      assert_equal [], QuintDriver::Trace.replay(path, LoansDriver.new, ignore: %w[outcome])
+    end
+  end
+
   # A value the spec derives from its variables, such as a total, is in no
   # trace state, so only an observed definition holds the system's copy of it.
   class CountingDriver < LoansDriver

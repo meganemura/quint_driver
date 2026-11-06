@@ -295,16 +295,16 @@ class MachineTest < Minitest::Test
       machine = QuintDriver.machine(spec, choose:, driver: -> {
         spec.model.tap { |model| model.define_singleton_method(:step) { |action, chosen| picks << [ action, chosen["b"] ]; super(action, chosen) } }
       })
-  
+
       Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
       assert_includes picks, [ "flip", false ]
     end
   end
-  
+
   def test_the_machine_fails_a_driver_that_leaves_out_a_variable_unless_it_ignores_it
     holder_only = Class.new(LoansDriver) { def state = super.slice("holder") }
     leaving = QuintDriver.machine(LoansDriver.spec, driver: -> { holder_only.new })
-    ignoring = QuintDriver.machine(LoansDriver.spec, driver: -> { holder_only.new }, ignore: %w[outcome])
+    ignoring = QuintDriver.machine(LoansDriver.spec, driver: -> { holder_only.new }, ignore: %i[outcome])
 
     error = assert_raises(QuintDriver::Mismatch) { Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(leaving.new, tc) } }
     assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  outcome: model "Done", but the driver's state leaves outcome out; /, error.message)
