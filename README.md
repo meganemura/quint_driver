@@ -639,6 +639,8 @@ The tests run `quint`. Set `QUINT` to skip `npx`.
 
 `test/readme_test.rb` runs "Try it without an app" in an empty folder. It runs the Rails quick start and "What you will see" only when `QUINT_DRIVER_README_APP` names a Rails app to copy, with rspec-rails, `Borrower`, and `Loan` as in the sample app, and no quint_driver in its Gemfile. The test adds the gem built from this checkout, writes the files, runs the command, applies the diff, and compares each output with the README.
 
+`test/skill_test.rb` runs the skill's example "A choice the code leaves to the database" only when `QUINT_DRIVER_SKILL_APP` names a Rails app to copy, with rspec-rails, an `Item` that belongs to a `Batch` and may not be assigned while blocked, the `/session` and `/items/:id/release` routes, and no quint_driver in its Gemfile. The test adds this checkout, writes the skill's files, replays the traces, then removes the wrap and compares the failure with the skill. It uses the app's database, so `DATABASE_URL` runs it on PostgreSQL.
+
 ## License
 
 MIT

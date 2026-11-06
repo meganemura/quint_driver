@@ -720,18 +720,43 @@ class AssignSlotsJob < ApplicationJob
 end
 ```
 
-Without ORDER BY, the database returns the rows in no fixed order: SQLite returned them in the order they were made, and PostgreSQL can return the row it updated last ahead of the others. A spec that walks the items in one fixed order then fails a replay where the code is right. Make the order a pick of the action. For two items, a `Bool` picks it:
+Without ORDER BY, the database returns the rows in no fixed order. SQLite returned them in the order they were made. PostgreSQL 16 did so too on an index scan, but on a sequential scan, which it chose for a small table, it returned a row after the others once the row was updated. A spec that walks the items in one fixed order then fails a replay where the code is right. Make the order a pick of the action: the spec lists the orders the database may return, and `step` picks one.
 
 ```quint
+// spec/quint/slots.qnt: a batch gives its free slots to its items.
+module slots {
+  pure val ITEMS = Set("i1", "i2", "i3")
+  // Every order the database may return the three items in.
+  pure val ORDERS = Set(
+    ["i1", "i2", "i3"], ["i1", "i3", "i2"], ["i2", "i1", "i3"],
+    ["i2", "i3", "i1"], ["i3", "i1", "i2"], ["i3", "i2", "i1"],
+  )
+
+  var state: str -> str
+  var blocked: str -> bool
+  var free: int
+  var outcome: str
+
+  action init = all {
+    state' = ITEMS.mapBy(_ => "pending"),
+    blocked' = ITEMS.mapBy(_ => false),
+    free' = 1,
+    outcome' = "ok",
+  }
+
+  action block(i: str): bool = all {
+    state' = state, blocked' = blocked.set(i, true), free' = free, outcome' = "ok",
+  }
+
   // One item's turn of the job: a slot while one is free, else it waits.
   def give(acc: (str -> str, int), i: str): (str -> str, int) =
     if (acc._1.get(i) == "assigned" or acc._1.get(i) == "done") acc
     else if (acc._2 > 0) (acc._1.set(i, "assigned"), acc._2 - 1)
     else (acc._1.set(i, "waiting"), acc._2)
 
-  // The job reads the items with no ORDER BY, so the order is a pick: i1 first, or i2 first when rev.
-  action runJob(rev: bool): bool = {
-    val walked = (if (rev) ["i2", "i1"] else ["i1", "i2"]).foldl((state, free), give)
+  // The job reads the items with no ORDER BY, so the order is a pick.
+  action runJob(order: List[str]): bool = {
+    val walked = order.foldl((state, free), give)
     val invalid = ITEMS.exists(i => blocked.get(i) and state.get(i) != "assigned" and walked._1.get(i) == "assigned")
     all {
       state' = if (invalid) state else walked._1,
@@ -740,16 +765,33 @@ Without ORDER BY, the database returns the rows in no fixed order: SQLite return
       outcome' = if (invalid) "invalid" else "ok",
     }
   }
+
+  action release(i: str): bool = all {
+    state' = if (state.get(i) == "assigned") state.set(i, "done") else state,
+    free' = if (state.get(i) == "assigned") free + 1 else free,
+    blocked' = blocked,
+    outcome' = if (state.get(i) == "assigned") "ok" else "refused",
+  }
+
+  action step = any {
+    nondet i = ITEMS.oneOf()
+    block(i),
+    nondet order = ORDERS.oneOf()
+    runJob(order),
+    nondet i = ITEMS.oneOf()
+    release(i),
+  }
+}
 ```
 
-`step` draws it in the arm that runs the job: `nondet rev = Bool.oneOf() runJob(rev)`. `Item` validates that a blocked item is not assigned, so a run that would assign one is `invalid` and changes nothing.
+Three items have six orders, and n rows have n! orders. With more rows, list only the orders that lead to different states. Here at most one slot is free, so only the first item that is neither assigned nor done gets it, and the order of the rest changes nothing. `Item` validates that a blocked item is not assigned, so a run that would assign one is `invalid` and changes nothing.
 
 The driver enacts the pick on the loaded association. While the job runs, `in_order` loads the association's target and sorts it in place; at any other time it returns the association untouched. Its `release` step goes through a page, so it starts a new session first:
 
 ```ruby
 # spec/quint/slots_driver.rb
 class SlotsDriver
-  ITEMS = %w[i1 i2].freeze
+  ITEMS = %w[i1 i2 i3].freeze
 
   # +example+ is the RSpec example, which makes the requests.
   def initialize(example) = @example = example
@@ -771,7 +813,7 @@ class SlotsDriver
       @ids = ITEMS.to_h { [ _1, @batch.items.create!.id ] }
     when "block" then Item.find(@ids.fetch(picks.fetch("i"))).update!(blocked: true)
     when "runJob"
-      @order = @ids.values_at(*(picks.fetch("rev") ? ITEMS.reverse : ITEMS))
+      @order = @ids.values_at(*picks.fetch("order"))
       AssignSlotsJob.perform_now(Batch.find(@batch.id))
     when "release"
       @example.reset!
@@ -826,18 +868,18 @@ RSpec.describe "Batch slots held to slots.qnt", type: :request do
 end
 ```
 
-Without the wrap, the first trace that picks `rev` fails:
+Without the wrap, the first trace fails at its first `runJob`, on SQLite and on PostgreSQL 16 alike:
 
 ```text
 QuintDriver::Mismatch:
-  quint: after step 1 `runJob` {"rev" => true}, the driver differs from the trace
-    state: trace {"i1" => "waiting", "i2" => "assigned"}, driver {"i1" => "assigned", "i2" => "waiting"}
+  quint: after step 1 `runJob` {"order" => ["i3", "i2", "i1"]}, the driver differs from the trace
+    state: trace {"i1" => "waiting", "i2" => "waiting", "i3" => "assigned"}, driver {"i1" => "assigned", "i2" => "waiting", "i3" => "waiting"}
   steps:
     init {}
-    runJob {"rev" => true}
+    runJob {"order" => ["i3", "i2", "i1"]}
 ```
 
-Do not return `reorder(...)` from the wrap. A new relation loads records of its own, not the association's target, so the job changes records that `batch.update!` does not autosave. The same trace then fails with `driver {"i1" => "pending", "i2" => "pending"}` while `free` drops to 0, and an item validation that fails no longer stops the update: with a blocked item that may not be assigned, `update!` raised `Validation failed: Items state blocked` when the job changed the loaded target, and saved when it changed the records of `reorder(:id)`.
+Do not return `reorder(...)` from the wrap. A new relation loads records of its own, not the association's target, so the job changes records that `batch.update!` does not autosave. The same trace then fails with `driver {"i1" => "pending", "i2" => "pending", "i3" => "pending"}` while `free` drops to 0, and an item validation that fails no longer stops the update: with a blocked item that may not be assigned, `update!` raised `Validation failed: Items state blocked` when the job changed the loaded target, and saved when it changed the records of `reorder(:id)`.
 
 ## Read a failure
 

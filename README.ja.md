@@ -855,6 +855,11 @@ Rails のクイックスタートと「実行結果」は、`QUINT_DRIVER_README
 そのアプリには、サンプルアプリと同じ rspec-rails、`Borrower`、`Loan` が要り、Gemfile に quint_driver があってはいけません。
 テストはこのチェックアウトから作った gem を加え、ファイルを書き、コマンドを動かし、差分を当てて、各出力を README と比べます。
 
+`test/skill_test.rb` は、スキルの例「A choice the code leaves to the database」を、`QUINT_DRIVER_SKILL_APP` がコピー元の Rails アプリを指すときだけ動かします。
+そのアプリには、rspec-rails、`Batch` に属しブロック中は割り当てられない `Item`、`/session` と `/items/:id/release` のルートが要り、Gemfile に quint_driver があってはいけません。
+テストはこのチェックアウトを加え、スキルのファイルを書き、トレースを再生し、ラップを外してから失敗をスキルと比べます。
+アプリのデータベースを使うので、`DATABASE_URL` を指定すると PostgreSQL で動きます。
+
 ## ライセンス
 
 MIT
