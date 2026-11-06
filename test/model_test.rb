@@ -164,14 +164,22 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     assert_equal 20, count
   end
 
-  def test_the_ruby_model_follows_quint_on_a_pick_of_false
+  def test_the_ruby_model_follows_quint_on_a_pick_of_false_and_on_the_set_bool
     spec = QuintDriver::Spec.new(OPERATORS, main: "switch")
     picks = Set.new
     QuintDriver::Quint.simulate(OPERATORS, main: "switch", traces: 20, max_steps: 10, seed: "1") do |path|
-      QuintDriver::Trace.replay(path, spec.model).each { picks << _1.picks["b"] }
+      QuintDriver::Trace.replay(path, spec.model).each { picks << [ _1.action, _1.picks["b"] ] }
     end
   
-    assert_includes picks, false
+    assert_includes picks, [ "flip", false ]
+    assert_equal Set[false, true], picks.select { |action, _| action == "press" }.to_set { |_, b| b }
+  end
+  
+  def test_the_model_refuses_to_list_int_or_nat
+    rule = QuintDriver::Spec.new(OPERATORS, main: "unsupported").rules("step").find { _1.action == "count" }
+    error = assert_raises(QuintDriver::Unsupported) { unsupported.moves(rule) }
+  
+    assert_equal "quint: no evaluation for the name Nat in step; Nat is infinite, so no move can list its picks; draw from a finite set such as 0.to(9)", error.message
   end
   
   def test_the_model_refuses_a_pick_outside_its_domain

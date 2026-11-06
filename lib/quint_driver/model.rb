@@ -7,6 +7,7 @@ module QuintDriver
   # through it.
   class Model
     Variant = Struct.new(:tag, :value)
+    BOOL = Set[false, true].freeze
 
     # +within+ names the definition that holds the lambda, so an operator its
     # body cannot evaluate is reported where the spec writes it.
@@ -133,11 +134,18 @@ module QuintDriver
         end
       end
 
+      # Quint reserves Bool, Int and Nat, so no definition shadows them.
       def lookup(name, env)
         return env[name] if env.key?(name)
         return @state.fetch(name) if @vars.include?(name)
+        return BOOL if name == "Bool"
 
-        defined(name) { refuse("the name #{name}", "no definition, variable or parameter has it") }
+        defined(name) do
+          if %w[Int Nat].include?(name)
+            refuse("the name #{name}", "#{name} is infinite, so no move can list its picks; draw from a finite set such as 0.to(9)")
+          end
+          refuse("the name #{name}", "no definition, variable or parameter has it")
+        end
       end
 
       # A pure val or pure def reads no variable, and a lambda reads none

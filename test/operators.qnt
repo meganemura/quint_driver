@@ -178,12 +178,16 @@ module unsupported {
   // A domain written above a nested choice is written in step, not in the
   // action that holds the choice.
   action grow = all { n' = n + 1, m' = m }
+  // Int and Nat are infinite, so no move can list its picks from them.
+  action count(k: int): bool = all { n' = k, m' = m }
   action growing = any { grow }
   action step = any {
     double,
     picking,
     nondet t = Set(m).powerset().oneOf()
     growing,
+    nondet k = Nat.oneOf()
+    count(k),
   }
 }
 
@@ -284,11 +288,15 @@ module switch {
   action init = on' = false
   action turn(b: bool): bool = on' = b
   action flip(b: bool): bool = on' = b
+  action press(b: bool): bool = on' = b
 
   action step = any {
     nondet b = Set(true, false).oneOf()
     turn(b),
     nondet b = Set(true, false).exclude(Set(on)).oneOf()
     flip(b),
+    // The built-in set of both booleans.
+    nondet b = Bool.oneOf()
+    press(b),
   }
 }

@@ -784,6 +784,9 @@ end
 
 モデルが評価できるのは、コマンドごとにアクションを書く仕様が使う演算子です。
 集合 (`fold` と `i.to(j)` を含む)、マップ、レコード、タプル、リスト、`match` 付きの直和型、整数、真偽値です。
+`Bool` は `false` と `true` の集合として評価します。
+`Int` と `Nat` は無限なので、モデルはそこから選ぶ動きの候補を並べられず、`QuintDriver::Unsupported` を投げます。
+代わりに `0.to(9)` のような有限の集合から選んでください。
 マップでは `Map`、`get`、`keys`、`put`、`mapBy`、`set`、`setBy`、`setToMap` を評価します。
 リストは Ruby の Array になります。
 リストでは `List`、`append`、`concat`、`head`、`tail`、`length`、`nth`、`indices`、`replaceAt`、`slice`、`range`、`select`、`foldl`、`foldr` を評価します。
