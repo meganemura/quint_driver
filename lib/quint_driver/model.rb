@@ -40,8 +40,12 @@ module QuintDriver
                end
                typed = rule.domains.each_with_object({}) do |(name, domain), chosen|
                  pick = picks.fetch(name) { raise Unsupported, "quint: #{action} needs a pick for #{name}, and the move gives none" }
-                 chosen[name] = value(domain, chosen).find { Model.plain(_1) == pick } ||
-                                raise(Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}")
+                 # A pick can be false, so the lookup asks whether it found
+                 # an element, never whether the element is truthy.
+                 domain = value(domain, chosen).to_a
+                 at = domain.index { Model.plain(_1) == pick } or
+                   raise Mismatch, "quint: the model cannot pick #{name} = #{pick.inspect} for #{action}"
+                 chosen[name] = domain[at]
                end
                rule.args.map { value(_1, typed) }
              end

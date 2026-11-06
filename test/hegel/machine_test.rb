@@ -287,6 +287,20 @@ class MachineTest < Minitest::Test
     assert_equal Set[nil, "grace", "ada"], lasts
   end
 
+  %i[rule rotate].each do |choose|
+    define_method(:"test_#{choose}_draws_a_pick_of_false_when_false_is_the_only_choice") do
+      operators = File.expand_path("../operators.qnt", __dir__)
+      spec = QuintDriver::Spec.new(operators, main: "switch")
+      picks = Set.new
+      machine = QuintDriver.machine(spec, choose:, driver: -> {
+        spec.model.tap { |model| model.define_singleton_method(:step) { |action, chosen| picks << [ action, chosen["b"] ]; super(action, chosen) } }
+      })
+  
+      Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+      assert_includes picks, [ "flip", false ]
+    end
+  end
+  
   def test_a_choice_other_than_rule_or_rotate_raises
     error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, choose: :random) }
 

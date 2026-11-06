@@ -274,3 +274,21 @@ module approval {
     approve(by),
   }
 }
+
+// Picks of false, which a lookup that tests the element it found, rather
+// than whether it found one, takes for no element at all. From on, flip's
+// one pick is false.
+module switch {
+  var on: bool
+
+  action init = on' = false
+  action turn(b: bool): bool = on' = b
+  action flip(b: bool): bool = on' = b
+
+  action step = any {
+    nondet b = Set(true, false).oneOf()
+    turn(b),
+    nondet b = Set(true, false).exclude(Set(on)).oneOf()
+    flip(b),
+  }
+}

@@ -103,7 +103,8 @@ module QuintDriver
                 sorted = @model.value(domain, chosen).to_a.sort_by(&:to_s).freeze
                 rule.fixed.include?(name) ? fixed[domain] = sorted : sorted
               end
-              tc.assume(choices.any?)
+              # any? would reject a domain whose one element is false.
+              tc.assume(!choices.empty?)
               chosen[name] = tc.draw(sampled_from(choices), label: name)
             end
             after = @model.try(rule.action, rule.args.map { @model.value(_1, picks) })
