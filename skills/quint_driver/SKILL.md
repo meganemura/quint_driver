@@ -689,6 +689,156 @@ QuintDriver::Mismatch:
     syncByJob {"s" => "s1"}
 ```
 
+A driver that reads `flash` and follows no redirect starts a new session for each step: `@example.reset!`, then sign in again. A flash a step sets before its redirect is still there in the next request, so the next step sees two outcomes. Reading the outcome from the response or the rows works too.
+
+### A choice the code leaves to the database
+
+Here a job reads a batch's items through `has_many` with no ORDER BY, and the order decides which item gets the free slot:
+
+```ruby
+# app/models/batch.rb
+class Batch < ApplicationRecord
+  has_many :items, autosave: true
+end
+
+# app/jobs/assign_slots_job.rb
+class AssignSlotsJob < ApplicationJob
+  def perform(batch)
+    free = batch.free
+    batch.items.each do |item|
+      next if item.state.in?(%w[assigned done])
+
+      if free > 0
+        item.state = "assigned"
+        free -= 1
+      else
+        item.state = "waiting"
+      end
+    end
+    batch.update!(free:)
+  end
+end
+```
+
+Without ORDER BY, the database returns the rows in no fixed order: SQLite returned them in the order they were made, and PostgreSQL can return the row it updated last ahead of the others. A spec that walks the items in one fixed order then fails a replay where the code is right. Make the order a pick of the action. For two items, a `Bool` picks it:
+
+```quint
+  // One item's turn of the job: a slot while one is free, else it waits.
+  def give(acc: (str -> str, int), i: str): (str -> str, int) =
+    if (acc._1.get(i) == "assigned" or acc._1.get(i) == "done") acc
+    else if (acc._2 > 0) (acc._1.set(i, "assigned"), acc._2 - 1)
+    else (acc._1.set(i, "waiting"), acc._2)
+
+  // The job reads the items with no ORDER BY, so the order is a pick: i1 first, or i2 first when rev.
+  action runJob(rev: bool): bool = {
+    val walked = (if (rev) ["i2", "i1"] else ["i1", "i2"]).foldl((state, free), give)
+    val invalid = ITEMS.exists(i => blocked.get(i) and state.get(i) != "assigned" and walked._1.get(i) == "assigned")
+    all {
+      state' = if (invalid) state else walked._1,
+      free' = if (invalid) free else walked._2,
+      blocked' = blocked,
+      outcome' = if (invalid) "invalid" else "ok",
+    }
+  }
+```
+
+`step` draws it in the arm that runs the job: `nondet rev = Bool.oneOf() runJob(rev)`. `Item` validates that a blocked item is not assigned, so a run that would assign one is `invalid` and changes nothing.
+
+The driver enacts the pick on the loaded association. While the job runs, `in_order` loads the association's target and sorts it in place; at any other time it returns the association untouched. Its `release` step goes through a page, so it starts a new session first:
+
+```ruby
+# spec/quint/slots_driver.rb
+class SlotsDriver
+  ITEMS = %w[i1 i2].freeze
+
+  # +example+ is the RSpec example, which makes the requests.
+  def initialize(example) = @example = example
+
+  # Batch#items while the job runs: the loaded items, sorted in place into the order the step picked.
+  def in_order(items)
+    return items unless @order
+
+    items.load_target
+    items.target.sort_by! { @order.index(_1.id) }
+    items
+  end
+
+  def step(action, picks)
+    @outcome = "ok"
+    case action
+    when "init"
+      @batch = Batch.create!(free: 1)
+      @ids = ITEMS.to_h { [ _1, @batch.items.create!.id ] }
+    when "block" then Item.find(@ids.fetch(picks.fetch("i"))).update!(blocked: true)
+    when "runJob"
+      @order = @ids.values_at(*(picks.fetch("rev") ? ITEMS.reverse : ITEMS))
+      AssignSlotsJob.perform_now(Batch.find(@batch.id))
+    when "release"
+      @example.reset!
+      @example.post "/session", params: { name: "operator" }
+      @example.patch "/items/#{@ids.fetch(picks.fetch("i"))}/release"
+      raise "PATCH answered #{@example.response.status}" unless @example.response.redirect?
+
+      @outcome = @example.flash[:notice] ? "ok" : "refused"
+    end
+  rescue ActiveRecord::RecordInvalid
+    @outcome = "invalid"
+  ensure
+    @order = nil
+  end
+
+  def state
+    items = Item.find(@ids.values).index_by(&:id)
+    { "state" => @ids.transform_values { items.fetch(_1).state },
+      "blocked" => @ids.transform_values { items.fetch(_1).blocked },
+      "free" => @batch.reload.free,
+      "outcome" => @outcome }
+  end
+end
+```
+
+The example wraps the reader once, in `before`. The driver is a `let`, so the wrap and the replay share it:
+
+```ruby
+# spec/quint/slots_spec.rb
+require "rails_helper"
+require_relative "slots_driver"
+
+RSpec.describe "Batch slots held to slots.qnt", type: :request do
+  let(:driver) { SlotsDriver.new(self) }
+
+  before do
+    allow_any_instance_of(Batch).to receive(:items).and_wrap_original { |reader, *args| driver.in_order(reader.call(*args)) }
+  end
+
+  def rolled_back
+    ActiveRecord::Base.transaction(requires_new: true, joinable: false) do
+      yield
+      raise ActiveRecord::Rollback
+    end
+  end
+
+  it "gives the free slot in the order the step picked" do
+    QuintDriver::Quint.simulate(Rails.root.join("spec/quint/slots.qnt"), traces: 50, max_steps: 10, seed: "1") do |path|
+      rolled_back { QuintDriver::Trace.replay(path, driver) }
+    end
+  end
+end
+```
+
+Without the wrap, the first trace that picks `rev` fails:
+
+```text
+QuintDriver::Mismatch:
+  quint: after step 1 `runJob` {"rev" => true}, the driver differs from the trace
+    state: trace {"i1" => "waiting", "i2" => "assigned"}, driver {"i1" => "assigned", "i2" => "waiting"}
+  steps:
+    init {}
+    runJob {"rev" => true}
+```
+
+Do not return `reorder(...)` from the wrap. A new relation loads records of its own, not the association's target, so the job changes records that `batch.update!` does not autosave. The same trace then fails with `driver {"i1" => "pending", "i2" => "pending"}` while `free` drops to 0, and an item validation that fails no longer stops the update: with a blocked item that may not be assigned, `update!` raised `Validation failed: Items state blocked` when the job changed the loaded target, and saved when it changed the records of `reorder(:id)`.
+
 ## Read a failure
 
 ```text
