@@ -53,13 +53,18 @@ module QuintDriver
     # +observe+ names definitions of +spec+, a Spec, that derive a value from
     # the variables, such as a total no variable holds: the driver reports
     # each one in its state by name, and is held to the value the spec's
-    # definition has in the trace's state. Returns the steps it ran, so a
+    # definition has in the trace's state. +ignore+ names variables the
+    # driver does not report, such as what a remote service answers, which
+    # the spec models and the driver only reads to set the system up; the
+    # driver reports every other variable. Returns the steps it ran, so a
     # caller can count the actions and states its traces reached.
-    def self.replay(path, driver, log: nil, state: [], action: nil, spec: nil, observe: [])
-      observe = observe.map(&:to_s)
+    def self.replay(path, driver, log: nil, state: [], action: nil, spec: nil, observe: [], ignore: [])
+      observe, ignore = observe.map(&:to_s), ignore.map(&:to_s)
       observed = observed(path, spec, observe)
       ran = []
-      steps(path, state:, action:).each do |step|
+      steps = steps(path, state:, action:)
+      Agreement.ignorable!(ignore, steps.first.expected.keys, "the trace's state") if steps.any?
+      steps.each do |step|
         # An unnamed action names no command for the driver to run.
         raise Unsupported, "quint: step #{step.index} of #{path} took an anonymous action; name every action in step" if step.action.empty?
 
@@ -70,7 +75,7 @@ module QuintDriver
           driver.step(step.action, step.picks)
           driver.state
         end
-        Agreement.check!(at, step.expected.merge(observed[step.index]), actual, by: "trace", steps: ran, observe:, spec:)
+        Agreement.check!(at, step.expected.merge(observed[step.index]), actual, by: "trace", steps: ran, observe:, spec:, ignore:)
       end
     rescue Mismatch, StepRaised => failure
       Quint.send(:name_trace, failure, path)

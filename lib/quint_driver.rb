@@ -60,24 +60,37 @@ module QuintDriver
   module Agreement
     # Raises Mismatch naming each variable where +actual+ differs from
     # +expected+, and the [action, picks] +steps+ the driver ran from init, so
-    # the failure can be run again without the trace file. Compares only the
-    # variables +actual+ reports, and each definition +observe+ names, which
-    # the driver has to report. The model evaluates an observed definition,
+    # the failure can be run again without the trace file. The driver has to
+    # report every variable but those +ignore+ names, and each definition
+    # +observe+ names: a variable it leaves out would otherwise pass however
+    # wrong the system's copy is. The model evaluates an observed definition,
     # also on a trace's state, so its line names the model. +spec+, when the
     # caller has one, tells a name the driver reports that is no variable
     # apart from a definition it forgot to observe.
-    def self.check!(after, expected, actual, by:, steps:, observe: [], spec: nil)
-      compared = actual.keys | observe
-      return if expected.slice(*compared) == actual
+    def self.check!(after, expected, actual, by:, steps:, observe: [], spec: nil, ignore: [])
+      expected, actual = expected.except(*ignore), actual.except(*ignore)
+      return if expected == actual
 
-      lines = compared.reject { expected[_1] == actual[_1] }.map do |name|
+      lines = (actual.keys | expected.keys).reject { expected.key?(_1) && actual.key?(_1) && expected[_1] == actual[_1] }.map do |name|
         next [ by, unknown(name, actual[name], expected.keys - observe, by:, spec:) ] unless expected.key?(name)
 
         source = observe.include?(name) ? "model" : by
-        [ source, "  #{name}: #{source} #{show(expected[name])}, driver #{show(actual[name])}" ]
+        next [ source, "  #{name}: #{source} #{show(expected[name])}, driver #{show(actual[name])}" ] if actual.key?(name)
+
+        fix = observe.include?(name) ? "report it, since observe: names it" : "report it, or name it in ignore: when the driver only reads it"
+        [ source, "  #{name}: #{source} #{show(expected[name])}, but the driver's state leaves #{name} out; #{fix}" ]
       end
       raise Mismatch, "quint: after #{after}, the driver differs from the #{lines.map(&:first).uniq.join(' and the ')}\n" \
                       "#{lines.map(&:last).join("\n")}\n#{ran(steps)}", outside(caller_locations)
+    end
+
+    # A name +ignore+ holds that +names+ lacks is refused, so a misspelt name
+    # reads as one rather than as its variable left out.
+    def self.ignorable!(ignore, names, within)
+      unknown = ignore - names
+      return if unknown.empty?
+
+      refuse "quint: ignore names #{unknown.join(', ')}, which #{unknown.one? ? 'is' : 'are'} not in #{within}; it has #{names.sort.join(', ')}"
     end
 
     def self.unknown(name, reported, names, by:, spec:)

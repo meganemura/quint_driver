@@ -284,10 +284,28 @@ class TraceTest < Minitest::Test
     assert_includes error.message, %(  count: trace {"full" => false, "value" => 0}, driver {"full" => false, "value" => 1}\n)
   end
 
-  def test_a_driver_is_held_only_to_the_variables_it_reports
+  def test_a_driver_that_leaves_out_a_variable_fails_and_names_it
     holder_only = Class.new(LoansDriver) { def state = super.slice("holder") }
 
-    assert_equal 40, replay(holder_only.new)
+    error = assert_raises(QuintDriver::Mismatch) { replay(holder_only.new) }
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the trace\n  outcome: trace "Done", but the driver's state leaves outcome out; report it, or name it in ignore: when the driver only reads it\nsteps:\n/, error.message)
+  end
+
+  # A spec can model the outside world, such as what a remote service
+  # answers, in variables the driver reads to set up the system but cannot
+  # read back from it.
+  def test_a_driver_is_held_to_every_variable_but_those_it_ignores
+    holder_only = Class.new(LoansDriver) { def state = super.slice("holder") }
+    wrong_outcome = Class.new(LoansDriver) { def state = super.merge("outcome" => "Busy") }
+
+    assert_equal 40, replay(holder_only.new, ignore: %w[outcome])
+    assert_equal 40, replay(wrong_outcome.new, ignore: %i[outcome]), "an ignored variable is not compared, and a symbol names it too"
+  end
+
+  def test_ignore_names_only_variables_of_the_state
+    error = assert_raises(ArgumentError) { replay(LoansDriver.new, ignore: %w[outcomes]) }
+
+    assert_equal "quint: ignore names outcomes, which is not in the trace's state; it has holder, outcome", error.message
   end
 
   # A value the spec derives from its variables, such as a total, is in no
@@ -312,7 +330,7 @@ class TraceTest < Minitest::Test
   def test_an_observed_definition_the_driver_does_not_report_fails
     error = assert_raises(QuintDriver::Mismatch) { replay(LoansDriver.new, spec: LoansDriver.spec, observe: %w[two_on_loan]) }
 
-    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  two_on_loan: model false, driver nil\n/, error.message)
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  two_on_loan: model false, but the driver's state leaves two_on_loan out; report it, since observe: names it\n/, error.message)
   end
 
   def test_a_name_the_driver_reports_that_is_not_in_the_trace_s_state_says_so
@@ -340,13 +358,13 @@ class TraceTest < Minitest::Test
 
   def test_a_step_that_names_no_action_is_refused
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
-    silent = Class.new { def step(*) = nil; def state = {} }.new # reports no variable, so only the refusal fails
+    counter = Class.new { def step(action, _) = (@n = action == "init" ? 0 : @n + 1); def state = { "n" => @n } }.new # agrees at init, so only the refusal fails
 
     listed = assert_raises(QuintDriver::Unsupported) { spec.rules("step") }
     assert_equal "quint: step assigns n' in an arm that names no action; name every action in step", listed.message
     error = assert_raises(QuintDriver::Unsupported) do
       QuintDriver::Quint.simulate(ANONYMOUS, traces: 1, max_steps: 2, seed: "1") do |path|
-        QuintDriver::Trace.replay(path, silent)
+        QuintDriver::Trace.replay(path, counter)
       end
     end
     assert_match(/anonymous action/, error.message)

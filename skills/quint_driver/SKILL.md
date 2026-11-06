@@ -75,7 +75,7 @@ end
 - `picks` holds the nondet values by name. A pick the move did not make is absent, and one it made of the spec's own `None` is present as `nil`, so read one an action may go without as `picks["b"]`, which is `nil` then, and one it needs as `picks.fetch("b")`.
 - A refused twin runs the same command. Rescue the domain error into the spec's refusal value.
 - A value the spec derives, a `val` or a `def` without parameters, is in no trace state. To compare one, name it in `observe:` (section 3) and return it from `state` under its name.
-- `state` returns only the variables to compare, as plain values: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one. An Option, a sum type with the cases `None` and `Some`, is `nil` or the value itself.
+- `state` returns every variable of the spec. A variable it leaves out fails the step, so a forgotten one cannot pass. A variable the driver only reads, such as what a remote service answers, goes in `ignore:` (section 3). The values are plain: a set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries one. An Option, a sum type with the cases `None` and `Some`, is `nil` or the value itself.
 
 ## 3. Replay Quint's traces
 
@@ -101,7 +101,16 @@ reached.sort.to_h # => {"borrow" => 214, "borrow_refused" => 283, "give_back" =>
 
 An action that never appears is one no test reached; raise `traces` or `max_steps`, or aim at it with `reach:`.
 
-A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that reports no value for it fails with `driver nil`. The model evaluates the definition, on a replay too, so the line names the model, such as `approvedSum: model 0, driver 15000`. A name `state` reports that is in no state fails as `dueCents: driver 0, but dueCents is not in the trace's state, which has ...`, and when the name is a definition of the spec the line says to name it in `observe:`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
+The driver is held to every variable of the trace's state. One its `state` leaves out fails at the first step, `init`:
+
+```text
+quint: after step 0 `init` {}, the driver differs from the trace
+  count: trace 0, but the driver's state leaves count out; report it, or name it in ignore: when the driver only reads it
+```
+
+A spec can model the world outside the code, such as what a remote service answers, in variables the driver reads to set up its stubs and cannot read back from the code. Name those in `ignore:`, and they are not compared: `Trace.replay(path, driver, ignore: %w[remote jobUp])`, or `QuintDriver.machine(spec, driver:, ignore: %w[remote jobUp])`. A name that is not a variable raises `ArgumentError` with the variables there are.
+
+A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that leaves it out fails with `approvedSum: model 0, but the driver's state leaves approvedSum out; report it, since observe: names it`. The model evaluates the definition, on a replay too, so the line names the model, such as `approvedSum: model 0, driver 15000`. A name `state` reports that is in no state fails as `dueCents: driver 0, but dueCents is not in the trace's state, which has ...`, and when the name is a definition of the spec the line says to name it in `observe:`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
 
 To test the steps that lead to one state, write a definition that holds there and pass its name as `reach:`. Each trace then ends at the first state where it holds, and only the traces that get there are yielded:
 

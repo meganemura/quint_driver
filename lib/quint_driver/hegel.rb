@@ -20,10 +20,13 @@ module QuintDriver
   #
   # +observe+ names definitions of the spec, as Trace.replay takes them: the
   # driver reports each one in its state, held to the model's value.
-  def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule, observe: [])
+  # +ignore+ names variables the driver does not report, as Trace.replay
+  # takes them.
+  def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule, observe: [], ignore: [])
     rules = spec.rules(step)
-    observe = observe.map(&:to_s)
+    observe, ignore = observe.map(&:to_s), ignore.map(&:to_s)
     spec.observable!(observe)
+    Agreement.ignorable!(ignore, spec.declarations.select { _1["kind"] == "var" }.map { _1["name"] }, "the spec's variables")
     # Many draws map to one sequence of moves, so the shrinker asks for the
     # same sequence thousands of times: on one failure, 8818 test cases held
     # 1342 distinct sequences. A sequence the system already agreed on is not
@@ -70,7 +73,7 @@ module QuintDriver
           @driver.step(*init)
           @driver.state
         end
-        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ], observe:, spec:)
+        Agreement.check!(at.(0, init), @start, actual, by: "model", steps: [ init ], observe:, spec:, ignore:)
       end
 
       define_method(:move!) do |action, picks, after|
@@ -89,7 +92,7 @@ module QuintDriver
         end
         last = at.(@numbers.last, @moves.last)
         actual = Agreement.drive(last, steps: [ init, *@moves ]) { @driver.state }
-        Agreement.check!(last, @model.state.merge(@model.observe(observe)), actual, by: "model", steps: [ init, *@moves ], observe:, spec:)
+        Agreement.check!(last, @model.state.merge(@model.observe(observe)), actual, by: "model", steps: [ init, *@moves ], observe:, spec:, ignore:)
         agreed << @moves.dup
       end
 

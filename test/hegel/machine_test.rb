@@ -301,6 +301,18 @@ class MachineTest < Minitest::Test
     end
   end
   
+  def test_the_machine_fails_a_driver_that_leaves_out_a_variable_unless_it_ignores_it
+    holder_only = Class.new(LoansDriver) { def state = super.slice("holder") }
+    leaving = QuintDriver.machine(LoansDriver.spec, driver: -> { holder_only.new })
+    ignoring = QuintDriver.machine(LoansDriver.spec, driver: -> { holder_only.new }, ignore: %w[outcome])
+
+    error = assert_raises(QuintDriver::Mismatch) { Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(leaving.new, tc) } }
+    assert_match(/\Aquint: after step 0 `init` \{\}, the driver differs from the model\n  outcome: model "Done", but the driver's state leaves outcome out; /, error.message)
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(ignoring.new, tc) }
+    error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, ignore: %w[outcomes]) }
+    assert_equal "quint: ignore names outcomes, which is not in the spec's variables; it has holder, outcome", error.message
+  end
+
   def test_a_choice_other_than_rule_or_rotate_raises
     error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, choose: :random) }
 

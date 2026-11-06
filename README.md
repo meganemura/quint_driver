@@ -542,7 +542,7 @@ class LoansDriver
     @outcome = [ "Refused", refusal.reason.to_s ]
   end
 
-  # The spec's variables as plain Ruby values. Only the variables returned here are compared.
+  # Every variable of the spec, as plain Ruby values. One left out fails the step.
   def state
     { "holder" => %w[b1 b2 b3].to_h { [ _1, @loans.holder(_1) || "" ] }, "outcome" => @outcome }
   end
@@ -550,6 +550,8 @@ end
 ```
 
 Plain values: a Quint set is a `Set`, a map a `Hash`, a tuple or a list an `Array`, a record a `Hash` with string keys, and a sum type its tag, or `[tag, value]` when it carries a value. A sum type with the cases `None` and `Some`, an Option, is `nil` for `None` and the value itself for `Some`, on a replay and under the machine alike.
+
+A variable `state` leaves out fails the step and is named, such as `count: trace 0, but the driver's state leaves count out`, so a variable you forgot cannot pass. A spec can model the world outside your code, such as what a remote service answers, in variables the driver only reads to set up its stubs. Name those in `ignore:`, on `Trace.replay` or on `QuintDriver.machine`, and they are not compared.
 
 [examples/loans](examples/loans) has the whole example: the spec, the system, and the driver.
 

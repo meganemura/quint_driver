@@ -604,7 +604,7 @@ class LoansDriver
     @outcome = [ "Refused", refusal.reason.to_s ]
   end
 
-  # 仕様の変数を素の Ruby の値で返します。ここで返した変数だけを比べます。
+  # 仕様の変数をすべて素の Ruby の値で返します。返さない変数があると、そのステップは失敗します。
   def state
     { "holder" => %w[b1 b2 b3].to_h { [ _1, @loans.holder(_1) || "" ] }, "outcome" => @outcome }
   end
@@ -616,6 +616,12 @@ Quint の集合は `Set`、マップは `Hash`、タプルとリストは `Array
 直和型はタグになり、値を持つときは `[タグ, 値]` になります。
 `None` と `Some` の場合を持つ直和型、つまり Option は、`None` なら `nil`、`Some` ならその値そのものです。
 再生でもマシンでも同じです。
+
+`state` が返さない変数があると、そのステップは失敗し、メッセージがその変数を名指しします。
+例えば `count: trace 0, but the driver's state leaves count out` です。
+そのため、返し忘れた変数が通ってしまうことはありません。
+仕様は、リモートのサービスが返す答えのようなコードの外の世界を、変数で表すことがあります。
+ドライバーがスタブを用意するために読むだけの変数は、`Trace.replay` か `QuintDriver.machine` の `ignore:` に名前を渡すと、比べなくなります。
 
 仕様、システム、ドライバーをそろえた例は [examples/loans](examples/loans) にあります。
 
