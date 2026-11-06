@@ -108,7 +108,7 @@ quint: after step 0 `init` {}, the driver differs from the trace
   count: trace 0, but the driver's state leaves count out; report it, or name it in ignore: when the driver only reads it
 ```
 
-A spec can model the world outside the code, such as what a remote service answers, in variables the driver reads to set up its stubs and cannot read back from the code. Name those in `ignore:`, and they are not compared: `Trace.replay(path, driver, ignore: %w[remote jobUp])`, or `QuintDriver.machine(spec, driver:, ignore: %w[remote jobUp])`. A name that is not a variable raises `ArgumentError` with the variables there are.
+A spec can model the world outside the code, such as what a remote service answers, in variables the driver reads to set up its stubs and cannot read back from the code. Name those in `ignore:`, and they are not compared: `Trace.replay(path, driver, ignore: %w[remote jobUp])`, or `QuintDriver.machine(spec, driver:, ignore: %w[remote jobUp])`. A name that is not a variable raises `ArgumentError` with the variables there are. "A driver for code that calls remote services" below shows the whole shape.
 
 A trace holds only the variables, so a definition the spec derives from them, such as a total, is compared only when you observe it: `Trace.replay(path, driver, spec:, observe: %w[approvedSum])`, or `QuintDriver.machine(spec, driver:, observe: %w[approvedSum])`. The driver's `state` reports each observed name beside the variables, and is held to the value the definition has in each state. A driver that leaves it out fails with `approvedSum: model 0, but the driver's state leaves approvedSum out; report it, since observe: names it`. The model evaluates the definition, on a replay too, so the line names the model, such as `approvedSum: model 0, driver 15000`. A name `state` reports that is in no state fails as `dueCents: driver 0, but dueCents is not in the trace's state, which has ...`, and when the name is a definition of the spec the line says to name it in `observe:`. A name that is no `val` or `def` without parameters raises `ArgumentError` with the names the module has. The Rails section below holds a total to one.
 
@@ -533,6 +533,160 @@ QuintDriver::Mismatch:
     init {}
     request {"a" => 15000, "l" => "l1"}
   trace: trace_0.itf.json of Quint.simulate("spec/quint/loan.qnt", traces: 50, max_steps: 12, seed: "1", step: "step", backend: "rust")
+```
+
+### A driver for code that calls remote services
+
+Here a job and a JSON endpoint both ask a carrier's tracking service for a shipment's status:
+
+```ruby
+# app/services/carrier_api.rb: the carrier's tracking service. Specs stub it.
+module CarrierApi
+  class Unavailable < StandardError; end
+
+  def self.status_of(ref) = raise(NotImplementedError, "calls the carrier over HTTP for #{ref}")
+end
+
+# app/models/shipment.rb
+class Shipment < ApplicationRecord
+  # Takes the carrier's status. While the carrier is down, keeps the old one.
+  def sync_status!
+    update!(status: CarrierApi.status_of(ref))
+  rescue CarrierApi::Unavailable
+    false
+  end
+end
+
+# app/jobs/sync_shipment_job.rb
+class SyncShipmentJob < ApplicationJob
+  def perform(shipment) = shipment.sync_status!
+end
+
+# app/controllers/shipments_controller.rb, routed as post "/shipments/:ref/sync"
+class ShipmentsController < ApplicationController
+  def sync
+    shipment = Shipment.find_by!(ref: params[:ref])
+    shipment.sync_status!
+    render json: { ref: shipment.ref, status: shipment.status }
+  end
+end
+```
+
+The spec holds the outside world as variables: `remote`, what the service answers for each shipment, and `carrierUp`, whether it answers at all. The actions `setRemote` and `setCarrierUp` change only those. `calls` counts the calls the code makes, failed ones too, so the spec checks that a call happened, and happened once:
+
+```quint
+// spec/quint/shipment.qnt
+module shipment {
+  pure val REFS = Set("s1", "s2")
+  pure val ANSWERS = Set("in_transit", "delivered")
+
+  var remote: str -> str
+  var carrierUp: bool
+  var status: str -> str
+  var calls: int
+
+  action init = all {
+    remote' = REFS.mapBy(_ => "in_transit"),
+    carrierUp' = true,
+    status' = REFS.mapBy(_ => "pending"),
+    calls' = 0,
+  }
+
+  action setRemote(s: str, a: str): bool = all { remote' = remote.set(s, a), carrierUp' = carrierUp, status' = status, calls' = calls }
+  action setCarrierUp(u: bool): bool = all { carrierUp' = u, remote' = remote, status' = status, calls' = calls }
+
+  action sync(s: str): bool = all {
+    calls' = calls + 1,
+    status' = if (carrierUp) status.set(s, remote.get(s)) else status,
+    remote' = remote,
+    carrierUp' = carrierUp,
+  }
+  action syncByJob(s: str): bool = sync(s)
+  action syncByApi(s: str): bool = sync(s)
+
+  action step = any {
+    nondet s = REFS.oneOf()
+    nondet a = ANSWERS.oneOf()
+    setRemote(s, a),
+    nondet u = Bool.oneOf()
+    setCarrierUp(u),
+    nondet s = REFS.oneOf()
+    syncByJob(s),
+    nondet s = REFS.oneOf()
+    syncByApi(s),
+  }
+}
+```
+
+The driver keeps the world, answers the stubbed calls from it, and counts them. It gets the example, so it can make the request. A response that is not 2xx raises, so an unexpected 4xx or 5xx is a `StepRaised` that names the step, not a mismatch:
+
+```ruby
+# spec/quint/shipment_driver.rb
+class ShipmentDriver
+  REFS = %w[s1 s2].freeze
+
+  # +example+ is the RSpec example, which makes the requests.
+  def initialize(example) = @example = example
+
+  def answer_for(ref)
+    @calls += 1
+    raise CarrierApi::Unavailable unless @carrier_up
+
+    @remote.fetch(ref)
+  end
+
+  def step(action, picks)
+    case action
+    when "init"
+      Shipment.delete_all
+      REFS.each { Shipment.create!(ref: _1) }
+      @remote, @carrier_up, @calls = REFS.to_h { [ _1, "in_transit" ] }, true, 0
+    when "setRemote" then @remote[picks.fetch("s")] = picks.fetch("a")
+    when "setCarrierUp" then @carrier_up = picks.fetch("u")
+    when "syncByJob" then SyncShipmentJob.perform_now(Shipment.find_by!(ref: picks.fetch("s")))
+    when "syncByApi"
+      @example.post "/shipments/#{picks.fetch("s")}/sync"
+      response = @example.response
+      raise "POST answered #{response.status}: #{response.body}" unless response.successful?
+    end
+  end
+
+  # remote and carrierUp are not here: the example names them in ignore:.
+  def state = { "status" => Shipment.pluck(:ref, :status).to_h, "calls" => @calls }
+end
+```
+
+The example stubs the service once, in `before`, with a block that asks the driver. The driver is a `let`, so the stub and the replay share it, and its `init` resets the world for each trace:
+
+```ruby
+# spec/quint/shipment_spec.rb
+require "rails_helper"
+require_relative "shipment_driver"
+
+RSpec.describe "Shipment status held to shipment.qnt", type: :request do
+  let(:driver) { ShipmentDriver.new(self) }
+
+  before { allow(CarrierApi).to receive(:status_of) { |ref| driver.answer_for(ref) } }
+
+  it "follows the carrier through the job and the endpoint" do
+    qnt = Rails.root.join("spec/quint/shipment.qnt")
+    QuintDriver::Quint.simulate(qnt, traces: 30, max_steps: 12, seed: "1") do |path|
+      QuintDriver::Trace.replay(path, driver, ignore: %w[remote carrierUp])
+    end
+  end
+end
+```
+
+Without `ignore:`, the replay fails at `init` and names `carrierUp` and `remote`. Under the machine, pass the same list: `QuintDriver.machine(spec, driver: -> { driver }, ignore: %w[remote carrierUp])`. With a `sync_status!` that retries once while the carrier is down, Hegel shrinks the failure to:
+
+```text
+QuintDriver::Mismatch:
+  quint: after step 2 `syncByJob` {"s" => "s1"}, the driver differs from the model
+    calls: model 1, driver 2
+  steps:
+    init {}
+    setCarrierUp {"u" => false}
+    syncByJob {"s" => "s1"}
 ```
 
 ## Read a failure
