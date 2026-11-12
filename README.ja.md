@@ -520,14 +520,14 @@ rspec ./box_office_spec.rb:20 # BoxOffice sells tickets the way tickets.qnt says
 ```ruby
 # Gemfile
 gem "quint_driver"
-gem "hegeltest", "= 0.4.1" # Hegel アダプターを使うときだけ
+gem "hegeltest", "= 0.5.1" # Hegel アダプターを使うときだけ
 ```
 
 トレース再生とモデルは `require "quint_driver"` で読み込みます。
 必要なのは Ruby 3.3 以降だけで、ほかの gem は要りません。
 
 Hegel アダプターは `require "quint_driver/hegel"` で読み込みます。
-こちらには hegeltest 0.4.1 が必要で、hegeltest は Ruby 3.4 以降を必要とします。
+こちらには hegeltest 0.5.1 が必要で、hegeltest は Ruby 3.4 以降を必要とします。
 この gem は hegeltest に依存しないので、自分の Gemfile に追加してください。
 
 この gem は、[クイックスタート](#gem-を追加する)のとおり、`QUINT` が指す `quint` コマンドを呼びます。

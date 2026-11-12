@@ -479,12 +479,12 @@ The spec is read from Quint's JSON IR and evaluated inside the Ruby process, so 
 ```ruby
 # Gemfile
 gem "quint_driver"
-gem "hegeltest", "= 0.4.1" # only for the Hegel adapter
+gem "hegeltest", "= 0.5.1" # only for the Hegel adapter
 ```
 
 Trace replay and the model load with `require "quint_driver"`. They need Ruby 3.3 or later and no other gem.
 
-The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 0.4.1, which needs Ruby 3.4 or later. The gem does not depend on hegeltest, so add it to your own Gemfile.
+The Hegel adapter loads with `require "quint_driver/hegel"`. It needs hegeltest 0.5.1, which needs Ruby 3.4 or later. The gem does not depend on hegeltest, so add it to your own Gemfile.
 
 The gem calls the `quint` command line that `QUINT` names, as the [quick start](#add-the-gem) shows. Without `QUINT`, the gem runs `npx --yes @informalsystems/quint@0.33.0`. When npx cannot fetch quint, for example offline, the gem raises `QuintDriver::QuintFailed` that says so and asks you to set `QUINT`.
 

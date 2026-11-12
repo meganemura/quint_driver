@@ -9,5 +9,5 @@ end
 
 # Only the Hegel adapter, quint_driver/hegel, loads hegeltest. It needs Ruby 3.4.
 group :hegel do
-  gem "hegeltest", "= 0.4.1"
+  gem "hegeltest", "= 0.5.1"
 end

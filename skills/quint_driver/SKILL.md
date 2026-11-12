@@ -17,7 +17,7 @@ export QUINT=quint
 ```ruby
 # Gemfile
 gem "quint_driver"
-gem "hegeltest", "= 0.4.1" # only for step 5
+gem "hegeltest", "= 0.5.1" # only for step 5
 ```
 
 Steps 1 to 4 need Ruby 3.3 or later and no other gem. Step 5 needs hegeltest, which needs Ruby 3.4 or later. Without `QUINT`, the gem runs `npx --yes @informalsystems/quint@0.33.0`. The gem reads `QUINT` each time it runs quint.
