@@ -35,6 +35,15 @@ jobs:
         with:
           node-version: "24"
       - run: npm install --global @informalsystems/quint@0.33.0
+      # quint asks the GitHub API for its Rust evaluator, and a shared runner
+      # can run out of the API's unauthenticated limit. The release download
+      # is outside that limit.
+      - name: Install the Quint Rust evaluator
+        run: |
+          dir="$HOME/.quint/rust-evaluator-v0.7.0"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 https://github.com/quint-co/quint/releases/download/evaluator/v0.7.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$dir"
+          chmod +x "$dir/quint_evaluator"
       - run: bundle exec bin/test
       - run: bundle exec rspec
 
@@ -56,5 +65,14 @@ jobs:
         with:
           node-version: "24"
       - run: npm install --global @informalsystems/quint@0.33.0
+      # quint asks the GitHub API for its Rust evaluator, and a shared runner
+      # can run out of the API's unauthenticated limit. The release download
+      # is outside that limit.
+      - name: Install the Quint Rust evaluator
+        run: |
+          dir="$HOME/.quint/rust-evaluator-v0.7.0"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 https://github.com/quint-co/quint/releases/download/evaluator/v0.7.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$dir"
+          chmod +x "$dir/quint_evaluator"
       - run: bundle exec bin/test test/*_test.rb
       - run: bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
