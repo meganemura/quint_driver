@@ -144,9 +144,11 @@ module QuintDriver
     # the driver's, the system's, or the test's: RSpec hides the frames of an
     # installed gem, but not of one a Gemfile loads from a path, and Minitest
     # hides none. Hegel groups the failures it shrinks by the first frame, so
-    # the frames stay Locations where Ruby can set them, from 3.4 on.
+    # the frames stay Locations where Ruby can set them, from 3.4 on. Ruby's
+    # own <internal:...> frames go too: on 3.4 a Kernel method written in
+    # Ruby, between Hegel's frames and the test's, would lead otherwise.
     def self.outside(frames)
-      kept = frames.reject { _1.to_s.start_with?(*@hidden) }
+      kept = frames.reject { _1.to_s.start_with?(*@hidden, "<internal:") }
       kept = frames if kept.empty?
       RUBY_VERSION >= "3.4" ? kept : kept.map(&:to_s)
     end
