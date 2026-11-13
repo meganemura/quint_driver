@@ -1,0 +1,73 @@
+--- a/app/controllers/assignments_controller.rb
++++ b/app/controllers/assignments_controller.rb
+@@ -10,6 +10,7 @@
+       flash.notice = "#{parcel.label} is in compartment #{compartment.number}."
+     rescue LockerApi::TimedOut
+       flash.alert = "Compartment #{compartment.number} did not answer. Try again."
++      raise ActiveRecord::Rollback
+     end
+     redirect_to parcels_path
+   end
+--- a/app/controllers/releases_controller.rb
++++ b/app/controllers/releases_controller.rb
+@@ -9,6 +9,7 @@
+       flash.notice = "#{parcel.label} was collected. Compartment #{number} is free."
+     rescue LockerApi::TimedOut
+       flash.alert = "Compartment #{number} did not answer. Try again."
++      raise ActiveRecord::Rollback
+     end
+     redirect_to parcels_path
+   end
+--- a/app/jobs/intake_job.rb
++++ b/app/jobs/intake_job.rb
+@@ -6,8 +6,8 @@
+   retry_on LockerApi::TimedOut, wait: 1.minute, attempts: 10
+ 
+   def perform(intake)
+-    intake.rows.each do |row|
+-      row.update(status: assign(row.parcel) ? "done" : "failed")
++    intake.rows.where(status: "pending").each do |row|
++      row.update!(status: assign(row.parcel) ? "done" : "failed")
+     end
+     intake.update!(finished_at: Time.current)
+   end
+--- a/app/models/intake_row.rb
++++ b/app/models/intake_row.rb
+@@ -6,6 +6,6 @@
+   belongs_to :intake
+   belongs_to :parcel
+ 
+-  validates :parcel, presence: true
++  validates :parcel, presence: true, on: :create
+   validates :status, inclusion: { in: STATUSES }
+ end
+--- a/spec/quint/depot.qnt
++++ b/spec/quint/depot.qnt
+@@ -43,7 +43,7 @@
+     all {
+       place.get(p) == Waiting,
+       c != 0,
+-      place' = place.set(p, In(c)),
++      place' = if (c == offline) place else place.set(p, In(c)),
+       live' = if (c == offline) live else live.union(Set(c)),
+       row' = row, intake' = intake, everDone' = everDone,
+     }
+@@ -54,7 +54,7 @@
+     val c = match place.get(p) { | In(n) => n | _ => 0 }
+     all {
+       c != 0,
+-      place' = place.set(p, Collected),
++      place' = if (c == offline) place else place.set(p, Collected),
+       live' = if (c == offline) live else live.exclude(Set(c)),
+       row' = row, intake' = intake, everDone' = everDone,
+     }
+@@ -78,8 +78,7 @@
+   // One row's turn in a run of the job. A time-out raises, which ends the run.
+   def turn(job: Job, p: str, offline: int): Job = {
+     val c = firstFree(job.place)
+-    if (job.raised or job.row.get(p) == "") job
+-    else if (job.place.get(p) == Withdrawn) job
++    if (job.raised or job.row.get(p) != "pending") job
+     else if (job.place.get(p) != Waiting or c == 0) { ...job, row: job.row.set(p, "failed") }
+     else if (c == offline) { ...job, raised: true }
+     else { ...job, place: job.place.set(p, In(c)), live: job.live.union(Set(c)), row: job.row.set(p, "done") }
