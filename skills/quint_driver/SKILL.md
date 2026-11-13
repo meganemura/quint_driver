@@ -7,6 +7,8 @@ description: Use when testing a Ruby system against a Quint spec with the quint_
 
 quint_driver runs a Ruby system the way a Quint spec says and compares the two after every step. You write the spec and a driver. Quint or Hegel chooses the steps. A disagreement raises `QuintDriver::Mismatch` with the steps that reproduce it.
 
+In a Rails app, take this path: pick code from "Choose a target", write its actions and expectations as "Hunt for bugs" says and shape them by section 1, print a driver to fill with `bundle exec quint_driver outline spec/quint/<name>.qnt` (section 2), write the driver and the example as "In a Rails app with RSpec" shows, then aim `violate:` at each expectation and read each `Violated` as "Hunt for bugs" says.
+
 ## Install
 
 ```sh
