@@ -16,6 +16,7 @@ The spec is evaluated in the Ruby process (`Model`), and the model is held to Qu
 - `skills/quint_driver/` is the agent skill that ships with the repository.
 - `examples/loans/` is a small spec, a system, a broken system, and their driver. The tests use it.
 - `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework. The Hegel tests are in `test/hegel/` and `spec/hegel/`; the rest is the core.
+- `test/fixture/depot/` is a small Rails app with a Gemfile and a lock of its own, and the gem does not ship it. It has four bugs planted, and nothing under its `app/` may say so: the list is in `test/depot_test.rb` and at the top of `spec/quint/depot_spec.rb`. Its `spec/quint/` hunts for them the way an agent would in an app of its own, and `fixed.patch` takes them out of the app and out of the actions of `depot.qnt`.
 
 ## Visibility
 
@@ -39,4 +40,5 @@ Do not reference private tools, private repositories, or internal working docume
 - `bundle exec rspec` runs the RSpec suite.
 - Both run `quint`. Set `QUINT` to a local command; without it the library runs `npx --yes @informalsystems/quint@0.33.0`.
 - The core (everything but `hegel.rb`) keeps Ruby 3.3 as its floor: `BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb` on Ruby 3.3. The Hegel adapter needs Ruby 3.4, as hegeltest does.
+- `test/depot_test.rb` runs the depot's specs on a copy of the app, as committed and with `fixed.patch` applied. It needs the depot's gems, so it skips until `bundle install` has run in `test/fixture/depot`. `QUINT_DRIVER_DEPOT=required` turns that skip into a failure, as CI's `depot` job does.
 - `skills/quint_driver/SKILL.md` is the usage skill for an agent. A change to the API, a spec shape rule, or a failure message changes it in the same commit. Run every command and code block in it before you change it, and paste failure output from a real run.
