@@ -322,7 +322,7 @@ To delete the rows in the driver's `init` instead of a savepoint, and for the re
 
 ## Hunt for bugs
 
-To find bugs, not to pin one model, write two things in the spec. Actions describe what the code does now, quirks included, so the app follows every trace. Boolean `val`s describe what the operator expects, and the code may break them. Then aim Quint at each expectation with `violate:`, and replay its traces with the same name in `invariants:`:
+To find bugs, not to pin one model, write two things in the spec. Actions describe what the code does now, quirks included, so the app follows every trace. Give an action that calls an outside service a pick that says which call fails, so a trace also runs the app's rescue. Boolean `val`s describe what the operator expects, and the code may break them. Then aim Quint at each expectation with `violate:`, and replay its traces with the same name in `invariants:`:
 
 ```ruby
   expectations.each do |expectation|

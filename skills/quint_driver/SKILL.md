@@ -60,6 +60,47 @@ A hunt looks for a state the code reaches and the operator does not expect. Keep
   val finished_job_leaves_no_row_pending = intake == "finished" implies PARCELS.forall(p => row.get(p) != "pending")
 ```
 
+Bugs hide where an outside call fails, so give each action that calls out a pick that says which call fails. The depot's pages call a locker controller, and `offline` names the compartment whose call times out; `OFFLINE` holds every compartment and `0`, so a step may also find every call answered:
+
+```quint
+  pure val OFFLINE = COMPARTMENTS.union(Set(0))
+```
+
+```quint
+  action release(p: str, offline: int): bool = {
+    val c = match place.get(p) { | In(n) => n | _ => 0 }
+    all {
+      c != 0,
+      place' = place.set(p, Collected),
+      live' = if (c == offline) live else live.exclude(Set(c)),
+      row' = row, intake' = intake, everDone' = everDone,
+    }
+```
+
+The example stubs the outside service with the driver, and the driver fails the call the step picked, so the app's own rescue runs as it would in production:
+
+```ruby
+  before do
+    allow(LockerApi).to receive(:register) { |number, code| driver.register(number, code) }
+    allow(LockerApi).to receive(:revoke) { |number| driver.revoke(number) }
+  end
+```
+
+```ruby
+  def register(number, code) = online(number) { @codes[number] = code }
+  def revoke(number) = online(number) { @codes.delete(number) }
+```
+
+```ruby
+    def online(number)
+      raise LockerApi::TimedOut if number == @offline
+
+      yield
+    end
+```
+
+A failure that is a pick of the action, and not an action of its own, lands inside the step that calls out, which is where a rescue in the wrong place does its harm. When the service stays down across steps, model it as a variable instead, as "A driver for code that calls remote services" does.
+
 Its `spec/quint/depot_spec.rb` runs one simulation per expectation, and the Hegel machine with all of them:
 
 ```ruby

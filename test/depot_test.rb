@@ -138,7 +138,7 @@ class DepotTest < Minitest::Test
   # quint or ruby block is a part of a file the depot runs, and each text
   # block is the message the planted app raised, without its trace line.
   def test_the_docs_quote_the_depot_and_the_violated_it_raises
-    hunt = File.read(File.join(FIXTURE, "spec/quint/depot_spec.rb")) + File.read(File.join(FIXTURE, "spec/quint/depot.qnt"))
+    hunt = %w[depot_spec.rb depot.qnt depot_driver.rb].sum("") { File.read(File.join(FIXTURE, "spec/quint", _1)) }
     { "skills/quint_driver/SKILL.md" => "## Hunt for bugs", "README.md" => "## Hunt for bugs", "README.ja.md" => "## バグを探す" }.each do |doc, heading|
       section = File.read(File.join(ROOT, doc), encoding: "UTF-8")[/^#{heading}\n(.*?)(?=^## )/m, 1]
       assert section, "#{doc} has no #{heading} section"
