@@ -1,0 +1,14 @@
+source "https://rubygems.org"
+
+gem "rails", "8.1.4.1"
+gem "sqlite3", "2.10.2"
+
+group :development, :test do
+  gem "rspec-rails", "8.0.4"
+  gem "factory_bot_rails", "6.5.1"
+end
+
+group :test do
+  gem "quint_driver", path: "../../..", require: false
+  gem "hegeltest", "0.5.1", require: false
+end

@@ -1,0 +1,36 @@
+<h1>Parcels</h1>
+<p><%= pluralize(@free, "compartment") %> free</p>
+
+<table>
+  <% @parcels.each do |parcel| %>
+    <tr>
+      <td><%= parcel.label %></td>
+      <% if parcel.compartment %>
+        <td>compartment <%= parcel.compartment.number %></td>
+        <td><%= button_to "Collected", parcel_release_path(parcel) %></td>
+      <% elsif parcel.collected_at %>
+        <td colspan="2">collected <%= time_ago_in_words(parcel.collected_at) %> ago</td>
+      <% else %>
+        <td>waiting</td>
+        <td>
+          <%= button_to "Assign", parcel_assignment_path(parcel) %>
+          <%= button_to "Withdraw", parcel_withdrawal_path(parcel) %>
+        </td>
+      <% end %>
+    </tr>
+  <% end %>
+</table>
+
+<h2>Intake</h2>
+<% if @intake %>
+  <p>
+    Intake <%= @intake.id %>:
+    <%= @intake.rows.pluck(:status).tally.map { |status, count| "#{count} #{status}" }.to_sentence %>,
+    <%= @intake.finished_at ? "finished" : "running" %>
+  </p>
+<% end %>
+<%= form_with url: intakes_path do |form| %>
+  <%= form.label :manifest, "Manifest, one label per line" %>
+  <%= form.textarea :manifest %>
+  <%= form.submit "Start intake" %>
+<% end %>

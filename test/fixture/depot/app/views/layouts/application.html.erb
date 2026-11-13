@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Depot</title>
+    <%= csrf_meta_tags %>
+  </head>
+  <body>
+    <% flash.each do |kind, message| %>
+      <p class="<%= kind %>"><%= message %></p>
+    <% end %>
+    <%= yield %>
+  </body>
+</html>
