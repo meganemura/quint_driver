@@ -732,6 +732,18 @@ quint_driver はほかの名前を受け取りません。
 代わりに、モジュールに `action init = begin` を足してください。
 quint_driver が投げる `ArgumentError` のバックトレースは、それを呼んだあなたの行から始まり、その前に quint_driver のフレームはありません。
 
+期待（expectation）とは、すべての状態で成り立つべき述語です。
+例えば `val one_book_each = MEMBERS.forall(m => BOOKS.filter(b => holder.get(b) == m).size() <= 1)` です。
+その名前を、`spec:` と一緒に `Trace.replay` の `invariants:` に渡します。
+各ステップでドライバーが仕様と一致したことを確かめたあと、モデルがそのステップの状態で期待を評価します。
+偽になったときは `QuintDriver::Violated` を投げます。
+これは `Mismatch` ではないので、`rescue QuintDriver::Mismatch` では捕まえません。
+システムはどのステップでも仕様と一致したのに、それでも期待が成り立たない、という意味です。
+メッセージは、``quint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step 4 `borrow` {"b" => "b3", "m" => "m2"}`` のように期待とステップを示します。
+続けて `Mismatch` と同じく `init` からの手順を並べ、その状態での仕様の変数を `state:` の下に示し、同じ `trace:` の行で終わります。
+述語でない名前を渡すと、最初のステップの前に `ArgumentError` を投げます。
+`spec:` なしで `invariants:` を渡したときも同じです。
+
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。
 quint test は `mbt::actionTaken` を書かないので、仕様は各ステップが取ったアクションを自分で記録する必要があります。

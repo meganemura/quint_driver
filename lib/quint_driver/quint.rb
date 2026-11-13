@@ -182,22 +182,28 @@ module QuintDriver
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }.fetch("declarations")
       kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
-      wanted = { "step" => [ step, "an action", "an action without parameters" ],
-                 "reach" => [ reach, "a predicate", "a predicate, a boolean val or def without parameters" ] }
-      refuse = lambda do |argument, what|
-        name, kind, takes = wanted.fetch(argument)
-        such_as = kinds.select { |of_name, of| of == kind && of_name != "init" && !of_name.start_with?("q::") }.keys.sort.join(", ")
-        Agreement.refuse "quint: #{argument} names #{name}, #{what}; #{argument} takes #{takes}, such as #{such_as}"
-      end
+      wanted = { "step" => [ step, "an action" ], "reach" => [ reach, "a predicate" ] }
       wanted.each do |argument, (name, kind)|
-        refuse.(argument, "#{kinds[name]} of #{ir['main']}") if kinds.key?(name) && kinds[name] != kind
+        misnamed(argument, name, "#{kinds[name]} of #{ir['main']}", kind, kinds) if kinds.key?(name) && kinds[name] != kind
       end
       lambda do |output|
         unfound = output[/\[QNT404\] Name '(.+)' not found/, 1]
         Agreement.refuse(without_init(ir["main"])) if unfound == "init"
-        argument, = wanted.find { |_, (name)| name == unfound } if unfound
-        refuse.(argument, "which #{ir['main']} neither declares nor imports") if argument
+        argument, (name, kind) = wanted.find { |_, (wanted_name)| wanted_name == unfound } if unfound
+        misnamed(argument, name, "which #{ir['main']} neither declares nor imports", kind, kinds) if argument
       end
+    end
+
+    # What an argument that names a declaration of +kind+ takes, in words.
+    TAKES = { "an action" => "an action without parameters", "a predicate" => "a predicate, a boolean val or def without parameters" }.freeze
+    private_constant :TAKES
+
+    # Raises ArgumentError: +argument+ names +name+, which is +what+, and
+    # takes a declaration of +kind+. +kinds+ holds the kind of each name of
+    # the module, so the message lists the names that fit.
+    def self.misnamed(argument, name, what, kind, kinds)
+      such_as = kinds.select { |of_name, of| of == kind && of_name != "init" && !of_name.start_with?("q::") }.keys.sort.join(", ")
+      Agreement.refuse "quint: #{argument} names #{name}, #{what}; #{argument} takes #{TAKES.fetch(kind)}, such as #{such_as}"
     end
 
     # Quint's own --init could name another action, but a trace names its
@@ -208,10 +214,10 @@ module QuintDriver
         "and every model at init, so declare `action init = ...` with what starts #{main}"
     end
 
-    # What a declaration is, as a step or a reach has to tell: a variant
-    # quint declares as a val, or as a def when it carries a value. A val and
-    # a def without parameters both read as a value: the keyword changes
-    # nothing a step or a reach needs.
+    # What a declaration is, as a step, a reach, or an invariant has to
+    # tell: a variant quint declares as a val, or as a def when it carries a
+    # value. A val and a def without parameters both read as a value: the
+    # keyword changes nothing any of them needs.
     def self.kind_of(declaration, types)
       expr = declaration["expr"] || {}
       lambda = expr["kind"] == "lambda"
@@ -266,7 +272,7 @@ module QuintDriver
       traces.each do |trace|
         @written[trace] = { seed:, written_by: }
         yield trace
-      rescue Mismatch, StepRaised => failure
+      rescue NamedTrace => failure
         name_trace(failure, trace)
         raise
       ensure
@@ -378,6 +384,7 @@ module QuintDriver
     # caller's, so its frame leads, as a refused argument's does.
     def self.failed(message) = Agreement.refuse(message, QuintFailed)
 
-    private_class_method :call, :capture, :compile_now, :evaluator_input, :failed, :imported_names, :kind_of, :name_trace, :renamed, :runnable!, :sources, :without_init, :write_traces, :yield_traces
+    private_class_method :call, :capture, :compile_now, :evaluator_input, :failed, :imported_names, :kind_of, :misnamed, :name_trace, :renamed, :runnable!,
+                         :sources, :without_init, :write_traces, :yield_traces
   end
 end

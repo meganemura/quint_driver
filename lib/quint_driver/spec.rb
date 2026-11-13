@@ -20,6 +20,7 @@ module QuintDriver
       @declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
                         .reject { _1["name"].to_s.start_with?("q::") }
       @effects = ir.fetch("effects")
+      @types = ir.fetch("types")
       @main = main
     end
 
@@ -33,6 +34,17 @@ module QuintDriver
     def observable!(names)
       name = names.find { !observable.include?(_1) } or return
       Agreement.refuse "quint: observe names #{name}, which is no definition without parameters of #{@main}; it has #{observable.sort.join(', ')}"
+    end
+
+    # Raises ArgumentError unless each of +names+ is a predicate, a boolean
+    # val or def without parameters, as +argument+, such as invariants,
+    # takes one. A name of another kind would read as an expectation that
+    # never holds, or that the model cannot evaluate.
+    def predicates!(names, argument)
+      @kinds ||= declarations.select { _1["name"] }.to_h { [ _1["name"], Quint.send(:kind_of, _1, @types) ] }
+      name = names.find { @kinds[_1] != "a predicate" } or return
+      what = @kinds.key?(name) ? "#{@kinds[name]} of #{@main}" : "which #{@main} neither declares nor imports"
+      Quint.send(:misnamed, argument, name, what, "a predicate", @kinds)
     end
 
     # The definition that writes each IR node, by node id, so the model names

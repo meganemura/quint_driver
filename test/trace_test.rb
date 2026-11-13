@@ -7,6 +7,7 @@ require "json"
 class TraceTest < Minitest::Test
   ANONYMOUS = File.expand_path("anonymous.qnt", __dir__)
   RECORDED = File.expand_path("recorded.qnt", __dir__)
+  UNLIMITED = File.expand_path("unlimited.qnt", __dir__)
   GEM_FRAME = /\A#{Regexp.escape(File.expand_path("../lib", __dir__))}\//
 
   # Runs Loans from recorded.qnt, whose one variable s holds the books and
@@ -367,6 +368,132 @@ class TraceTest < Minitest::Test
     assert_equal "quint: observe needs spec:, the Spec that evaluates two_on_loan, one_book_each", error.message
   end
 
+  # unlimited.qnt models BrokenLoans as written, so the system agrees with
+  # it at every step while one member borrows two books.
+  def test_an_expectation_that_breaks_where_the_system_agrees_raises_violated_with_the_steps_and_the_state
+    Dir.mktmpdir do |dir|
+      trace = lending_trace(dir, [ [ "borrow", { "m" => "m1", "b" => "b1" } ], [ "borrow", { "m" => "m1", "b" => "b2" } ] ])
+
+      error = assert_raises(QuintDriver::Violated) do
+        QuintDriver::Trace.replay(trace, LoansDriver.new(BrokenLoans), spec: unlimited, invariants: %w[lent_to_members one_book_each])
+      end
+      line = __LINE__ - 2
+      assert_equal <<~MESSAGE.chomp, error.message
+        quint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step 2 `borrow` {"b" => "b2", "m" => "m1"}
+        steps:
+          init {}
+          borrow {"b" => "b1", "m" => "m1"}
+          borrow {"b" => "b2", "m" => "m1"}
+        state:
+          holder: {"b1" => "m1", "b2" => "m1", "b3" => ""}
+          outcome: "Done"
+        trace: #{trace}
+      MESSAGE
+      assert_equal [ trace, nil, nil ], [ error.trace, error.seed, error.written_by ]
+      refute_kind_of QuintDriver::Mismatch, error
+      assert error.backtrace.first.start_with?("#{__FILE__}:#{line}:"), "the first frame calls replay"
+      assert_empty error.backtrace.grep(GEM_FRAME)
+    end
+  end
+
+  def test_expectations_that_break_in_one_state_are_named_together
+    Dir.mktmpdir do |dir|
+      moves = [ [ "borrow", { "m" => "m1", "b" => "b1" } ], [ "borrow", { "m" => "m2", "b" => "b2" } ], [ "borrow", { "m" => "m2", "b" => "b3" } ] ]
+
+      error = assert_raises(QuintDriver::Violated) do
+        QuintDriver::Trace.replay(lending_trace(dir, moves), LoansDriver.new(BrokenLoans), spec: unlimited, invariants: %i[one_on_the_shelf one_book_each])
+      end
+      assert_equal "quint: the system agreed with the spec at every step, and the expectations `one_on_the_shelf` and `one_book_each` " \
+                   "do not hold after step 3 `borrow` {\"b\" => \"b3\", \"m\" => \"m2\"}\n", error.message.lines.first
+    end
+  end
+
+  def test_an_expectation_is_checked_at_init_too
+    error = assert_raises(QuintDriver::Violated) { replay(LoansDriver.new, spec: LoansDriver.spec, invariants: %w[two_on_loan]) }
+
+    assert_match(/\Aquint: the system agreed with the spec at every step, and the expectation `two_on_loan` does not hold after step 0 `init` \{\}\n/, error.message)
+    assert_match(/\nsteps:\n  init \{\}\nstate:\n  holder: \{"b1" => "", "b2" => "", "b3" => ""\}\n  outcome: "Done"\ntrace: /, error.message)
+  end
+
+  # The agreement check runs first, so where the system disagrees with the
+  # spec on the step that breaks the expectation, that is a Mismatch.
+  def test_a_system_that_disagrees_where_an_expectation_breaks_fails_with_a_mismatch
+    Dir.mktmpdir do |dir|
+      trace = lending_trace(dir, [ [ "borrow", { "m" => "m1", "b" => "b1" } ], [ "borrow", { "m" => "m1", "b" => "b2" } ] ])
+
+      error = assert_raises(QuintDriver::Mismatch) { QuintDriver::Trace.replay(trace, LoansDriver.new(Loans), spec: unlimited, invariants: %w[one_book_each]) }
+      assert_match(/\Aquint: after step 2 `borrow` \{"b" => "b2", "m" => "m1"\}, the driver differs from the trace\n/, error.message)
+      assert_includes error.message, %(  outcome: trace "Done", driver ["Refused", "limit_reached"]\n)
+    end
+  end
+
+  def test_a_violated_expectation_inside_simulate_names_the_trace_and_is_not_caught_as_a_mismatch
+    inside = nil
+    error = assert_raises(QuintDriver::Violated) do
+      QuintDriver::Quint.simulate(UNLIMITED, traces: 30, max_steps: 10, seed: "1") do |path|
+        QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans), spec: unlimited, invariants: %w[one_book_each])
+      rescue QuintDriver::Mismatch
+        flunk "a Violated is no Mismatch"
+      rescue QuintDriver::Violated => violated
+        inside = violated.message
+        raise
+      end
+    end
+
+    call = %(Quint.simulate("test/unlimited.qnt", traces: 30, max_steps: 10, seed: "1", step: "step", backend: "rust"))
+    assert_equal [ "1", call ], [ error.seed, error.written_by ]
+    assert_equal "trace: #{File.basename(error.trace)} of #{call}", error.message.lines.last
+    assert_equal inside, error.message
+    assert_match(/\Aquint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step \d+ `borrow` /, error.message)
+  end
+
+  # The state is the trace's, and the steps run from init, so running them
+  # on a new driver reaches the state the message shows.
+  def test_the_steps_of_a_violated_expectation_reach_the_state_it_shows
+    broken = []
+    QuintDriver::Quint.simulate(UNLIMITED, traces: 30, max_steps: 10, seed: "1") do |path|
+      QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans), spec: unlimited, invariants: %w[one_book_each])
+    rescue QuintDriver::Violated => error
+      broken << error
+    end
+
+    assert_operator broken.size, :>, 1
+    broken.each do |error|
+      driver = LoansDriver.new(BrokenLoans)
+      error.message[/^steps:\n((?:  .*\n)+)/, 1].lines.each do |move|
+        action, picks = move.strip.split(" ", 2)
+        driver.step(action, picks.scan(/"(\w+)" => "(\w+)"/).to_h)
+      end
+      shown = error.message[/^state:\n((?:  .*\n)+)/, 1]
+      holder = driver.state["holder"].sort.map { |book, member| "#{book.inspect} => #{member.inspect}" }.join(", ")
+      assert_equal "  holder: {#{holder}}\n  outcome: #{driver.state["outcome"].inspect}\n", shown
+      refute(driver.state["holder"].values.reject(&:empty?).tally.values.all? { _1 <= 1 }, "a member holds two books")
+    end
+  end
+
+  def test_an_expectation_that_holds_in_every_state_replays_every_trace
+    assert_equal 40, replay(LoansDriver.new, spec: LoansDriver.spec, invariants: %i[one_book_each])
+  end
+
+  def test_invariants_name_only_predicates_and_need_the_spec_before_the_first_step_runs
+    ran = []
+    recording = Class.new(LoansDriver) { define_method(:step) { |action, picks| ran << action; super(action, picks) } }
+    predicates = "invariants takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan"
+    { %w[borrow] => "invariants names borrow, an action with parameters of loans; #{predicates}",
+      %w[one_book_each BOOKS] => "invariants names BOOKS, a set value of loans; #{predicates}",
+      %w[onLoan] => "invariants names onLoan, a def with parameters of loans; #{predicates}",
+      %w[Done] => "invariants names Done, a case of a sum type of loans; #{predicates}",
+      %w[holder] => "invariants names holder, a variable of loans; #{predicates}",
+      %w[two_lent] => "invariants names two_lent, which loans neither declares nor imports; #{predicates}" }.each do |invariants, message|
+      error = assert_raises(ArgumentError) { replay(recording.new, spec: LoansDriver.spec, invariants:) }
+      assert_equal "quint: #{message}", error.message
+      assert error.backtrace.first.start_with?("#{__FILE__}:"), error.backtrace.first
+    end
+    error = assert_raises(ArgumentError) { replay(recording.new, invariants: %w[one_book_each]) }
+    assert_equal "quint: invariants needs spec:, the Spec that evaluates one_book_each", error.message
+    assert_empty ran
+  end
+
   def test_a_step_that_names_no_action_is_refused
     spec = QuintDriver::Spec.new(ANONYMOUS, main: "anonymous")
     counter = Class.new { def step(action, _) = (@n = action == "init" ? 0 : @n + 1); def state = { "n" => @n } }.new # agrees at init, so only the refusal fails
@@ -507,4 +634,22 @@ class TraceTest < Minitest::Test
       count
     end
     REPLAY_LINE = __LINE__ - 5
+
+    def unlimited = QuintDriver::Spec.new(UNLIMITED, main: "unlimited")
+
+    # A trace of unlimited.qnt as `quint run --mbt` writes one: each move,
+    # [action, picks], borrows or gives back a book, and every outcome is
+    # Done.
+    def lending_trace(dir, moves)
+      holder = { "b1" => "", "b2" => "", "b3" => "" }
+      none = { "tag" => "None", "value" => { "#tup" => [] } }
+      states = [ [ "init", {} ], *moves ].map do |action, picks|
+        holder = holder.merge(picks["b"] => action == "borrow" ? picks["m"] : "") unless action == "init"
+        { "mbt::actionTaken" => action,
+          "mbt::nondetPicks" => %w[b m].to_h { [ _1, picks.key?(_1) ? { "tag" => "Some", "value" => picks[_1] } : none ] },
+          "holder" => { "#map" => holder.to_a },
+          "outcome" => { "tag" => "Done", "value" => { "#tup" => [] } } }
+      end
+      File.join(dir, "lending.itf.json").tap { File.write(_1, JSON.generate("states" => states)) }
+    end
 end

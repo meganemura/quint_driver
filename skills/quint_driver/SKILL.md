@@ -123,6 +123,8 @@ end
 
 One of those traces runs `init give_back_refused borrow borrow`. When no trace gets there, `Quint.simulate` raises `QuintDriver::QuintFailed`: `quint: no trace of 20 reached two_on_loan within 1 steps; raise max_steps or traces`. Raise `max_steps` or `traces` then. `reach:` takes a predicate (a boolean `val` or `def` without parameters) and `step:` an action without parameters; a name of another kind, such as an action as `reach:`, raises `ArgumentError` before quint runs, and the message lists the names that fit. A name the module neither declares nor imports, such as a typo, raises the same `ArgumentError` once quint has run: `quint: step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step`. `reach:` needs the default `backend: "rust"`. quint 0.33.0's typescript backend runs a trace on past the state where the definition first holds, and marks traces that never get there as ones that do, so `reach:` with `backend: "typescript"` raises `ArgumentError` before quint runs.
 
+An expectation is a predicate that should hold in every state, such as `val one_book_each = MEMBERS.forall(m => BOOKS.filter(b => holder.get(b) == m).size() <= 1)`. Name it in `invariants:` with `spec:`: `Trace.replay(path, driver, spec:, invariants: %w[one_book_each])`. The model evaluates each one in each state of the trace, after the step's agreement check, and one that is false raises `QuintDriver::Violated` (see Read a failure). A name that is no predicate raises `ArgumentError` before the first step, with the predicates the module has, and so does `invariants:` without `spec:`.
+
 To replay a named run (`run lendTest = init.then(...)`), use `Quint.test`. quint test writes no `mbt::actionTaken`, so the spec must record each step's action in a variable, as a sum type whose tag names the action and whose record holds its picks, the way a Choreo spec records it. Pass that variable's path as `action:`, and the path to the state the driver answers for as `state:`:
 
 ```ruby
@@ -913,6 +915,23 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
   ```
 
   Under Hegel the line reads the same, and the number is the one Hegel's report gives the move (`Step 1: borrow`). A rule Hegel rejected counts too, so the number can be larger than the moves under `steps:`. A failure while the `driver:` lambda makes the driver, or at its first state, reads ``quint: at step 0 `init` {}, ...``, as on a replay. The machine makes its driver when it starts, so Hegel's report for that failure lists no step.
+- A `QuintDriver::Violated` is not a `Mismatch`, and `rescue QuintDriver::Mismatch` does not catch it: the system agreed with the spec at every step, and an expectation that `invariants:` names does not hold in the state they reached. The first line names the expectation and the step, `steps:` lists the steps from `init`, `state:` gives the spec's variables in that state, and `trace:` names the trace as for a `Mismatch`. Here `test/unlimited.qnt` in this repository models `BrokenLoans` as written, which lends a member a second book, and `LoansDriver.new(BrokenLoans)` replays its traces with `invariants: %w[one_book_each]`:
+
+  ```text
+  quint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step 4 `borrow` {"b" => "b3", "m" => "m2"}
+  steps:
+    init {}
+    borrow {"b" => "b2", "m" => "m2"}
+    give_back {"b" => "b2"}
+    borrow {"b" => "b2", "m" => "m2"}
+    borrow {"b" => "b3", "m" => "m2"}
+  state:
+    holder: {"b1" => "", "b2" => "m2", "b3" => "m2"}
+    outcome: "Done"
+  trace: trace_1.itf.json of Quint.simulate("test/unlimited.qnt", traces: 30, max_steps: 10, seed: "1", step: "step", backend: "rust")
+  ```
+
+  Expectations that break in one state are named together, as ``the expectations `one_on_the_shelf` and `one_book_each` do not hold``.
 - Under Hegel, there is no seed: Hegel's report ends with `To reproduce this failure, pass the blob below to Hegel.test:` and a blob. Pass it as `Hegel.test(reproduce_failure: "...")` to run that one case again with the same message.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 
@@ -920,6 +939,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
 | --- | --- |
 | `QuintDriver::Mismatch` | The system and the spec disagree, or the model cannot take a move a trace took, such as a pick its domain does not hold. |
 | `QuintDriver::StepRaised` | The driver's `step` or `state`, the system it called, or the `driver:` lambda raised. `raised in:` names your project's frame. `cause` holds the error. |
+| `QuintDriver::Violated` | The system agreed with the spec at every step, and an expectation that `invariants:` names does not hold. The message names it, lists the steps from `init`, and gives the state where it broke. |
 | `QuintDriver::Unsupported` | The spec uses an operator the model does not evaluate, a move names no action of `step`, or a move lacks a pick its action needs. |
 | `ArgumentError` | `QuintDriver.machine`'s `step:`, or `spec.rules`, names no action of the module. The message lists the actions it has. Or the module has no action named `init`: every trace, model, and machine starts there, and no option names another, so add `action init = <the action that starts it>` to the spec. Its backtrace starts at your line that made the call. |
 | `QuintDriver::QuintFailed` | quint rejected the spec (a failure at the flattening stage can come from another module of the file, as quint flattens every one), `main:` names no module of the file (the message lists the modules it has), the `QUINT` command is not installed, `QUINT` is unset and npx could not fetch quint, or the `QUINT_EVALUATOR` evaluator cannot run or answers in a format other than v0.7.0's. Its backtrace starts at your line that made the call. |

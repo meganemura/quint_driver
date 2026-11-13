@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `QuintDriver::Violated` is a new error, and no `Mismatch`: the system agreed with the spec at every step, and an expectation does not hold. Its message names the expectation and the step, lists the steps from `init`, gives the spec's variables in the state where it broke, and names the trace as a `Mismatch` does.
+- `Trace.replay` takes `invariants:` with `spec:`. The model evaluates each named predicate in each state of the trace after the step's agreement check, and one that is false raises `QuintDriver::Violated`. A name that is no boolean `val` or `def` without parameters, or `invariants:` without `spec:`, raises `ArgumentError` before the first step.
 - `Quint.simulate` refuses `reach:` with `backend: "typescript"`, with an `ArgumentError` before quint runs. quint 0.33.0's typescript backend runs a trace on past the state where the definition first holds and marks every trace after the first such state as one that reached it, so it yielded traces that never got there.
 
 ## [0.1.0] - 2026-11-13

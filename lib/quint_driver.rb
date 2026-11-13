@@ -39,6 +39,16 @@ module QuintDriver
     include NamedTrace
   end
 
+  # The system agreed with the spec at every step, and an expectation, a
+  # predicate of the spec that invariants: names, does not hold: the spec
+  # lets the system reach a state the expectation rules out. That is a bug
+  # suspect, not a disagreement, so it is no Mismatch, and a caller that
+  # rescues Mismatch does not catch it. The message names the expectation,
+  # the steps from init, and the state where it broke.
+  class Violated < StandardError
+    include NamedTrace
+  end
+
   # A step raised: the driver's code, or the system's beneath it, while it
   # ran a step or reported its state, so the spec and the system were never
   # compared. The message names the step, the project's frame that raised,
@@ -84,6 +94,19 @@ module QuintDriver
                       "#{lines.map(&:last).join("\n")}\n#{ran(steps)}", outside(caller_locations)
     end
 
+    # Raises Violated naming each expectation in +broken+, which is false in
+    # +state+, the spec's variables after +after+, once the driver agreed
+    # with the spec at each of the [action, picks] +steps+ from init, the
+    # last of which is +after+. The state is the spec's, so it holds the
+    # variables ignore: names too, which an expectation can read.
+    def self.violated!(after, broken, steps:, state:)
+      expectations = "#{broken.one? ? 'expectation' : 'expectations'} #{broken.map { "`#{_1}`" }.join(' and ')}"
+      variables = state.sort_by(&:first).map { |name, value| "  #{name}: #{show(value)}" }
+      raise Violated, "quint: the system agreed with the spec at every step, and the #{expectations} " \
+                      "#{broken.one? ? 'does' : 'do'} not hold after #{after}\n#{ran(steps)}\nstate:\n#{variables.join("\n")}",
+            outside(caller_locations)
+    end
+
     # A name +ignore+ holds that +names+ lacks is refused, so a misspelt name
     # reads as one rather than as its variable left out.
     def self.ignorable!(ignore, names, within)
@@ -107,7 +130,7 @@ module QuintDriver
     # StepRaised with +steps+; the gem's own errors pass through.
     def self.drive(at, steps:)
       yield
-    rescue Mismatch, StepRaised => failure
+    rescue NamedTrace => failure
       raise lead_outside(failure)
     rescue Unsupported, QuintFailed
       raise

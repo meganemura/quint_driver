@@ -56,11 +56,14 @@ module QuintDriver
     # definition has in the trace's state. +ignore+ names variables the
     # driver does not report, such as what a remote service answers, which
     # the spec models and the driver only reads to set the system up; the
-    # driver reports every other variable. Returns the steps it ran, so a
-    # caller can count the actions and states its traces reached.
-    def self.replay(path, driver, log: nil, state: [], action: nil, spec: nil, observe: [], ignore: [])
-      observe, ignore = observe.map(&:to_s), ignore.map(&:to_s)
-      observed = observed(path, spec, observe)
+    # driver reports every other variable. +invariants+ names predicates of
+    # +spec+, expectations that have to hold in every state: once the driver
+    # agrees at a step, one that is false in that step's state raises
+    # Violated. Returns the steps it ran, so a caller can count the actions
+    # and states its traces reached.
+    def self.replay(path, driver, log: nil, state: [], action: nil, spec: nil, observe: [], ignore: [], invariants: [])
+      observe, ignore, invariants = observe.map(&:to_s), ignore.map(&:to_s), invariants.map(&:to_s)
+      evaluated = evaluated(path, spec, observe:, invariants:)
       ran = []
       steps = steps(path, state:, action:)
       Agreement.ignorable!(ignore, steps.first.expected.keys, "the trace's state") if steps.any?
@@ -75,29 +78,43 @@ module QuintDriver
           driver.step(step.action, step.picks)
           driver.state
         end
-        Agreement.check!(at, step.expected.merge(observed[step.index]), actual, by: "trace", steps: ran, observe:, spec:, ignore:)
+        values = evaluated[step.index]
+        Agreement.check!(at, step.expected.merge(values.slice(*observe)), actual, by: "trace", steps: ran, observe:, spec:, ignore:)
+        broken = invariants.reject { values[_1] }
+        Agreement.violated!(at, broken, steps: ran, state: variables(path, step.index)) if broken.any?
       end
-    rescue Mismatch, StepRaised => failure
+    rescue NamedTrace => failure
       Quint.send(:name_trace, failure, path)
       raise
     end
 
-    # The value of each definition +observe+ names, in each state of the
-    # trace. The model reads the state as quint wrote it, so the driver's
-    # steps never pass through the model; it reads only the spec's variables,
-    # so the mbt:: entries stay.
-    def self.observed(path, spec, observe)
-      return Hash.new({}) if observe.empty?
-      Agreement.refuse "quint: observe needs spec:, the Spec that evaluates #{observe.join(', ')}" unless spec
+    # The value of each definition +observe+ and +invariants+ name, in each
+    # state of the trace, so a name refused or one the model cannot
+    # evaluate fails before the driver runs a step. The model reads the
+    # state as quint wrote it, so the driver's steps never pass through the
+    # model; it reads only the spec's variables, so the mbt:: entries stay.
+    def self.evaluated(path, spec, observe:, invariants:)
+      names = observe | invariants
+      return Hash.new({}) if names.empty?
 
+      { "observe" => observe, "invariants" => invariants }.each do |argument, named|
+        Agreement.refuse "quint: #{argument} needs spec:, the Spec that evaluates #{named.join(', ')}" if named.any? && !spec
+      end
       spec.observable!(observe)
+      spec.predicates!(invariants, "invariants")
       model = spec.model(nil)
       JSON.parse(File.read(path)).fetch("states").map do |values|
         model.enter(decode(values) { |tag, inner| Model::Variant.new(tag, inner) })
-        model.observe(observe)
+        model.observe(names)
       end
     end
-    private_class_method :observed
+    private_class_method :evaluated
+
+    # The spec's variables in state +index+ of the trace, as plain values.
+    def self.variables(path, index)
+      decode(JSON.parse(File.read(path)).fetch("states").fetch(index)).reject { |name, _| name.start_with?("mbt::") }
+    end
+    private_class_method :variables
 
     # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
     # An Option is nil for None and its value for Some, as Model.plain gives one.
