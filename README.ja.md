@@ -771,7 +771,11 @@ quint の中で run そのものが失敗したときは、quint の報告を添
 `QuintDriver.machine` のオプションは次のとおりです。
 
 - `step:` は手の一覧を持つアクションで、既定は `"step"` です。各手は名前のあるアクションを呼ぶ必要があります。引数は `nondet x = S.oneOf()` から取ります。選択肢と `any` を一つの `all` で囲んだ手（`all { nondet x = S.oneOf() any { add(x), sub(x) } }` など）は、`any` のアクションで手を進めます。モジュールにないアクションを `step:` に渡すと、モジュールのアクションを並べた `ArgumentError` を投げます（`quint: no action is named steps; the module has counting, init, step`）。
-- `invariants:` は、毎手のあとに成り立つべき仕様の `val` の名前です。
+- `invariants:` は期待、つまりすべての状態で成り立つべき仕様の述語の名前で、`Trace.replay` と同じように受け取ります。
+Hegel は `init` と毎手のあとに、その手で仕様と一致したことを確かめてから期待を評価します。
+偽になった期待は、縮めた手順を添えて `QuintDriver::Violated` を投げます。
+例えば ``quint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step 2 `borrow` {"b" => "b2", "m" => "m1"}`` です。
+述語でない名前を渡すと、`QuintDriver.machine` が `ArgumentError` を投げます。
 - `choose:` は Hegel が手を引く方法です。`:rule`(既定)はアクションを選び、仕様が許さなければ捨てます。最短の手順まで縮みます。`:rotate` は許されないアクションの番を次の許されるアクションに回します。少ないテストケースで深い状態に届きますが、縮めた手順に余分な手が残ることがあります。
 Hegel の失敗の報告は、引いた値を nondet の選択値の名前で示します。
 `:rotate` では `rule` と `move` です。

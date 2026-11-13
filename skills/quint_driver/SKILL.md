@@ -174,7 +174,7 @@ Hegel.test(test_cases: 100, seed: 1, suppress_health_check: %i[filter_too_much t
 end
 ```
 
-- `invariants:` names `val`s of the spec that must hold after every move.
+- `invariants:` names expectations, predicates of the spec that should hold in every state, as `Trace.replay` takes them. Hegel checks them at `init` and after every move, after the move's agreement check, and one that is false raises `QuintDriver::Violated` with the shrunk steps. A name that is no predicate raises `ArgumentError` from `QuintDriver.machine`, with the predicates the module has.
 - `choose: :rotate` gives a disabled action's turn to the next enabled one. Use it when most actions are disabled in most states. The default, `:rule`, shrinks to the shortest sequence.
 - `Hegel::Stateful.run(machine.new, tc, step_count: 50)` sets the most moves in one test case.
 
@@ -931,7 +931,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
   trace: trace_1.itf.json of Quint.simulate("test/unlimited.qnt", traces: 30, max_steps: 10, seed: "1", step: "step", backend: "rust")
   ```
 
-  Expectations that break in one state are named together, as ``the expectations `one_on_the_shelf` and `one_book_each` do not hold``.
+  Expectations that break in one state are named together, as ``the expectations `one_on_the_shelf` and `one_book_each` do not hold``. Under Hegel the message has no `trace:` line, `steps:` is the shrunk sequence, and the step number is the one Hegel's report gives the move. An expectation that is false at `init` reads ``does not hold after step 0 `init` {}``, and Hegel's report lists no step.
 - Under Hegel, there is no seed: Hegel's report ends with `To reproduce this failure, pass the blob below to Hegel.test:` and a blob. Pass it as `Hegel.test(reproduce_failure: "...")` to run that one case again with the same message.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
 

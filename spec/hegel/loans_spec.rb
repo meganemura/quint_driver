@@ -20,6 +20,23 @@ RSpec.describe "a lending shelf held to loans.qnt by Hegel" do
     expect(report.string.scan(/^\s+(borrow\S*|give_back\S*) \{/).flatten).to eq(%w[borrow borrow_refused])
   end
 
+  # unlimited.qnt models BrokenLoans as written, so only the expectation
+  # finds the second book a member borrows.
+  it "raises Violated, not Mismatch, where the system agrees and an expectation does not hold" do
+    unlimited = QuintDriver::Spec.new(File.expand_path("../../test/unlimited.qnt", __dir__), main: "unlimited")
+    machine = QuintDriver.machine(unlimited, driver: -> { LoansDriver.new(BrokenLoans) }, invariants: %i[one_book_each])
+
+    hegel_line = __LINE__ + 1
+    expect { Hegel.test(**settings, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) } }
+      .to raise_error(QuintDriver::Violated) { |error|
+        expect(error).not_to be_a(QuintDriver::Mismatch)
+        expect(error.message).to start_with("quint: the system agreed with the spec at every step, and the expectation `one_book_each` " \
+                                            "does not hold after step 2 `borrow` {\"b\" => \"b2\", \"m\" => \"m1\"}\nsteps:\n  init {}\n" \
+                                            "  borrow {\"b\" => \"b1\", \"m\" => \"m1\"}\n  borrow {\"b\" => \"b2\", \"m\" => \"m1\"}\nstate:\n")
+        expect(RSpec.configuration.backtrace_formatter.format_backtrace(error.backtrace).first).to start_with("./spec/hegel/loans_spec.rb:#{hegel_line}:")
+      }
+  end
+
   it "names the move and the shrunk steps where the driver's own code raised" do
     misspelled = Class.new(LoansDriver) { def step(action, picks) = action.start_with?("give_back") ? picks.fetch("book") : super }
     line = __LINE__ - 1

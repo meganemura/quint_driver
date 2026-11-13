@@ -121,12 +121,94 @@ class MachineTest < Minitest::Test
   def test_a_broken_invariant_fails_at_the_first_state_that_breaks_it
     machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %i[nothing_on_loan])
 
+    error = assert_raises(QuintDriver::Violated) do
+      Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+    assert_equal <<~MESSAGE.chomp, error.message
+      quint: the system agreed with the spec at every step, and the expectation `nothing_on_loan` does not hold after step 1 `borrow` {"b" => "b1", "m" => "m1"}
+      steps:
+        init {}
+        borrow {"b" => "b1", "m" => "m1"}
+      state:
+        holder: {"b1" => "m1", "b2" => "", "b3" => ""}
+        outcome: "Done"
+    MESSAGE
+    assert_empty error.backtrace.grep(GEM_FRAME)
+    assert_empty error.backtrace.grep(HEGEL_FRAME)
+    assert_equal __FILE__, error.backtrace_locations.first.path, "the test's own line leads"
+  end
+
+  # unlimited.qnt models BrokenLoans as written, so the system agrees with
+  # the spec at every move, and only the expectation finds the bug.
+  %i[rule rotate].each do |choose|
+    define_method(:"test_#{choose}_shrinks_an_expectation_a_system_that_agrees_breaks_to_two_moves") do
+      machine = QuintDriver.machine(unlimited, driver: -> { LoansDriver.new(BrokenLoans) }, invariants: %w[one_book_each], choose:)
+      report = StringIO.new
+
+      error = assert_raises(QuintDriver::Violated) do
+        Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
+      end
+
+      refute_kind_of QuintDriver::Mismatch, error
+      assert_equal <<~MESSAGE.chomp, error.message
+        quint: the system agreed with the spec at every step, and the expectation `one_book_each` does not hold after step 2 `borrow` {"b" => "b2", "m" => "m1"}
+        steps:
+          init {}
+          borrow {"b" => "b1", "m" => "m1"}
+          borrow {"b" => "b2", "m" => "m1"}
+        state:
+          holder: {"b1" => "m1", "b2" => "m1", "b3" => ""}
+          outcome: "Done"
+      MESSAGE
+      assert_equal "2", report.string.scan(/^  Step (\d+): /).flatten.last, "the message numbers the move as Hegel's report does"
+    end
+  end
+
+  def test_a_system_that_disagrees_on_the_move_that_breaks_an_expectation_fails_with_a_mismatch
+    machine = QuintDriver.machine(unlimited, driver: -> { LoansDriver.new(Loans) }, invariants: %w[one_book_each])
+
     error = assert_raises(QuintDriver::Mismatch) do
       Hegel.test(**SETTINGS, output: StringIO.new) { |tc| Hegel::Stateful.run(machine.new, tc) }
     end
-    assert_equal "quint: the model broke `nothing_on_loan`", error.message
-    assert_empty error.backtrace.grep(GEM_FRAME)
-    assert_empty error.backtrace.grep(HEGEL_FRAME)
+
+    assert_match(/\Aquint: after step 2 `borrow` \{"b" => "b2", "m" => "m1"\}, the driver differs from the model\n/, error.message)
+    assert_match(/^  outcome: model "Done", driver \["Refused", "limit_reached"\]$/, error.message)
+  end
+
+  def test_an_expectation_that_holds_passes_a_system_with_a_bug_it_does_not_rule_out
+    machine = QuintDriver.machine(unlimited, driver: -> { LoansDriver.new(BrokenLoans) }, invariants: %w[lent_to_members])
+
+    Hegel.test(**SETTINGS) { |tc| Hegel::Stateful.run(machine.new, tc) }
+  end
+
+  def test_an_expectation_false_at_init_fails_before_hegel_takes_a_step
+    machine = QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new }, invariants: %w[two_on_loan])
+    report = StringIO.new
+
+    error = assert_raises(QuintDriver::Violated) do
+      Hegel.test(**SETTINGS, output: report) { |tc| Hegel::Stateful.run(machine.new, tc) }
+    end
+
+    assert_equal <<~MESSAGE.chomp, error.message
+      quint: the system agreed with the spec at every step, and the expectation `two_on_loan` does not hold after step 0 `init` {}
+      steps:
+        init {}
+      state:
+        holder: {"b1" => "", "b2" => "", "b3" => ""}
+        outcome: "Done"
+    MESSAGE
+    refute_match(/Step \d/, report.string, "Hegel's report lists no step")
+  end
+
+  def test_the_machine_refuses_an_expectation_that_is_no_predicate_before_hegel_runs
+    { "borrow" => "an action with parameters of loans", "onLoan" => "a def with parameters of loans",
+      "BOOKS" => "a set value of loans", "nobody" => "which loans neither declares nor imports" }.each do |name, what|
+      error = assert_raises(ArgumentError) { QuintDriver.machine(LoansDriver.spec, driver: -> { flunk }, invariants: [ name ]) }
+
+      assert_equal "quint: invariants names #{name}, #{what}; invariants takes a predicate, a boolean val or def without parameters, " \
+                   "such as nothing_on_loan, one_book_each, two_on_loan", error.message
+      assert_equal __FILE__, error.backtrace_locations.first.path
+    end
   end
 
   def test_an_error_the_driver_raises_names_its_move_and_the_shrunk_steps
@@ -323,8 +405,12 @@ class MachineTest < Minitest::Test
     assert_equal %i[machine], QuintDriver.singleton_methods.sort
   end
 
+  def self.unlimited = @unlimited ||= QuintDriver::Spec.new(File.expand_path("../unlimited.qnt", __dir__), main: "unlimited")
+
   private
     def machine(system, choose)
       QuintDriver.machine(LoansDriver.spec, driver: -> { LoansDriver.new(system) }, choose:)
     end
+
+    def unlimited = self.class.unlimited
 end

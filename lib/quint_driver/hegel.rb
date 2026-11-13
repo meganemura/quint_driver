@@ -21,11 +21,14 @@ module QuintDriver
   # +observe+ names definitions of the spec, as Trace.replay takes them: the
   # driver reports each one in its state, held to the model's value.
   # +ignore+ names variables the driver does not report, as Trace.replay
-  # takes them.
+  # takes them. +invariants+ names predicates of the spec, expectations
+  # that have to hold in every state, as Trace.replay takes them: one that
+  # is false where the system agreed raises Violated.
   def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule, observe: [], ignore: [])
     rules = spec.rules(step)
-    observe, ignore = observe.map(&:to_s), ignore.map(&:to_s)
+    observe, ignore, invariants = observe.map(&:to_s), ignore.map(&:to_s), invariants.map(&:to_s)
     spec.observable!(observe)
+    spec.predicates!(invariants, "invariants")
     Agreement.ignorable!(ignore, spec.declarations.select { _1["kind"] == "var" }.map { _1["name"] }, "the spec's variables")
     # Many draws map to one sequence of moves, so the shrinker asks for the
     # same sequence thousands of times: on one failure, 8818 test cases held
@@ -129,11 +132,19 @@ module QuintDriver
       else Agreement.refuse "quint: choose is :rule or :rotate"
       end
 
-      # Hegel samples an invariant between moves unless always_run is set;
-      # an invariant here holds after every move.
-      invariants.each do |name|
-        invariant(name, always_run: true) do
-          raise Mismatch, "quint: the model broke `#{name}`", Agreement.outside(caller_locations) unless @model.value(name.to_s) == true
+      # Hegel checks an invariant before the first move and after the last,
+      # and between moves only when it samples one, unless always_run is
+      # set, as it is here. A move checks its own agreement before Hegel
+      # checks the expectations, so a disagreement stays a Mismatch. One
+      # Hegel invariant holds them all, so expectations that break in one
+      # state are named together, as on a replay.
+      unless invariants.empty?
+        invariant("invariants", always_run: true) do
+          broken = invariants.reject { @model.value(_1) }
+          next if broken.empty?
+
+          last = @moves.empty? ? at.(0, init) : at.(@numbers.last, @moves.last)
+          Agreement.violated!(last, broken, steps: [ init, *@moves ], state: @model.state)
         end
       end
     end
