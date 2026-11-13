@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `QuintDriver::Quint::Simulation` gains `actions`, how many steps each action took across every trace quint ran, and `never`, the actions of the step action that no trace took, so a hunt that found nothing can tell whether it tried every action. `never` is `nil` when the step action has a shape the driver protocol cannot run.
 - `QuintDriver.replay_steps(spec, driver, steps, step: "step", observe: [], ignore: [], invariants: [])` runs a list of steps on the driver and on the spec's model from `init` and checks each one as `Trace.replay` does, raising `Mismatch` or `Violated` with the same message. `steps` is the text under `steps:` of a failure, pasted as it is, or a list of `[action, picks]`, so a failure from a trace or from Hegel becomes one example that needs no quint run and no Hegel. A step the spec does not allow raises a `Mismatch` that names it.
 - `QuintDriver::Violated` is a new error, and no `Mismatch`: the system agreed with the spec at every step, and an expectation does not hold. Its message names the expectation and the step, lists the steps from `init`, gives the spec's variables in the state where it broke, and names the trace as a `Mismatch` does.
 - `Trace.replay` takes `invariants:` with `spec:`. The model evaluates each named predicate in each state of the trace after the step's agreement check, and one that is false raises `QuintDriver::Violated`. A name that is no boolean `val` or `def` without parameters, or `invariants:` without `spec:`, raises `ArgumentError` before the first step.

@@ -65,9 +65,10 @@ Its `spec/quint/depot_spec.rb` runs one simulation per expectation, and the Hege
 ```ruby
   expectations.each do |expectation|
     it "keeps #{expectation} on the traces Quint aims at it" do
-      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+      simulation = QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
         rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
       end
+      expect(simulation.never).to be_empty
     end
   end
 ```
@@ -81,7 +82,7 @@ Its `spec/quint/depot_spec.rb` runs one simulation per expectation, and the Hege
   end
 ```
 
-`violate:` yields only the traces that break the expectation, each ending in the state where it breaks. When no trace of the run breaks it, `simulate` yields nothing and raises nothing; it returns a `Simulation` whose `traces` counts the traces quint ran and whose `violated` counts the ones that broke the expectation, so a run that found nothing can say how much it tried. When an expectation holds, raise `traces` and `max_steps` until each action shows up in the traces you replay (`Trace.replay` returns the steps it ran), then stop. A plain replay without `invariants:` passes on this app: the app follows the spec at every step, and only the expectation tells that the state is wrong.
+`violate:` yields only the traces that break the expectation, each ending in the state where it breaks. When no trace of the run breaks it, `simulate` yields nothing and raises nothing; it returns a `Simulation` whose `traces` counts the traces quint ran and whose `violated` counts the ones that broke the expectation, so a run that found nothing can say how much it tried. Its `actions` counts the steps each action took across every trace quint ran, and its `never` lists the actions of `step` that no trace took. A hunt that never ran an action proves nothing about it, so the example checks `expect(simulation.never).to be_empty`. When that fails, raise `max_steps` (or `traces`) until it passes; when an expectation holds and `never` is empty, stop. A plain replay without `invariants:` passes on this app: the app follows the spec at every step, and only the expectation tells that the state is wrong.
 
 On the app as committed, each expectation fails with a `QuintDriver::Violated`:
 

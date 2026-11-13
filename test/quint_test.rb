@@ -152,7 +152,7 @@ class QuintTest < Minitest::Test
       end
 
       assert_operator lengths.size, :>, 1, env.inspect
-      assert_equal QuintDriver::Quint::Simulation.new(traces: 30, violated: lengths.size), simulation, env.inspect
+      assert_equal({ traces: 30, violated: lengths.size }, simulation.to_h.slice(:traces, :violated), env.inspect)
       assert_equal lengths.map { _1 - 1 }, broken_at, "each trace ends at the first state that breaks the expectation"
       [ env, lengths ]
     end
@@ -165,7 +165,7 @@ class QuintTest < Minitest::Test
         QuintDriver::Quint.simulate(UNLIMITED, traces: 30, max_steps: 10, seed: "1", violate: "lent_to_members") { flunk "no trace breaks lent_to_members" }
       end
 
-      assert_equal QuintDriver::Quint::Simulation.new(traces: 30, violated: 0), simulation, env.inspect
+      assert_equal({ traces: 30, violated: 0 }, simulation.to_h.slice(:traces, :violated), env.inspect)
     end
   end
 
@@ -174,8 +174,24 @@ class QuintTest < Minitest::Test
     plain = QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 3, max_steps: 2, seed: "1") { yielded += 1 }
     reach = QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 5, max_steps: 10, seed: "1", reach: "two_on_loan") { }
 
-    assert_equal [ QuintDriver::Quint::Simulation.new(traces: 3, violated: nil), 3 ], [ plain, yielded ]
-    assert_equal QuintDriver::Quint::Simulation.new(traces: 5, violated: nil), reach
+    assert_equal [ { traces: 3, violated: nil }, 3 ], [ plain.to_h.slice(:traces, :violated), yielded ]
+    assert_equal({ traces: 5, violated: nil }, reach.to_h.slice(:traces, :violated))
+  end
+
+  # A run too short to try every action says which ones it never took.
+  def test_a_simulation_counts_the_steps_of_each_action_and_names_the_actions_no_trace_took
+    taken = Hash.new(0)
+    short = QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 1, seed: "1") do |path|
+      QuintDriver::Trace.steps(path).drop(1).each { taken[_1.action] += 1 }
+    end
+    long = QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 30, max_steps: 10, seed: "1") { }
+    actions = LoansDriver.spec.rules("step").map(&:action).uniq.sort
+
+    assert_equal taken.sort.to_h, short.actions
+    assert_equal actions - taken.keys, short.never
+    refute_empty short.never, "one step of three traces cannot take all four actions"
+    assert_equal actions, long.actions.keys
+    assert_empty long.never
   end
 
   def test_a_simulation_that_reaches_and_violates_at_once_raises_before_quint_runs

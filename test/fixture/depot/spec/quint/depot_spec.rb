@@ -47,9 +47,10 @@ RSpec.describe "The depot, held to depot.qnt", type: :request do
   # passes, because the app follows the trace.
   expectations.each do |expectation|
     it "keeps #{expectation} on the traces Quint aims at it" do
-      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+      simulation = QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
         rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
       end
+      expect(simulation.never).to be_empty
     end
   end
 

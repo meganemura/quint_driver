@@ -327,9 +327,10 @@ To find bugs, not to pin one model, write two things in the spec. Actions descri
 ```ruby
   expectations.each do |expectation|
     it "keeps #{expectation} on the traces Quint aims at it" do
-      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+      simulation = QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
         rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
       end
+      expect(simulation.never).to be_empty
     end
   end
 ```

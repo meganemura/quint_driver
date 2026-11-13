@@ -133,8 +133,12 @@ module QuintDriver
     # What a simulation ran: +traces+ is how many traces quint ran, and
     # +violated+, when simulate was asked to violate a definition, how many
     # of them broke it, each of which simulate yielded. Without violate it
-    # is nil.
-    Simulation = Data.define(:traces, :violated)
+    # is nil. +actions+ counts the steps each action took across every trace
+    # quint ran, init left out, and +never+ lists the actions of the step
+    # action that no trace took, so a run that found nothing tells what it
+    # never tried. +never+ is nil when the step action has a shape the
+    # driver protocol cannot run.
+    Simulation = Data.define(:traces, :violated, :actions, :never)
 
     # Writes +traces+ traces of the spec's +step+ action, yields each file,
     # and returns a Simulation. +main+ names the module to run; without it,
@@ -182,9 +186,19 @@ module QuintDriver
           failed "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
         end
 
+        actions = written.each_with_object(Hash.new(0)) do |trace, counts|
+          JSON.parse(File.read(trace)).fetch("states").drop(1).each { counts[_1["mbt::actionTaken"]] += 1 }
+        end
+        never = begin
+          Spec.new(path, main: main || File.basename(path, ".qnt")).rules(step).map(&:action).uniq.sort - actions.keys
+        rescue Unsupported
+          nil
+        end
+        simulation = Simulation.new(traces: written.size, violated: (yielded.size if violate), actions: actions.sort.to_h, never:)
+
         written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:, violate:)
         yield_traces(yielded, seed:, written_by:) { yield _1 }
-        Simulation.new(traces: written.size, violated: (yielded.size if violate))
+        simulation
       end
     end
 
