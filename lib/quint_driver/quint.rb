@@ -136,6 +136,13 @@ module QuintDriver
     # the state a test is after: each trace then ends at the first state where
     # it holds, and only the traces that get there are yielded.
     def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil)
+      # quint 0.33.0's typescript simulator counts violations across traces
+      # and stops a trace only when it cannot step, so a trace it marks a
+      # violation may never reach the definition.
+      if reach && backend == "typescript"
+        Agreement.refuse "quint: reach needs backend: \"rust\"; quint 0.33.0's typescript backend runs a trace on past the state " \
+                         "where the invariant breaks, and marks every trace after the first violation as a violation too"
+      end
       Dir.mktmpdir("quint") do |dir|
         refuse_unfound = runnable!(path, main:, step:, reach:)
         evaluator = self.evaluator if backend == "rust"

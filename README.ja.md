@@ -721,6 +721,9 @@ Quint は `not(two_on_loan)` を不変条件として確かめ、それが破れ
 例えば `quint: reach names borrow, an action with parameters of loans; reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan` です。
 モジュールが宣言もインポートもしていない名前を渡すと、quint が動いたあとに同じ形で `ArgumentError` を投げます。
 例えば `quint: step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step` です。
+`reach:` には既定の `backend: "rust"` が必要です。
+quint 0.33.0 の typescript バックエンドは、定義が初めて成り立つ状態を過ぎてもトレースを続け、そこに至らないトレースも至ったものとして示します。
+そのため、`backend: "typescript"` と一緒に `reach:` を渡すと、quint を動かす前に `ArgumentError` を投げます。
 トレースも、モデルも、マシンも、quint の既定と同じく `init` という名前のアクションから始まります。
 `init` のないモジュールは `ArgumentError` を投げます。
 例えば ``quint: begins neither declares nor imports an action named init; quint_driver starts every trace and every model at init, so declare `action init = ...` with what starts begins`` です。

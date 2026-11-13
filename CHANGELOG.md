@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- `Quint.simulate` refuses `reach:` with `backend: "typescript"`, with an `ArgumentError` before quint runs. quint 0.33.0's typescript backend runs a trace on past the state where the definition first holds and marks every trace after the first such state as one that reached it, so it yielded traces that never got there.
+
 ## [0.1.0] - 2026-11-13
 
 First release. quint_driver holds Ruby code to a [Quint](https://github.com/quint-co/quint) spec: a driver runs each action of the spec on your code and reads your code back as the spec's variables, and quint_driver compares the two after every step.

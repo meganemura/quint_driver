@@ -149,6 +149,21 @@ class QuintTest < Minitest::Test
     end
   end
 
+  # On quint 0.33.0's typescript backend, two_on_loan with these arguments
+  # gave 17 traces marked as violations, and 13 of them never had two books
+  # on loan.
+  def test_a_simulation_toward_a_definition_on_the_typescript_backend_raises_before_quint_runs
+    ran = quint_subcommands do
+      error = assert_raises(ArgumentError) do
+        QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 20, max_steps: 3, seed: "1", backend: "typescript", reach: "two_on_loan") { flunk }
+      end
+      assert_equal 'quint: reach needs backend: "rust"; quint 0.33.0\'s typescript backend runs a trace on past the state ' \
+                   "where the invariant breaks, and marks every trace after the first violation as a violation too", error.message
+      assert error.backtrace.first.start_with?("#{__FILE__}:"), error.backtrace.first
+    end
+    assert_empty ran
+  end
+
   def test_a_named_run_writes_the_states_it_ran
     books = []
     QuintDriver::Quint.test(RECORDED, "lendTest", seed: "1") do |path|
