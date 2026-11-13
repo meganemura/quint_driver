@@ -70,7 +70,9 @@ Its `spec/quint/depot_spec.rb` runs one simulation per expectation, and the Hege
       end
     end
   end
+```
 
+```ruby
   it "keeps every expectation on the sequences Hegel chooses" do
     machine = QuintDriver.machine(spec, driver: -> { driver }, invariants: expectations, ignore:)
     Hegel.test(test_cases: 50, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|
@@ -97,7 +99,19 @@ state:
   row: {"p1" => "", "p2" => "", "p3" => ""}
 ```
 
-Read a `Violated` as a bug suspect: the parcel is collected, the compartment is free, and the locker controller still holds its code, because the release page rescued the controller's time-out inside its transaction. To confirm a suspect, write the steps under `steps:` as a plain request spec that asserts the expectation, and run it on the app. If the operator agrees that the state is wrong, the suspect is a bug; fix the code, change the action in the spec to the fixed behavior, and run the hunt again. If the operator says the state is fine, the expectation was wrong; change the `val`.
+Read a `Violated` as a bug suspect: the parcel is collected, the compartment is free, and the locker controller still holds its code, because the release page rescued the controller's time-out inside its transaction. To pin a suspect, paste the text under `steps:` into `QuintDriver.replay_steps`. It runs those steps on the driver and on the spec's model, checks them as a replay does, and needs no quint run and no Hegel, so the example raises the same `Violated` on every run until the bug is fixed:
+
+```ruby
+  it "keeps free_compartment_has_no_code when a release times out" do
+    QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: %w[free_compartment_has_no_code], ignore:)
+      init {}
+      assignParcel {"offline" => 2, "p" => "p3"}
+      release {"offline" => 1, "p" => "p3"}
+    STEPS
+  end
+```
+
+`replay_steps(spec, driver, steps, step: "step", observe: [], ignore: [], invariants: [])` takes the pasted text or a list of `[action, picks]`, and the `init` line may be left out. A step the spec does not allow raises a `Mismatch` that names it, such as `quint: the model refused borrow {"b" => "b1", "m" => "m2"}, at step 2 ...`. It returns the steps it ran. To confirm a suspect, show the state to the operator: the pinned example is the steps that reach it. If the operator agrees that the state is wrong, the suspect is a bug; fix the code, change the action in the spec to the fixed behavior, and run the hunt again. If the operator says the state is fine, the expectation was wrong; change the `val`.
 
 Read a `Mismatch` in a hunt as an error in the spec or the driver first (see Read a failure). Fix that before you trust a `Violated`, because a driver that reports a wrong value can make an expectation break, or hold, by itself.
 
@@ -1005,6 +1019,7 @@ trace: trace_0.itf.json of Quint.simulate("spec.qnt", traces: 50, max_steps: 20,
   Expectations that break in one state are named together, as ``the expectations `one_on_the_shelf` and `one_book_each` do not hold``. Under Hegel the message has no `trace:` line, `steps:` is the shrunk sequence, and the step number is the one Hegel's report gives the move. An expectation that is false at `init` reads ``does not hold after step 0 `init` {}``, and Hegel's report lists no step.
 - Under Hegel, there is no seed: Hegel's report ends with `To reproduce this failure, pass the blob below to Hegel.test:` and a blob. Pass it as `Hegel.test(reproduce_failure: "...")` to run that one case again with the same message.
 - Under Hegel, `steps:` is the shrunk sequence. Hegel's own report names each draw after the pick it chose, and under `choose: :rotate` names the turn `rule` and the move `move`. A label drawn more than once in a test case is numbered in draw order (`m_1 = "m2"`, `m_2 = "m1"`); a label drawn once prints bare (`m = "m2"`).
+- Every `steps:` list, from a trace or from Hegel, pastes into `QuintDriver.replay_steps(spec, driver, <<~STEPS)` as it is (see Hunt for bugs), which runs it again with no quint run and no Hegel.
 
 | Error | Cause |
 | --- | --- |

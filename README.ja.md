@@ -395,6 +395,8 @@ state:
 受け取りのページが、制御装置のタイムアウトをトランザクションの中で rescue したからです。
 `Violated` はバグの候補です。
 探しているときの `Mismatch` は、たいてい仕様かドライバーの誤りです。
+失敗を 1 つの example に固めるには、その `steps:` の下の文字列を `QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: [...])` に貼ります。
+quint も Hegel も使わずに、その手順をもう一度動かします。
 探す場所、候補の確かめ方、やめどきは、[スキル](skills/quint_driver/SKILL.md#hunt-for-bugs)にあります。
 
 ## アプリなしで試す

@@ -53,6 +53,16 @@ RSpec.describe "The depot, held to depot.qnt", type: :request do
     end
   end
 
+  # The steps a Violated printed, pasted as they are, pin that suspect as one
+  # example that needs no quint run.
+  it "keeps free_compartment_has_no_code when a release times out" do
+    QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: %w[free_compartment_has_no_code], ignore:)
+      init {}
+      assignParcel {"offline" => 2, "p" => "p3"}
+      release {"offline" => 1, "p" => "p3"}
+    STEPS
+  end
+
   it "keeps every expectation on the sequences Hegel chooses" do
     machine = QuintDriver.machine(spec, driver: -> { driver }, invariants: expectations, ignore:)
     Hegel.test(test_cases: 50, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|

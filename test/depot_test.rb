@@ -35,6 +35,7 @@ class DepotTest < Minitest::Test
 
   REPLAY = "does what the spec says on every trace Quint writes"
   MACHINE = "keeps every expectation on the sequences Hegel chooses"
+  PINNED = "keeps free_compartment_has_no_code when a release times out"
 
   # One rspec run of the app: its examples as rspec's JSON report holds them,
   # and what rspec printed.
@@ -107,7 +108,7 @@ class DepotTest < Minitest::Test
       assert_equal "QuintDriver::Violated", failure["class"], failure["message"]
       assert_includes failure["message"], "the system agreed with the spec at every step, and the expectation `#{expectation}` does not hold"
     end
-    found_a_bug = PLANTED.keys.map { hunt(_1) } << MACHINE
+    found_a_bug = PLANTED.keys.map { hunt(_1) } << MACHINE << PINNED
     assert_equal found_a_bug.sort, @planted.failed.map { _1["description"] }.sort, @planted.printed
     assert_equal [ "QuintDriver::Violated" ], @planted.failed.map { _1.dig("exception", "class") }.uniq, @planted.printed
   end
@@ -116,6 +117,14 @@ class DepotTest < Minitest::Test
   # expectation can tell that the app has a bug.
   def test_a_replay_that_names_no_expectation_passes_on_the_planted_app
     assert_equal "passed", @planted.example(REPLAY)["status"], @planted.printed
+  end
+
+  # The steps a trace's Violated printed, pasted into replay_steps, raise the
+  # same Violated, apart from the trace line.
+  def test_the_pasted_steps_of_a_violated_raise_it_again
+    traced = @planted.example(hunt("free_compartment_has_no_code")).dig("exception", "message")
+    pinned = @planted.example(PINNED).dig("exception", "message")
+    assert_equal traced.sub(/\ntrace: .*\z/, ""), pinned
   end
 
   def test_the_machine_raises_violated_and_shrinks_it_to_one_move
