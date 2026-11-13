@@ -76,3 +76,39 @@ jobs:
           chmod +x "$dir/quint_evaluator"
       - run: bundle exec bin/test test/*_test.rb
       - run: bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
+
+  # The hunt in test/fixture/depot, a Rails app with a Gemfile of its own. Only
+  # this job installs that app's gems, so the other jobs skip the test.
+  depot:
+    runs-on: ubuntu-latest
+    env:
+      QUINT: quint
+      QUINT_DRIVER_DEPOT: required
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - run: npm install --global @informalsystems/quint@0.33.0
+      # quint asks the GitHub API for its Rust evaluator, and a shared runner
+      # can run out of the API's unauthenticated limit. The release download
+      # is outside that limit.
+      - name: Install the Quint Rust evaluator
+        run: |
+          dir="$HOME/.quint/rust-evaluator-v0.7.0"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 https://github.com/quint-co/quint/releases/download/evaluator/v0.7.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$dir"
+          chmod +x "$dir/quint_evaluator"
+      # The test runs a copy of the app in a temporary directory, so the gems
+      # go to Ruby's own gem directory, where a bundle outside this checkout
+      # finds them.
+      - name: Install the depot's gems
+        working-directory: test/fixture/depot
+        run: bundle install
+      - run: bundle exec bin/test test/depot_test.rb
