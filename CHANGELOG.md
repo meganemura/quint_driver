@@ -8,6 +8,7 @@
 - `Quint.simulate` takes `violate:`, the name of an expectation. quint checks it as its invariant, each trace ends at the first state where it is false, and only the traces that break it are yielded. When every trace keeps it, nothing is yielded and nothing raises. `violate:` takes a predicate as `reach:` does and needs `backend: "rust"`, and `reach:` with it raises `ArgumentError` before quint runs.
 - `Quint.simulate` returns a `QuintDriver::Quint::Simulation`, whose `traces` is how many traces quint ran and whose `violated` is how many of them broke the `violate:` expectation, or `nil` without `violate:`. It returned the paths of the trace files, which were gone by then.
 - `Quint.simulate` refuses `reach:` with `backend: "typescript"`, with an `ArgumentError` before quint runs. quint 0.33.0's typescript backend runs a trace on past the state where the definition first holds and marks every trace after the first such state as one that reached it, so it yielded traces that never got there.
+- The skill gains "Choose a target" and "Hunt for bugs", and the README "Hunt for bugs": write what the code does as actions and what the operator expects as boolean `val`s, aim `violate:` at each expectation, and read `Violated` as a bug suspect. `test/fixture/depot` in the repository, a Rails app with four planted bugs, is the worked example.
 
 ## [0.1.0] - 2026-11-13
 

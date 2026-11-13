@@ -22,7 +22,7 @@ quint_driver needs Ruby 3.3 or later. It calls the `quint` command that `QUINT` 
 
 ### Pick a first model
 
-Pick a model with a status column, such as `state` or `status`, and a method that changes it, such as `Order#cancel` or `Loan#approve`. A model whose status a recent commit changed is a good start, because the spec then checks that change: `git log --oneline -- app/models` lists those commits.
+Pick a model with a status column, such as `state` or `status`, and a method that changes it, such as `Order#cancel` or `Loan#approve`. A model whose status a recent commit changed is a good start, because the spec then checks that change: `git log --oneline -- app/models` lists those commits. To hunt for bugs across several entry points instead, see [Hunt for bugs](#hunt-for-bugs).
 
 The steps below use `Loan`. A new loan is `"pending"`, and `Loan#approve(officer)` makes it `"approved"`. Replace `Loan`, the record that the driver's `init` creates, the method, and the state names with yours.
 
@@ -319,6 +319,38 @@ Each of the 50 traces ran on the real models and the test database, and rolled b
 ```
 
 To delete the rows in the driver's `init` instead of a savepoint, and for the reason the savepoint must not be joinable, see the [skill](skills/quint_driver/SKILL.md).
+
+## Hunt for bugs
+
+To find bugs, not to pin one model, write two things in the spec. Actions describe what the code does now, quirks included, so the app follows every trace. Boolean `val`s describe what the operator expects, and the code may break them. Then aim Quint at each expectation with `violate:`, and replay its traces with the same name in `invariants:`:
+
+```ruby
+  expectations.each do |expectation|
+    it "keeps #{expectation} on the traces Quint aims at it" do
+      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+        rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
+      end
+    end
+  end
+```
+
+`test/fixture/depot` is a small Rails app of parcel lockers with four bugs planted in it, and its `spec/quint/` hunts for them this way. Each bug fails as a `QuintDriver::Violated`: the app agreed with the spec at every step, and the operator's expectation still does not hold.
+
+```text
+quint: the system agreed with the spec at every step, and the expectation `free_compartment_has_no_code` does not hold after step 2 `release` {"offline" => 1, "p" => "p3"}
+steps:
+  init {}
+  assignParcel {"offline" => 2, "p" => "p3"}
+  release {"offline" => 1, "p" => "p3"}
+state:
+  everDone: {}
+  intake: "none"
+  live: {1}
+  place: {"p1" => "Waiting", "p2" => "Waiting", "p3" => "Collected"}
+  row: {"p1" => "", "p2" => "", "p3" => ""}
+```
+
+Here the parcel is collected and the compartment is free, but the locker controller still holds its code: the release page rescued the controller's time-out inside its transaction. A `Violated` is a bug suspect, and a `Mismatch` in a hunt is most often an error in the spec or the driver. The [skill](skills/quint_driver/SKILL.md#hunt-for-bugs) has the full loop: where to look, how to confirm a suspect, and when to stop.
 
 ## Try it without an app
 

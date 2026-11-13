@@ -1,6 +1,6 @@
 ---
 name: quint_driver
-description: Use when testing a Ruby system against a Quint spec with the quint_driver gem. Shape the spec so every move names an action, write a driver, replay Quint's traces, check the Ruby model, then let Hegel choose and shrink the steps.
+description: Use when testing a Ruby system against a Quint spec with the quint_driver gem. Shape the spec so every move names an action, write a driver, replay Quint's traces, check the Ruby model, then let Hegel choose and shrink the steps. Also use it to hunt for bugs in a Rails app: write what the operator expects as boolean vals, aim traces at each with violate:, and read QuintDriver::Violated as a bug suspect.
 ---
 
 # quint_driver
@@ -31,6 +31,75 @@ curl -sSL https://github.com/quint-co/quint/releases/download/evaluator/v0.7.0/q
 ```
 
 With that evaluator in place, `Quint.simulate` runs it directly and skips node; the same seed gives the same traces as `quint run`. Set `QUINT_EVALUATOR` to another copy of evaluator v0.7.0, or to an empty string to go through `quint run`.
+
+## Choose a target
+
+To find bugs, model code where two places must change together and something can go wrong between them:
+
+- Several entry points (pages, jobs, API calls) that write the same local table and the same outside service, such as a record and the code a remote controller holds for it.
+- An outside call that can fail or time out, inside or next to a transaction.
+- A job that can raise half-way and run again on retry.
+- A row the code saves and whose return value it does not check, or a record another entry point can delete.
+
+A status column on one model is a poor first target for a hunt: its transitions sit in one method, a reviewer reads them in a minute, and a spec of them holds no expectation the code could break. It is a good first target to learn the tool on, as the README's Quick start does.
+
+## Hunt for bugs
+
+A hunt looks for a state the code reaches and the operator does not expect. Keep the two apart in the spec:
+
+1. Write what the code does now as actions, quirks included. If you think a branch is wrong, model it as it is written. The spec describes the system, so the system follows every trace, and a `Mismatch` means the spec or the driver is wrong, not the app.
+2. Write what the operator or the owner expects as boolean `val`s. These are the expectations, and the code may break them.
+3. For each expectation, aim Quint's traces at it with `violate:` and replay them with the same name in `invariants:`. Run the Hegel machine with all of them.
+
+`test/fixture/depot` in the quint_driver repository is a small Rails app of parcel lockers with four bugs planted in it. Its `spec/quint/depot.qnt` writes the operator's expectations next to the actions:
+
+```quint
+  val taken_compartment_has_live_code = COMPARTMENTS.forall(c => taken(place, c) implies live.contains(c))
+  val free_compartment_has_no_code = COMPARTMENTS.forall(c => live.contains(c) implies taken(place, c))
+  val done_row_stays_done = everDone.forall(p => row.get(p) == "done")
+  val finished_job_leaves_no_row_pending = intake == "finished" implies PARCELS.forall(p => row.get(p) != "pending")
+```
+
+Its `spec/quint/depot_spec.rb` runs one simulation per expectation, and the Hegel machine with all of them:
+
+```ruby
+  expectations.each do |expectation|
+    it "keeps #{expectation} on the traces Quint aims at it" do
+      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+        rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
+      end
+    end
+  end
+
+  it "keeps every expectation on the sequences Hegel chooses" do
+    machine = QuintDriver.machine(spec, driver: -> { driver }, invariants: expectations, ignore:)
+    Hegel.test(test_cases: 50, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|
+      rolled_back { Hegel::Stateful.run(machine.new, tc) }
+    end
+  end
+```
+
+`violate:` yields only the traces that break the expectation, each ending in the state where it breaks. When no trace of the run breaks it, `simulate` yields nothing and raises nothing; it returns a `Simulation` whose `traces` counts the traces quint ran and whose `violated` counts the ones that broke the expectation, so a run that found nothing can say how much it tried. When an expectation holds, raise `traces` and `max_steps` until each action shows up in the traces you replay (`Trace.replay` returns the steps it ran), then stop. A plain replay without `invariants:` passes on this app: the app follows the spec at every step, and only the expectation tells that the state is wrong.
+
+On the app as committed, each expectation fails with a `QuintDriver::Violated`:
+
+```text
+quint: the system agreed with the spec at every step, and the expectation `free_compartment_has_no_code` does not hold after step 2 `release` {"offline" => 1, "p" => "p3"}
+steps:
+  init {}
+  assignParcel {"offline" => 2, "p" => "p3"}
+  release {"offline" => 1, "p" => "p3"}
+state:
+  everDone: {}
+  intake: "none"
+  live: {1}
+  place: {"p1" => "Waiting", "p2" => "Waiting", "p3" => "Collected"}
+  row: {"p1" => "", "p2" => "", "p3" => ""}
+```
+
+Read a `Violated` as a bug suspect: the parcel is collected, the compartment is free, and the locker controller still holds its code, because the release page rescued the controller's time-out inside its transaction. To confirm a suspect, write the steps under `steps:` as a plain request spec that asserts the expectation, and run it on the app. If the operator agrees that the state is wrong, the suspect is a bug; fix the code, change the action in the spec to the fixed behavior, and run the hunt again. If the operator says the state is fine, the expectation was wrong; change the `val`.
+
+Read a `Mismatch` in a hunt as an error in the spec or the driver first (see Read a failure). Fix that before you trust a `Violated`, because a driver that reports a wrong value can make an expectation break, or hold, by itself.
 
 ## 1. Shape the spec
 

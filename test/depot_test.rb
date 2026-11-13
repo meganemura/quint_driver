@@ -125,6 +125,26 @@ class DepotTest < Minitest::Test
     assert_includes failure["message"], "the expectation `taken_compartment_has_live_code` does not hold after step 1 `assignParcel`"
   end
 
+  # The hunt sections of the skill and of both READMEs quote the depot: each
+  # quint or ruby block is a part of a file the depot runs, and each text
+  # block is the message the planted app raised, without its trace line.
+  def test_the_docs_quote_the_depot_and_the_violated_it_raises
+    hunt = File.read(File.join(FIXTURE, "spec/quint/depot_spec.rb")) + File.read(File.join(FIXTURE, "spec/quint/depot.qnt"))
+    { "skills/quint_driver/SKILL.md" => "## Hunt for bugs", "README.md" => "## Hunt for bugs", "README.ja.md" => "## バグを探す" }.each do |doc, heading|
+      section = File.read(File.join(ROOT, doc), encoding: "UTF-8")[/^#{heading}\n(.*?)(?=^## )/m, 1]
+      assert section, "#{doc} has no #{heading} section"
+      blocks = section.scan(/^```(\w+)\n(.*?)^```$/m)
+      code, text = blocks.partition { |kind, _| kind != "text" }
+      refute_empty code, doc
+      code.each { |_, body| assert_includes hunt, body, "#{doc} quotes a block the depot does not run" }
+      text.each do |_, body|
+        expectation = body[/the expectation `(\w+)`/, 1]
+        message = @planted.example(hunt(expectation)).dig("exception", "message")
+        assert_equal body, "#{message.sub(/\ntrace: .*\z/, '')}\n", "#{doc} pastes a Violated the planted app did not raise"
+      end
+    end
+  end
+
   def test_every_example_passes_once_fixed_patch_is_applied
     assert_equal @planted.examples.map { _1["full_description"] }, @fixed.examples.map { _1["full_description"] }, @fixed.printed
     assert_empty @fixed.examples.reject { _1["status"] == "passed" }.map { _1["full_description"] }, @fixed.printed

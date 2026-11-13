@@ -34,6 +34,7 @@ quint_driver には Ruby 3.3 以降が必要です。
 最近のコミットが状態を変えたモデルから始めるとよいでしょう。
 仕様がその変更を確かめるからです。
 そのようなコミットは `git log --oneline -- app/models` で一覧できます。
+いくつもの入り口にまたがるバグを探すなら、[バグを探す](#バグを探す)を見てください。
 
 下の手順では `Loan` を使います。
 新しいローンは `"pending"` で、`Loan#approve(officer)` はそれを `"approved"` にします。
@@ -351,6 +352,50 @@ Finished in 1.22 seconds (files took 0.91182 seconds to load)
 ```
 
 セーブポイントの代わりにドライバーの `init` で行を消す方法と、セーブポイントを joinable にしてはいけない理由は、[スキル](skills/quint_driver/SKILL.md)にあります。
+
+## バグを探す
+
+1 つのモデルを固めるのでなくバグを探すときは、仕様に 2 種類のものを書きます。
+action には、癖も含めていまのコードの動きを書きます。
+そうすれば、アプリはどのトレースにも従います。
+真偽値の `val` には、運用する人が期待することを書きます。
+コードはこちらを破るかもしれません。
+そして期待ごとに `violate:` で Quint のトレースをそこへ向け、同じ名前を `invariants:` に渡してトレースを再生します。
+
+```ruby
+  expectations.each do |expectation|
+    it "keeps #{expectation} on the traces Quint aims at it" do
+      QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+        rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
+      end
+    end
+  end
+```
+
+`test/fixture/depot` は宅配ロッカーの小さな Rails アプリで、バグを 4 つ仕込んであります。
+その `spec/quint/` が、この形でバグを探します。
+どのバグも `QuintDriver::Violated` で失敗します。
+アプリはどのステップでも仕様と一致したのに、運用する人の期待が成り立っていない、という意味です。
+
+```text
+quint: the system agreed with the spec at every step, and the expectation `free_compartment_has_no_code` does not hold after step 2 `release` {"offline" => 1, "p" => "p3"}
+steps:
+  init {}
+  assignParcel {"offline" => 2, "p" => "p3"}
+  release {"offline" => 1, "p" => "p3"}
+state:
+  everDone: {}
+  intake: "none"
+  live: {1}
+  place: {"p1" => "Waiting", "p2" => "Waiting", "p3" => "Collected"}
+  row: {"p1" => "", "p2" => "", "p3" => ""}
+```
+
+ここでは荷物は受け取られ、ボックスは空いたのに、ロッカーの制御装置はまだそのボックスの暗証番号を持っています。
+受け取りのページが、制御装置のタイムアウトをトランザクションの中で rescue したからです。
+`Violated` はバグの候補です。
+探しているときの `Mismatch` は、たいてい仕様かドライバーの誤りです。
+探す場所、候補の確かめ方、やめどきは、[スキル](skills/quint_driver/SKILL.md#hunt-for-bugs)にあります。
 
 ## アプリなしで試す
 
