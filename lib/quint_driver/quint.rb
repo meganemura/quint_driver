@@ -130,23 +130,37 @@ module QuintDriver
       import["qualifiedName"] ? declaration.merge("name" => "#{import['qualifiedName']}::#{declaration['name']}") : declaration
     end
 
-    # Writes +traces+ traces of the spec's +step+ action and yields each file.
-    # +main+ names the module to run; without it, quint runs the module named
-    # after the file. +reach+ names a definition of the module that holds at
-    # the state a test is after: each trace then ends at the first state where
-    # it holds, and only the traces that get there are yielded.
-    def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil)
+    # What a simulation ran: +traces+ is how many traces quint ran, and
+    # +violated+, when simulate was asked to violate a definition, how many
+    # of them broke it, each of which simulate yielded. Without violate it
+    # is nil.
+    Simulation = Data.define(:traces, :violated)
+
+    # Writes +traces+ traces of the spec's +step+ action, yields each file,
+    # and returns a Simulation. +main+ names the module to run; without it,
+    # quint runs the module named after the file. +reach+ names a definition
+    # of the module that holds at the state a test is after: each trace then
+    # ends at the first state where it holds, and only the traces that get
+    # there are yielded. +violate+ names an expectation, a definition that
+    # should hold in every state: each trace then ends at the first state
+    # where it is false, and only the traces that break it are yielded, none
+    # when every trace keeps it.
+    def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil, violate: nil)
+      if reach && violate
+        Agreement.refuse "quint: simulate takes reach or violate, not both; each ends a trace where quint's one invariant breaks, " \
+                         "so a trace it yielded could have met either"
+      end
       # quint 0.33.0's typescript simulator counts violations across traces
       # and stops a trace only when it cannot step, so a trace it marks a
-      # violation may never reach the definition.
-      if reach && backend == "typescript"
-        Agreement.refuse "quint: reach needs backend: \"rust\"; quint 0.33.0's typescript backend runs a trace on past the state " \
+      # violation may never reach the definition, or never break it.
+      if (reach || violate) && backend == "typescript"
+        Agreement.refuse "quint: #{reach ? 'reach' : 'violate'} needs backend: \"rust\"; quint 0.33.0's typescript backend runs a trace on past the state " \
                          "where the invariant breaks, and marks every trace after the first violation as a violation too"
       end
       Dir.mktmpdir("quint") do |dir|
-        refuse_unfound = runnable!(path, main:, step:, reach:)
+        refuse_unfound = runnable!(path, main:, step:, reach:, violate:)
         evaluator = self.evaluator if backend == "rust"
-        input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:) if evaluator
+        input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:, violate:) if evaluator
         if input
           write_traces(evaluator, input, dir)
         else
@@ -154,35 +168,37 @@ module QuintDriver
                         "--n-traces", traces, "--seed", seed, "--step", step, "--out-itf", "#{dir}/trace_{seq}.itf.json", "--verbosity", 0 ]
           arguments += [ "--main", main ] if main
           # quint ends a trace where its invariant breaks, and exits 1 then.
-          arguments += [ "--invariant", "not(#{reach})" ] if reach
+          arguments += [ "--invariant", reach ? "not(#{reach})" : violate ] if reach || violate
           output, status = capture(*arguments)
           refuse_unfound.(output)
-          failed "quint run failed:\n#{output}" unless status.success? || reach && output.match?(/^error: invariant violated$/i)
+          failed "quint run failed:\n#{output}" unless status.success? || (reach || violate) && output.match?(/^error: invariant violated$/i)
         end
 
-        # A trace that broke the invariant is one that reached +reach+.
-        traces_written = Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }
-        traces_written.select! { JSON.parse(File.read(_1)).dig("#meta", "status") == "violation" } if reach
-        if reach && traces_written.empty?
+        # A trace that broke the invariant is one that reached +reach+, or
+        # one that broke +violate+.
+        written = Dir["#{dir}/trace_*.itf.json"].sort_by { _1[/(\d+)\.itf/, 1].to_i }
+        yielded = (reach || violate) ? written.select { JSON.parse(File.read(_1)).dig("#meta", "status") == "violation" } : written
+        if reach && yielded.empty?
           failed "quint: no trace of #{traces} reached #{reach} within #{max_steps} steps; raise max_steps or traces"
         end
 
-        written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:)
-        yield_traces(traces_written, seed:, written_by:) { yield _1 }
+        written_by = call("simulate", path, traces:, max_steps:, seed:, main:, step:, backend:, reach:, violate:)
+        yield_traces(yielded, seed:, written_by:) { yield _1 }
+        Simulation.new(traces: written.size, violated: (yielded.size if violate))
       end
     end
 
     # Raises ArgumentError when +step+ names no action without parameters, or
-    # +reach+ no predicate. quint finds that out only while it runs, and its
-    # two evaluators each say "Expected boolean" in words of their own. A
-    # name the module does not declare may be one it imports, which this IR
-    # does not hold, so the check it returns reads quint's output for a name
-    # quint did not find either.
-    def self.runnable!(path, main:, step:, reach:)
+    # +reach+ or +violate+ no predicate. quint finds that out only while it
+    # runs, and its two evaluators each say "Expected boolean" in words of
+    # their own. A name the module does not declare may be one it imports,
+    # which this IR does not hold, so the check it returns reads quint's
+    # output for a name quint did not find either.
+    def self.runnable!(path, main:, step:, reach:, violate:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }.fetch("declarations")
       kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
-      wanted = { "step" => [ step, "an action" ], "reach" => [ reach, "a predicate" ] }
+      wanted = { "step" => [ step, "an action" ], "reach" => [ reach, "a predicate" ], "violate" => [ violate, "a predicate" ] }
       wanted.each do |argument, (name, kind)|
         misnamed(argument, name, "#{kinds[name]} of #{ir['main']}", kind, kinds) if kinds.key?(name) && kinds[name] != kind
       end
@@ -214,10 +230,10 @@ module QuintDriver
         "and every model at init, so declare `action init = ...` with what starts #{main}"
     end
 
-    # What a declaration is, as a step, a reach, or an invariant has to
-    # tell: a variant quint declares as a val, or as a def when it carries a
-    # value. A val and a def without parameters both read as a value: the
-    # keyword changes nothing any of them needs.
+    # What a declaration is, as a step, a reach, a violate, or an invariant
+    # has to tell: a variant quint declares as a val, or as a def when it
+    # carries a value. A val and a def without parameters both read as a
+    # value: the keyword changes nothing any of them needs.
     def self.kind_of(declaration, types)
       expr = declaration["expr"] || {}
       lambda = expr["kind"] == "lambda"
@@ -310,9 +326,9 @@ module QuintDriver
     end
 
     # What `quint run --mbt` sends the evaluator for this call, or nil when
-    # +step+ is no action of the module or +reach+ no definition of it, so
-    # `quint run` reports it.
-    def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:)
+    # +step+ is no action of the module or +reach+ or +violate+ no definition
+    # of it, so `quint run` reports it.
+    def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:, violate:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
       table = ir.fetch("table").dup
@@ -324,9 +340,10 @@ module QuintDriver
         table[(id += 1).to_s] = definition
         { "id" => id, "kind" => "name", "name" => action }
       end
-      invariant = if reach
-                    table[(id += 1).to_s] = declarations.find { _1["kind"] == "def" && _1["name"] == reach } || return
-                    { id: id + 1, kind: "app", opcode: "not", args: [ { id:, kind: "name", name: reach } ] }
+      invariant = if reach || violate
+                    name = reach || violate
+                    table[(id += 1).to_s] = declarations.find { _1["kind"] == "def" && _1["name"] == name } || return
+                    reach ? { id: id + 1, kind: "app", opcode: "not", args: [ { id:, kind: "name", name: } ] } : { id:, kind: "name", name: }
                   else
                     { id: id + 1, kind: "bool", value: true }
                   end
@@ -356,7 +373,8 @@ module QuintDriver
                            "it reads the #{EVALUATOR_VERSION} evaluator quint 0.33.0 runs. Set QUINT_EVALUATOR to that " \
                            "evaluator, or to an empty string to simulate through `quint run`"
       end
-      # A violation is only possible when simulate asks to reach a definition.
+      # A violation is only possible when simulate asks to reach or to
+      # violate a definition.
       unless %w[ok violation].include?(result["status"])
         failed "quint run failed:\n#{result.fetch('errors', []).map { "Error [#{_1['code']}]: #{_1['message']}" }.join("\n")}"
       end

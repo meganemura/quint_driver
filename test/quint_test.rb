@@ -6,6 +6,7 @@ class QuintTest < Minitest::Test
   RECORDED = File.expand_path("recorded.qnt", __dir__)
   OPERATORS = File.expand_path("operators.qnt", __dir__)
   KINDS = File.expand_path("kinds.qnt", __dir__)
+  UNLIMITED = File.expand_path("unlimited.qnt", __dir__)
 
   def test_simulating_runs_the_module_it_names
     states = []
@@ -133,6 +134,62 @@ class QuintTest < Minitest::Test
     end
   end
 
+  # unlimited.qnt models BrokenLoans as written, so the system agrees with
+  # each trace, and the expectation breaks where the trace ends.
+  def test_a_simulation_that_violates_an_expectation_yields_each_trace_that_breaks_it_ending_where_it_first_breaks
+    unlimited = QuintDriver::Spec.new(UNLIMITED, main: "unlimited")
+    yielded = [ {}, { "QUINT_EVALUATOR" => "" } ].to_h do |env|
+      lengths, broken_at = [], []
+      simulation = with_env(env) do
+        QuintDriver::Quint.simulate(UNLIMITED, traces: 30, max_steps: 10, seed: "1", violate: "one_book_each") do |path|
+          lengths << QuintDriver::Trace.steps(path).size
+          QuintDriver::Trace.replay(path, LoansDriver.new(BrokenLoans), spec: unlimited, invariants: %w[one_book_each])
+          flunk "the replay of a trace that breaks one_book_each raises Violated"
+        rescue QuintDriver::Violated => error
+          broken_at << error.message[/\Aquint: .* does not hold after step (\d+) /, 1].to_i
+          assert_match(/, violate: "one_book_each"\)\z/, error.written_by)
+        end
+      end
+
+      assert_operator lengths.size, :>, 1, env.inspect
+      assert_equal QuintDriver::Quint::Simulation.new(traces: 30, violated: lengths.size), simulation, env.inspect
+      assert_equal lengths.map { _1 - 1 }, broken_at, "each trace ends at the first state that breaks the expectation"
+      [ env, lengths ]
+    end
+    assert_equal yielded.fetch({}), yielded.fetch({ "QUINT_EVALUATOR" => "" }), "the evaluator yields the traces quint run yields"
+  end
+
+  def test_a_simulation_where_every_trace_keeps_the_expectation_yields_none_and_says_how_many_quint_ran
+    [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
+      simulation = with_env(env) do
+        QuintDriver::Quint.simulate(UNLIMITED, traces: 30, max_steps: 10, seed: "1", violate: "lent_to_members") { flunk "no trace breaks lent_to_members" }
+      end
+
+      assert_equal QuintDriver::Quint::Simulation.new(traces: 30, violated: 0), simulation, env.inspect
+    end
+  end
+
+  def test_a_simulation_without_violate_says_how_many_traces_quint_ran
+    yielded = 0
+    plain = QuintDriver::Quint.simulate(OPERATORS, main: "countdown", traces: 3, max_steps: 2, seed: "1") { yielded += 1 }
+    reach = QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 5, max_steps: 10, seed: "1", reach: "two_on_loan") { }
+
+    assert_equal [ QuintDriver::Quint::Simulation.new(traces: 3, violated: nil), 3 ], [ plain, yielded ]
+    assert_equal QuintDriver::Quint::Simulation.new(traces: 5, violated: nil), reach
+  end
+
+  def test_a_simulation_that_reaches_and_violates_at_once_raises_before_quint_runs
+    ran = quint_subcommands do
+      error = assert_raises(ArgumentError) do
+        QuintDriver::Quint.simulate(UNLIMITED, traces: 5, max_steps: 5, seed: "1", reach: "one_on_the_shelf", violate: "one_book_each") { flunk }
+      end
+      assert_equal "quint: simulate takes reach or violate, not both; each ends a trace where quint's one invariant breaks, " \
+                   "so a trace it yielded could have met either", error.message
+      assert error.backtrace.first.start_with?("#{__FILE__}:"), error.backtrace.first
+    end
+    assert_empty ran
+  end
+
   def test_a_simulation_toward_a_definition_runs_on_the_evaluator
     skip "quint has not downloaded its Rust evaluator #{QuintDriver::Quint::EVALUATOR_VERSION}" unless QuintDriver::Quint.evaluator
     Dir.mktmpdir do |dir|
@@ -153,15 +210,17 @@ class QuintTest < Minitest::Test
   # gave 17 traces marked as violations, and 13 of them never had two books
   # on loan.
   def test_a_simulation_toward_a_definition_on_the_typescript_backend_raises_before_quint_runs
-    ran = quint_subcommands do
-      error = assert_raises(ArgumentError) do
-        QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 20, max_steps: 3, seed: "1", backend: "typescript", reach: "two_on_loan") { flunk }
+    { reach: "two_on_loan", violate: "one_book_each" }.each do |argument, name|
+      ran = quint_subcommands do
+        error = assert_raises(ArgumentError) do
+          QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 20, max_steps: 3, seed: "1", backend: "typescript", argument => name) { flunk }
+        end
+        assert_equal "quint: #{argument} needs backend: \"rust\"; quint 0.33.0's typescript backend runs a trace on past the state " \
+                     "where the invariant breaks, and marks every trace after the first violation as a violation too", error.message
+        assert error.backtrace.first.start_with?("#{__FILE__}:"), error.backtrace.first
       end
-      assert_equal 'quint: reach needs backend: "rust"; quint 0.33.0\'s typescript backend runs a trace on past the state ' \
-                   "where the invariant breaks, and marks every trace after the first violation as a violation too", error.message
-      assert error.backtrace.first.start_with?("#{__FILE__}:"), error.backtrace.first
+      assert_empty ran, argument
     end
-    assert_empty ran
   end
 
   def test_a_named_run_writes_the_states_it_ran
@@ -207,9 +266,10 @@ class QuintTest < Minitest::Test
     assert_equal [ [ { "n" => 2 }, { "n" => 1 }, { "n" => 0 } ] ], states
   end
 
-  # The two evaluators report a step or a reach of the wrong kind each in
-  # its own words, so simulate checks the kind before either runs.
-  def test_a_step_that_is_no_action_without_parameters_or_a_reach_that_is_no_predicate_raises_before_quint_runs
+  # The two evaluators report a step, a reach, or a violate of the wrong
+  # kind each in its own words, so simulate checks the kind before either
+  # runs.
+  def test_a_step_that_is_no_action_without_parameters_or_a_reach_or_violate_that_is_no_predicate_raises_before_quint_runs
     actions = "such as step"
     predicates = "such as nothing_on_loan, one_book_each, two_on_loan"
     { { step: "one_book_each" } => "step names one_book_each, a predicate of loans; step takes an action without parameters, #{actions}",
@@ -220,7 +280,9 @@ class QuintTest < Minitest::Test
       { reach: "holder" } => "reach names holder, a variable of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
       { reach: "onLoan" } => "reach names onLoan, a def with parameters of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
       { reach: "BOOKS" } => "reach names BOOKS, a set value of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
-      { reach: "Done" } => "reach names Done, a case of a sum type of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}" }.each do |names, message|
+      { reach: "Done" } => "reach names Done, a case of a sum type of loans; reach takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { violate: "borrow" } => "violate names borrow, an action with parameters of loans; violate takes a predicate, a boolean val or def without parameters, #{predicates}",
+      { violate: "BOOKS" } => "violate names BOOKS, a set value of loans; violate takes a predicate, a boolean val or def without parameters, #{predicates}" }.each do |names, message|
       [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
         ran = quint_subcommands do
           error = with_env(env) { assert_raises(ArgumentError) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 3, max_steps: 3, seed: "1", **names) { flunk } } }
@@ -248,10 +310,12 @@ class QuintTest < Minitest::Test
     end
   end
 
-  def test_a_step_or_a_reach_that_names_nothing_raises_with_the_names_that_fit
+  def test_a_step_a_reach_or_a_violate_that_names_nothing_raises_with_the_names_that_fit
     { { step: "borow" } => "step names borow, which loans neither declares nor imports; step takes an action without parameters, such as step",
       { reach: "two_lent" } => "reach names two_lent, which loans neither declares nor imports; " \
-                               "reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan" }.each do |names, message|
+                               "reach takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan",
+      { violate: "one_book_eahc" } => "violate names one_book_eahc, which loans neither declares nor imports; " \
+                                      "violate takes a predicate, a boolean val or def without parameters, such as nothing_on_loan, one_book_each, two_on_loan" }.each do |names, message|
       [ {}, { "QUINT_EVALUATOR" => "" } ].each do |env|
         error = with_env(env) { assert_raises(ArgumentError) { QuintDriver::Quint.simulate(LoansDriver::SPEC, traces: 1, max_steps: 1, seed: "1", **names) { flunk } } }
         assert_equal "quint: #{message}", error.message, [ names, env ].inspect

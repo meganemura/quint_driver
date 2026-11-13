@@ -744,6 +744,19 @@ quint_driver が投げる `ArgumentError` のバックトレースは、それ�
 述語でない名前を渡すと、最初のステップの前に `ArgumentError` を投げます。
 `spec:` なしで `invariants:` を渡したときも同じです。
 
+期待を破るトレースを quint に探させるには、その名前を `Quint.simulate` の `violate:` に渡します。
+quint はそれを不変条件として検査します。
+各トレースは期待が初めて偽になる状態で終わり、`Quint.simulate` は期待を破ったトレースだけを渡します。
+渡されたトレースは、`invariants:` に同じ名前を渡して再生します。
+システムがトレースと一致すれば、最後のステップで `QuintDriver::Violated` を投げます。
+`reach:` と違い、どのトレースも期待を保ったときは、何も渡さず、何も投げません。
+`Quint.simulate` は `QuintDriver::Quint::Simulation` を返します。
+その `traces` は quint が動かしたトレースの数で、`violated` はそのうち期待を破ったトレースの数です。
+`violate:` を渡さないときの `violated` は `nil` です。
+例えば `Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1", violate: "one_book_each")` は `#<data QuintDriver::Quint::Simulation traces=50, violated=0>` を返します。
+`violate:` は `reach:` と同じく述語を受け取り、同じ理由で `backend: "rust"` を必要とします。
+`reach:` と `violate:` を一緒に渡すと、quint を動かす前に `ArgumentError` を投げます。
+
 `Quint.test(path, "lendTest", seed: "1") { |trace| ... }` は、`run lendTest = init.then(borrow("m1", "b1")).then(give_back("b1"))` のような名前付きの run のトレースを書き、そのファイルを渡します。
 run がファイルの別のモジュールにあるときは `main:` を渡します。
 quint test は `mbt::actionTaken` を書かないので、仕様は各ステップが取ったアクションを自分で記録する必要があります。
