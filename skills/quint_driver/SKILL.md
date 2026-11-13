@@ -1046,6 +1046,57 @@ QuintDriver::Mismatch:
 
 Do not return `reorder(...)` from the wrap. A new relation loads records of its own, not the association's target, so the job changes records that `batch.update!` does not autosave. The same trace then fails with `driver {"i1" => "pending", "i2" => "pending", "i3" => "pending"}` while `free` drops to 0, and an item validation that fails no longer stops the update: with a blocked item that may not be assigned, `update!` raised `Validation failed: Items state blocked` when the job changed the loaded target, and saved when it changed the records of `reorder(:id)`.
 
+### A request another one comes between
+
+A lost update needs a second request between the first one's read and its write. Split the request into two actions, one that reads and one that writes, and keep what the read saw in a variable. `examples/shelf/shelf.qnt` in the quint_driver repository:
+
+```quint
+  action load(r: str): bool = all {
+    not(loaded.keys().contains(r)),
+    loaded' = loaded.put(r, stock),
+    stock' = stock, reserved' = reserved,
+  }
+
+  action save(r: str): bool = all {
+    loaded.keys().contains(r),
+    stock' = loaded.get(r) - 1,
+    reserved' = reserved + 1,
+    loaded' = loaded.keys().exclude(Set(r)).mapBy(k => loaded.get(k)),
+  }
+```
+
+The driver runs the whole request in `QuintDriver::Hold`. `start(name) { ... }` runs the block until the code calls `pause(value)`, and returns that value. `finish(name)` lets it run to its end and returns the block's value. The code reaches `pause` through a stub at the point to stop; outside a held call, `pause` does nothing:
+
+```ruby
+    when "init"
+      @hold = QuintDriver::Hold.new
+      @shelf = Shelf.new
+      hold = @hold
+      # The pause point: right after the reservation reads the stock.
+      @shelf.define_singleton_method(:stock) { super().tap { hold.pause(_1) } }
+      @loaded = {}
+    when "load" then @loaded[picks["r"]] = @hold.start(picks["r"]) { @shelf.reserve }
+    when "save" then @hold.finish(picks["r"]).then { @loaded.delete(picks["r"]) }
+```
+
+`every_reservation_takes_one` is the expectation, and two reads before two writes break it:
+
+```text
+quint: the system agreed with the spec at every step, and the expectation `every_reservation_takes_one` does not hold after step 4 `save` {"r" => "r2"}
+steps:
+  init {}
+  load {"r" => "r1"}
+  load {"r" => "r2"}
+  save {"r" => "r1"}
+  save {"r" => "r2"}
+state:
+  loaded: {}
+  reserved: 2
+  stock: 2
+```
+
+Hegel's machine shrinks the same bug to these five steps. A held call runs in a Fiber on the same thread and shares its database connection, so the test transaction rolls it back too. On one connection the transactions of two held calls nest, so put the pause where the call holds no open transaction, such as after its read and before the transaction that writes. In the depot app, two calls held inside `transaction(requires_new: true)` and finished in the order they started raised `ActiveRecord::StatementInvalid: SQLite3::SQLException: cannot rollback - no transaction is active`. Real threads and separate connections are another tool's job: this one replays one order of steps at a time.
+
 ## Read a failure
 
 ```text

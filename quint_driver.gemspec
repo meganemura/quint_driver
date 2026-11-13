@@ -16,5 +16,5 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.3.0"
   spec.bindir = "exe"
   spec.executables = [ "quint_driver" ]
-  spec.files = Dir["lib/**/*.rb", "exe/quint_driver", "skills/quint_driver/SKILL.md", "examples/loans/*", "README.md", "README.ja.md", "LICENSE"]
+  spec.files = Dir["lib/**/*.rb", "exe/quint_driver", "skills/quint_driver/SKILL.md", "examples/loans/*", "examples/shelf/*", "README.md", "README.ja.md", "LICENSE"]
 end

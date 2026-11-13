@@ -351,7 +351,7 @@ state:
   row: {"p1" => "", "p2" => "", "p3" => ""}
 ```
 
-Here the parcel is collected and the compartment is free, but the locker controller still holds its code: the release page rescued the controller's time-out inside its transaction. A `Violated` is a bug suspect, and a `Mismatch` in a hunt is most often an error in the spec or the driver. To pin a failure as one example, paste the text under its `steps:` into `QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: [...])`, which runs those steps again with no quint run and no Hegel. The [skill](skills/quint_driver/SKILL.md#hunt-for-bugs) has the full loop: where to look, how to confirm a suspect, and when to stop.
+Here the parcel is collected and the compartment is free, but the locker controller still holds its code: the release page rescued the controller's time-out inside its transaction. A `Violated` is a bug suspect, and a `Mismatch` in a hunt is most often an error in the spec or the driver. To pin a failure as one example, paste the text under its `steps:` into `QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: [...])`, which runs those steps again with no quint run and no Hegel. The [skill](skills/quint_driver/SKILL.md#hunt-for-bugs) has the full loop: where to look, how to confirm a suspect, and when to stop. To find an update lost between a read and a write, hold a request part way with `QuintDriver::Hold`, as the skill's [A request another one comes between](skills/quint_driver/SKILL.md#a-request-another-one-comes-between) shows.
 
 ## Try it without an app
 

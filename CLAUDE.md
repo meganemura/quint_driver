@@ -15,6 +15,7 @@ The spec is evaluated in the Ruby process (`Model`), and the model is held to Qu
 - `trace.rb` reads ITF traces and replays them on a driver. `spec.rb` reads one module of the JSON IR and the rules of a step action. `model.rb` evaluates the IR. `hegel.rb` is the Hegel adapter, loaded only by `require "quint_driver/hegel"`.
 - `skills/quint_driver/` is the agent skill that ships with the repository.
 - `examples/loans/` is a small spec, a system, a broken system, and their driver. The tests use it.
+- `examples/shelf/` is a spec that splits a reservation into its read and its write, a system that loses an update, and a driver that holds each reservation with `QuintDriver::Hold`.
 - `test/` is Minitest, `spec/` is RSpec. Both suites must pass: the library must work under either framework. The Hegel tests are in `test/hegel/` and `spec/hegel/`; the rest is the core.
 - `test/fixture/depot/` is a small Rails app with a Gemfile and a lock of its own, and the gem does not ship it. It has four bugs planted, and nothing under its `app/` may say so: the list is in `test/depot_test.rb` and at the top of `spec/quint/depot_spec.rb`. Its `spec/quint/` hunts for them the way an agent would in an app of its own, and `fixed.patch` takes them out of the app and out of the actions of `depot.qnt`.
 

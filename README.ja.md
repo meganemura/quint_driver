@@ -401,6 +401,8 @@ state:
 失敗を 1 つの example に固めるには、その `steps:` の下の文字列を `QuintDriver.replay_steps(spec, driver, <<~STEPS, invariants: [...])` に貼ります。
 quint も Hegel も使わずに、その手順をもう一度動かします。
 探す場所、候補の確かめ方、やめどきは、[スキル](skills/quint_driver/SKILL.md#hunt-for-bugs)にあります。
+読み込みと書き込みの間に別のリクエストが入って更新が消えるバグは、`QuintDriver::Hold` でリクエストを途中で止めて探します。
+書き方はスキルの [A request another one comes between](skills/quint_driver/SKILL.md#a-request-another-one-comes-between) にあります。
 
 ## アプリなしで試す
 
