@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# The quint_driver command. `quint_driver outline SPEC.qnt` prints a driver to
+# start from: the actions with their picks, the variables state reports with
+# the shape of each value, and the expectations. It exits 1 with the reason
+# when the spec does not compile or its step action cannot be driven.
+require "optparse"
+require_relative "../lib/quint_driver"
+
+usage = "usage: quint_driver outline SPEC.qnt [--main MODULE] [--step ACTION]"
+options = { step: "step" }
+parser = OptionParser.new(usage) do |o|
+  o.on("--main MODULE", "the module to read; the file's name by default") { options[:main] = _1 }
+  o.on("--step ACTION", "the step action; step by default") { options[:step] = _1 }
+end
+command, path = parser.parse(ARGV)
+abort usage unless command == "outline" && path
+
+begin
+  print QuintDriver::Spec.new(path, main: options[:main] || File.basename(path, ".qnt")).outline(options[:step])
+rescue QuintDriver::Unsupported, QuintDriver::QuintFailed, ArgumentError => e
+  abort e.message
+end

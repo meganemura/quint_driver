@@ -177,6 +177,40 @@ When the file holds several modules, pass the module name as `main:` to `Spec.ne
 
 ## 2. Write the driver
 
+Start from the outline the gem prints. It names every action the step action can take with the picks it receives, every variable `state` must report with the Ruby shape of its value, and the expectations. It exits 1 with the reason when the step action has a shape no driver can run, so run it after each change to the spec's shape:
+
+```sh
+bundle exec quint_driver outline examples/loans/loans.qnt
+```
+
+```ruby
+# A driver for the module loans, whose step action is step.
+# Expectations, for invariants: or violate:
+#   one_book_each
+#   nothing_on_loan
+#   two_on_loan
+class LoansDriver
+  def step(action, picks)
+    case action
+    when "init"
+    when "borrow" # picks["m"]: String, picks["b"]: String
+    when "borrow_refused" # picks["m"]: String, picks["b"]: String
+    when "give_back" # picks["b"]: String
+    when "give_back_refused" # picks["b"]: String
+    end
+  end
+
+  def state
+    {
+      "holder" => nil, # Hash of String => String
+      "outcome" => nil, # "Done" or ["Refused", String]
+    }
+  end
+end
+```
+
+`--main MODULE` reads another module of the file, and `--step ACTION` another step action. The driver the example fills in:
+
 ```ruby
 class LoansDriver
   def step(action, picks)

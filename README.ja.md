@@ -638,6 +638,9 @@ ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/qu
 ## ドライバーを書く
 
 ドライバーは、仕様のアクションをシステムで動かし、システムの状態を仕様の言葉で読み戻します。
+`bundle exec quint_driver outline spec.qnt` は、書き始めるためのドライバーを出力します。
+各アクションと受け取る選択、`state` が返す各変数とその値の Ruby での形、そして期待が並びます。
+どのドライバーも step アクションを動かせないときは、理由を出して終了コード 1 で終わります。
 
 ```ruby
 class LoansDriver

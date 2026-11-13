@@ -14,5 +14,7 @@ Gem::Specification.new do |spec|
     "rubygems_mfa_required" => "true"
   }
   spec.required_ruby_version = ">= 3.3.0"
-  spec.files = Dir["lib/**/*.rb", "skills/quint_driver/SKILL.md", "examples/loans/*", "README.md", "README.ja.md", "LICENSE"]
+  spec.bindir = "exe"
+  spec.executables = [ "quint_driver" ]
+  spec.files = Dir["lib/**/*.rb", "exe/quint_driver", "skills/quint_driver/SKILL.md", "examples/loans/*", "README.md", "README.ja.md", "LICENSE"]
 end

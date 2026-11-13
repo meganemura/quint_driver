@@ -558,7 +558,7 @@ ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/qu
 
 ## Write a driver
 
-A driver runs the spec's actions on your system and reads the system back in the spec's terms.
+A driver runs the spec's actions on your system and reads the system back in the spec's terms. `bundle exec quint_driver outline spec.qnt` prints one to start from: each action with the picks it receives, each variable `state` must report with the Ruby shape of its value, and the expectations. It exits 1 with the reason when no driver can run the step action.
 
 ```ruby
 class LoansDriver
