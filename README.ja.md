@@ -808,7 +808,8 @@ quint はそれを不変条件として検査します。
 `Quint.simulate` は `QuintDriver::Quint::Simulation` を返します。
 その `traces` は quint が動かしたトレースの数で、`violated` はそのうち期待を破ったトレースの数です。
 `violate:` を渡さないときの `violated` は `nil` です。
-例えば `Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1", violate: "one_book_each")` は `#<data QuintDriver::Quint::Simulation traces=50, violated=0>` を返します。
+`actions` はすべてのトレースで各アクションが取られた回数で、`never` は step アクションのうちどのトレースも取らなかったアクションの一覧です。
+例えば `Quint.simulate("loans.qnt", traces: 50, max_steps: 20, seed: "1", violate: "one_book_each")` は `#<data QuintDriver::Quint::Simulation traces=50, violated=0, actions={"borrow" => 214, "borrow_refused" => 283, "give_back" => 161, "give_back_refused" => 342}, never=[]>` を返します。
 `violate:` は `reach:` と同じく述語を受け取り、同じ理由で `backend: "rust"` を必要とします。
 `reach:` と `violate:` を一緒に渡すと、quint を動かす前に `ArgumentError` を投げます。
 
