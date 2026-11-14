@@ -12,8 +12,10 @@ module QuintDriver
 
     # The q:: definitions are what quint adds for --main, so only the module
     # a file compiled for first would have them. A module that imports reads
-    # quint's flattened copy, where what it imports is its own.
-    def initialize(path, main:)
+    # quint's flattened copy, where what it imports is its own. Without
+    # +main+ the module is the one named after the file, as Quint.simulate
+    # reads it, so the two agree when both leave it out.
+    def initialize(path, main: File.basename(path.to_s, ".qnt"))
       ir = Quint.compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == main }.fetch("declarations")
       ir = Quint.compile(path, main:, flat: true) if declarations.any? { %w[import instance export].include?(_1["kind"]) }
@@ -45,6 +47,14 @@ module QuintDriver
       name = names.find { @kinds[_1] != "a predicate" } or return
       what = @kinds.key?(name) ? "#{@kinds[name]} of #{@main}" : "which #{@main} neither declares nor imports"
       Quint.send(:misnamed, argument, name, what, "a predicate", @kinds)
+    end
+
+    # The names invariants: and violate: take: every boolean val or def
+    # without parameters, in the order the module declares them, so a hunt
+    # that reads this list runs a val added later too.
+    def expectations
+      predicates!([], "invariants")
+      declarations.sort_by { _1["id"] }.filter_map { _1["name"] if @kinds[_1["name"]] == "a predicate" }.uniq
     end
 
     # The definition that writes each IR node, by node id, so the model names

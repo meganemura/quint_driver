@@ -132,8 +132,8 @@ module QuintDriver
       yield
     rescue NamedTrace => failure
       raise lead_outside(failure)
-    rescue Unsupported, QuintFailed
-      raise
+    rescue Unsupported, QuintFailed => failure
+      raise lead_outside(failure)
     rescue StandardError => error
       raise StepRaised, "quint: at #{at}, the step raised #{error.class}: #{error.message}\n#{raised_in(error)}#{ran(steps)}",
             outside(error.backtrace_locations || error.backtrace)

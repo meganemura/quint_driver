@@ -53,6 +53,7 @@ end
     error = assert_raises(QuintDriver::Unsupported) { unsupported.step("double", {}) }
 
     assert_equal "quint: no evaluation for operator powerset in subsets", error.message
+    assert error.backtrace.first.start_with?("#{__FILE__}:"), "the test's own line leads, as it does for a Mismatch: #{error.backtrace.first}"
   end
 
   def test_the_model_names_the_action_that_draws_a_domain_it_cannot_evaluate
@@ -206,6 +207,30 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
 
     error = assert_raises(QuintDriver::Unsupported) { model.step("bump", {}) }
     assert_equal "quint: bump leaves m unassigned", error.message
+  end
+
+  # Quint reads an action's val only when the action needs it, and a def
+  # with a parameter inside an action is a local operator. The model does the
+  # same, so it follows Quint's traces and refuses the move Quint never takes
+  # instead of failing on the val that guard keeps from being read.
+  def test_an_action_s_vals_are_read_when_needed_and_its_defs_are_local_operators
+    nested = File.expand_path("nested.qnt", __dir__)
+    spec = QuintDriver::Spec.new(nested)
+    QuintDriver::Quint.simulate(nested, traces: 20, max_steps: 5, seed: "1") { QuintDriver::Trace.replay(_1, spec.model) }
+    model = spec.model
+    model.step("init", {})
+
+    assert_equal({ "n" => 1, "owner" => { 1 => "a" } }, model.step("take", { "k" => 1 }))
+    assert_equal 'quint: the model refused take {"k" => 2}', assert_raises(QuintDriver::Mismatch) { model.step("take", { "k" => 2 }) }.message
+  end
+
+  def test_a_spec_lists_its_expectations_in_the_order_it_declares_them
+    assert_equal %w[one_book_each nothing_on_loan two_on_loan], LoansDriver.spec.expectations
+    assert_empty QuintDriver::Spec.new(File.expand_path("nested.qnt", __dir__)).expectations
+  end
+
+  def test_a_spec_without_main_reads_the_module_named_after_the_file
+    assert_equal LoansDriver.spec.rules("step").map(&:action), QuintDriver::Spec.new(LoansDriver::SPEC).rules("step").map(&:action)
   end
 
   def test_a_model_comes_only_from_a_spec

@@ -13,6 +13,18 @@ module QuintDriver
     # body cannot evaluate is reported where the spec writes it.
     Closure = Struct.new(:params, :body, :env, :within)
 
+    # A `val` inside an action, evaluated on its first read. Quint's
+    # evaluator reads one only when the action needs it, so a `val c =
+    # m.get(r)` above the guard that makes `r` a key is fine in Quint, and
+    # an eager model would refuse the disabled move Hegel tries.
+    Deferred = Struct.new(:compute) do
+      def value
+        return @value if defined?(@value)
+
+        @value = compute.call
+      end
+    end
+
     # Spec#model is the one way to build a model: the evaluator trusts the
     # shape of quint's compiled IR and checks none of it.
     private_class_method :new
@@ -129,7 +141,9 @@ module QuintDriver
         when "lambda" then Closure.new(node["params"].map { _1["name"] }, node["expr"], env, @within)
         when "let"
           definition = node["opdef"]
-          eval(node["expr"], env.merge(definition["name"] => eval(definition["expr"], env)))
+          within = @within
+          deferred = Deferred.new(-> { inside(within) { eval(definition["expr"], env) } })
+          eval(node["expr"], env.merge(definition["name"] => deferred))
         when "app" then apply(node["opcode"], node["args"], env)
         else refuse("IR kind #{node['kind']}")
         end
@@ -137,7 +151,7 @@ module QuintDriver
 
       # Quint reserves Bool, Int and Nat, so no definition shadows them.
       def lookup(name, env)
-        return env[name] if env.key?(name)
+        return env[name].is_a?(Deferred) ? env[name].value : env[name] if env.key?(name)
         return @state.fetch(name) if @vars.include?(name)
         return BOOL if name == "Bool"
 
@@ -173,7 +187,8 @@ module QuintDriver
       end
 
       def refuse(what, why = nil)
-        raise Unsupported, "quint: no evaluation for #{what} #{@within ? "in #{@within}" : 'outside any definition'}#{"; #{why}" if why}"
+        raise Unsupported, "quint: no evaluation for #{what} #{@within ? "in #{@within}" : 'outside any definition'}#{"; #{why}" if why}",
+              Agreement.outside(caller_locations)
       end
 
       # Quint's builtin docs leave these undefined, and its two evaluators do
@@ -206,6 +221,9 @@ module QuintDriver
         when "implies" then !eval(args[0], env) || eval(args[1], env)
         when "ite" then eval(args[eval(args[0], env) ? 1 : 2], env)
         when "assign" then @next[args[0]["name"]] = eval(args[1], env); true
+        # A `def` with parameters inside an action or another def is a let
+        # whose value is a lambda, and a call of it names it as the operator.
+        when *env.keys then call(lookup(op, env), args.map { eval(_1, env) })
         else operate(op, args.map { eval(_1, env) })
         end
       end

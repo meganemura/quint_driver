@@ -11,10 +11,7 @@ module QuintDriver
       picks = rules(step).each_with_object({ "init" => {} }) do |rule, actions|
         (actions[rule.action] ||= {}).merge!(rule.domains.transform_values { shape(@types.dig(_1["id"].to_s, "type", "elem")) })
       end
-      predicates!([], "invariants")
-      in_order = declarations.sort_by { _1["id"] }
-      variables = in_order.select { _1["kind"] == "var" }
-      expectations = in_order.filter_map { _1["name"] if @kinds[_1["name"]] == "a predicate" }.uniq
+      variables = declarations.sort_by { _1["id"] }.select { _1["kind"] == "var" }
       name = @main.split(/[^A-Za-z0-9]+/).map { _1[0].upcase + _1[1..] }.join
       [ "# A driver for the module #{@main}, whose step action is #{step}.",
         "# Expectations, for invariants: or violate:",
