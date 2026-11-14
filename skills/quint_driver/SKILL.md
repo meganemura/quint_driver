@@ -50,15 +50,17 @@ bundle exec quint_driver targets test/fixture/depot --top 3
 ```
 
 ```text
-app/jobs/intake_job.rb: retry, outside, unchecked-save, answers-false, transaction
+app/jobs/intake_job.rb: retry, outside, unchecked-save, answers-false, transaction, check-then-write
   6  retry  retry_on LockerApi::TimedOut, wait: 1.minute, attempts: 10
   6  outside  retry_on LockerApi::TimedOut, wait: 1.minute, attempts: 10
   10  unchecked-save  row.update(status: assign(row.parcel) ? "done" : "failed")
   18  answers-false  return false unless parcel&.waiting? && compartment
   20  transaction  Parcel.transaction { parcel.assign_to!(compartment) }
+  20  check-then-write  Parcel.transaction { parcel.assign_to!(compartment) }
 
-app/controllers/assignments_controller.rb: transaction, rescue, outside
+app/controllers/assignments_controller.rb: transaction, rescue, outside, check-then-write
   8  transaction  Parcel.transaction do
+  9  check-then-write  parcel.assign_to!(compartment)
   11  rescue  rescue LockerApi::TimedOut
   11  outside  rescue LockerApi::TimedOut
 
@@ -70,7 +72,7 @@ app/controllers/releases_controller.rb: transaction, rescue, outside
 3 more files with fewer kinds; pass --top N to see them.
 ```
 
-The depot's four planted bugs sit in these three files. The kinds are `transaction`, `rescue`, `unchecked-save` (a save or update without `!` as a statement), `answers-false` (a method that answers `false` on failure), `dropped-result` (a call, as a statement, of a method with one of the two before it), `skips-callbacks` (`update_all`, `delete_all` and the like), `counter-write`, `retry`, and `outside` (an HTTP client, a class named Api or Client, a broadcast). A hit is a line to read, not a bug. Read the top files and ask of each: which entry points reach it, what do they write, and what can fail between two of the writes. Each answer that names two writes and a failure between them is an action with a pick, and the state after the failure is an expectation.
+The depot's four planted bugs sit in these three files. The kinds are `transaction`, `rescue`, `unchecked-save` (a save or update without `!` as a statement), `answers-false` (a method that answers `false` on failure), `dropped-result` (a call, as a statement, of a method with one of the two before it), `skips-callbacks` (`update_all`, `delete_all` and the like), `counter-write`, `retry`, `outside` (an HTTP client, a class named Api or Client, a broadcast, or an error class of the app's own, which is how a service says it can fail), and `check-then-write` (a write after an `if` or `unless` that reads stored state, in a method that takes no lock). Comments, strings and heredocs are skipped. A hit is a line to read, not a bug. A `check-then-write` is where two requests can both pass the check before either writes: split each request into its read and its write with `QuintDriver::Hold`, as "A request another one comes between" shows. When nothing matches, the command says so and names what to read instead; it does not mean a hunt cannot pay. Read the top files and ask of each: which entry points reach it, what do they write, and what can fail between two of the writes. Each answer that names two writes and a failure between them is an action with a pick, and the state after the failure is an expectation.
 
 On another test app with four planted bugs, the command listed seven files: six of them hold part of a bug, the seventh is the payment client, and each bug's line where the failure is dropped is a hit. On a real app whose every write goes through one locked aggregate, no file gathered more than three kinds, and the three in the top file were the lock, its version counter and the broadcast after it. When no file brings together a failure (`rescue`, `answers-false`, `retry`, `outside`) and two writes, the hunt pays less: model the aggregate's commands and the promises the README makes about them, or spend the time elsewhere.
 
@@ -188,7 +190,7 @@ Read a `Violated` as a bug suspect: the parcel is collected, the compartment is 
 
 `replay_steps(spec, driver, steps, step: "step", observe: [], ignore: [], invariants: [])` takes the pasted text or a list of `[action, picks]`, and the `init` line may be left out. A step the spec does not allow raises a `Mismatch` that names it, such as `quint: the model refused borrow {"b" => "b1", "m" => "m2"}, at step 2 ...`. It returns the steps it ran, and it stops at the step where an expectation breaks: to show what a user sees after that step, such as a refusal the next request gets, pin the longer list in a second example without `invariants:`, and check what the driver reports. The pinned example stays red until the bug is fixed, which is how it tells the fix worked.
 
-Quint's first trace that breaks an expectation is not the shortest. Take its steps out one at a time while `replay_steps` still raises the same `Violated`, or let the Hegel machine shrink it. The machine stops at the first expectation that breaks on the sequences it tries, which is the shallowest suspect, so it reports that one on every run. Once a suspect is pinned, leave its expectation out of `invariants:` (or change the action in the spec to the fixed behavior) and run the machine again to reach the next one.
+Quint's first trace that breaks an expectation is not the shortest. Take its steps out one at a time while `replay_steps` still raises the same `Violated`, or let the Hegel machine shrink it. The machine stops at the first expectation that breaks on the sequences it tries, which is the shallowest suspect, so it reports that one on every run. Once a suspect is pinned, leave its expectation out of `invariants:` (or change the action in the spec to the fixed behavior) and run the machine again to reach the next one. The machine needs the same stop rule as Quint: a bug that needs two requests to cross, as a lost update does, can stay hidden at 100 test cases. In one hunt, the machine found no such break at `test_cases: 100` and found it at 1000, in 10 seconds. When the machine finds nothing, run it again with ten times the test cases before you stop.
 
 To confirm a suspect, show the state to the operator: the pinned example is the steps that reach it. If the operator agrees that the state is wrong, the suspect is a bug; fix the code, change the action in the spec to the fixed behavior, and run the hunt again. If the operator says the state is fine, the expectation was wrong; change the `val`.
 
@@ -237,6 +239,8 @@ class LoansDriver
     end
   end
 
+  # A variable the system does not keep, such as a pick the spec
+  # remembers, goes in ignore: instead of here.
   def state
     {
       "holder" => nil, # Hash of String => String
@@ -1129,6 +1133,12 @@ state:
   reserved: 2
   stock: 2
 ```
+
+`start` returns the value given to `pause`, or the block's value when the call ended without one, such as a refusal before the write. Read `hold.held?(name)` after `start` to tell the two apart.
+
+In a Rails app each request loads its own record, so a stub on one object never runs. Put the pause on every instance, before the write the spec splits: with RSpec, `allow_any_instance_of(Loan).to receive(:update!).and_wrap_original { |original, attributes| driver.before_update(original.receiver, attributes); original.call(attributes) }`, where the driver's `before_update` calls `@hold.pause` only for that write, such as when `attributes[:state] == "approved"`. In one hunt this split an approval that checks a limit and then writes, and two approvals held between their check and their write both passed the limit.
+
+A held block runs as a Fiber, so it ends with `next`, never `return` or `break`, and it does not call `Fiber.yield` itself. A `pause` reached from another Fiber inside the held call, such as the block of an `Enumerator` read with `next`, cannot stop the call, so it raises `ArgumentError` rather than letting the call run through unheld.
 
 Hegel's machine shrinks the same bug to these five steps. A held call runs in a Fiber on the same thread and shares its database connection, so the test transaction rolls it back too. On one connection the transactions of two held calls nest, so put the pause where the call holds no open transaction, such as after its read and before the transaction that writes. In the depot app, two calls held inside `transaction(requires_new: true)` and finished in the order they started raised `ActiveRecord::StatementInvalid: SQLite3::SQLException: cannot rollback - no transaction is active`. Real threads and separate connections are another tool's job: this one replays one order of steps at a time.
 

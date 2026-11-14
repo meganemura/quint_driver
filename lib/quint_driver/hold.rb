@@ -13,10 +13,16 @@ module QuintDriver
   # that writes. Two calls held inside their transactions and finished in
   # the order they started leave ActiveRecord rolling back a transaction
   # SQLite no longer has.
+  #
+  # The block runs as a Fiber, so it ends with `next`, not `return` or
+  # `break`, and it does not call Fiber.yield itself. A pause from a Fiber
+  # inside the held call, such as one Enumerator#next runs, cannot stop the
+  # call, so it raises instead of letting the call run through unheld.
   class Hold
     def initialize
       @held = {}
       @ours = Set.new
+      @running = nil
     end
 
     # Runs the block until it calls #pause, and returns the value given to
@@ -47,18 +53,31 @@ module QuintDriver
     # Called by the code under test where a held call stops. +value+ is what
     # #start returns, such as the row the call loaded.
     def pause(value = nil)
-      Fiber.yield([ :paused, value ]) if @ours.include?(Fiber.current)
+      if @ours.include?(Fiber.current)
+        Fiber.yield([ :paused, value ])
+      elsif @running
+        raise ArgumentError, "quint: #{@running.inspect} paused in a Fiber of its own, such as one Enumerator#next runs; " \
+                             "pause where the held call runs, outside that Fiber"
+      end
       nil
     end
 
     private
       def run(name, fiber)
-        kind, value = fiber.resume
+        outer, @running = @running, name
+        answer = fiber.resume
+        kind, value = answer
+        unless %i[paused done].include?(kind) && answer.is_a?(Array)
+          raise ArgumentError, "quint: #{name.inspect} called Fiber.yield itself; a held call stops only at pause"
+        end
+
         forget(name, fiber) if kind == :done
         value
       rescue Exception
         forget(name, fiber)
         raise
+      ensure
+        @running = outer
       end
 
       def forget(name, fiber)

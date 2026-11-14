@@ -210,9 +210,11 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
   end
 
   # Quint reads an action's val only when the action needs it, and a def
-  # with a parameter inside an action is a local operator. The model does the
-  # same, so it follows Quint's traces and refuses the move Quint never takes
-  # instead of failing on the val that guard keeps from being read.
+  # with a parameter inside an action is a local operator that hides a
+  # top-level def of the same name, and an operator can be passed to another.
+  # The model does the same, so it follows Quint's traces and refuses the move
+  # Quint never takes instead of failing on the val that guard keeps from
+  # being read. A model that called the top-level bump would answer n = 20.
   def test_an_action_s_vals_are_read_when_needed_and_its_defs_are_local_operators
     nested = File.expand_path("nested.qnt", __dir__)
     spec = QuintDriver::Spec.new(nested)
@@ -220,7 +222,7 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
     model = spec.model
     model.step("init", {})
 
-    assert_equal({ "n" => 1, "owner" => { 1 => "a" } }, model.step("take", { "k" => 1 }))
+    assert_equal({ "n" => 2, "owner" => { 1 => "a" } }, model.step("take", { "k" => 1 }))
     assert_equal 'quint: the model refused take {"k" => 2}', assert_raises(QuintDriver::Mismatch) { model.step("take", { "k" => 2 }) }.message
   end
 

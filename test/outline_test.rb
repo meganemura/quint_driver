@@ -30,6 +30,8 @@ class OutlineTest < Minitest::Test
           end
         end
 
+        # A variable the system does not keep, such as a pick the spec
+        # remembers, goes in ignore: instead of here.
         def state
           {
             "place" => nil, # Hash of String => "Waiting", ["In", Integer], "Collected" or "Withdrawn"

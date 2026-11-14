@@ -28,6 +28,33 @@ class HoldTest < Minitest::Test
     assert_equal :inner, hold.start("r1") { QuintDriver::Hold.new.pause(:other); :inner }
   end
 
+  # Enumerator#next runs its block in a Fiber of its own, so a pause there
+  # cannot stop the held call. It raises, since a call that ran through
+  # would agree with the spec for the wrong reason.
+  def test_a_pause_in_a_fiber_inside_the_held_call_raises
+    hold = QuintDriver::Hold.new
+
+    error = assert_raises(ArgumentError) { hold.start("r1") { Enumerator.new { |y| hold.pause(:read); y << 1 }.next } }
+    assert_equal 'quint: "r1" paused in a Fiber of its own, such as one Enumerator#next runs; pause where the held call runs, outside that Fiber', error.message
+    assert_empty hold.held
+  end
+
+  def test_a_held_call_that_yields_its_fiber_itself_raises
+    hold = QuintDriver::Hold.new
+
+    error = assert_raises(ArgumentError) { hold.start("r1") { Fiber.yield(:raw) } }
+    assert_equal 'quint: "r1" called Fiber.yield itself; a held call stops only at pause', error.message
+    assert_empty hold.held
+  end
+
+  def test_an_error_before_the_pause_comes_out_of_start_and_frees_the_name
+    hold = QuintDriver::Hold.new
+
+    assert_raises(RuntimeError) { hold.start("r1") { raise "no row" } }
+    assert_empty hold.held
+    assert_equal :again, hold.start("r1") { :again }
+  end
+
   def test_finish_runs_through_every_later_pause
     hold = QuintDriver::Hold.new
     hold.start("r1") { hold.pause(1); hold.pause(2); :end }

@@ -22,7 +22,14 @@ end
 command, path = parser.parse(ARGV)
 
 case command
-when "targets" then print QuintDriver::Targets.report(path || ".", top: options[:top])
+when "targets"
+  root = path || "."
+  abort "quint: no directory #{root}" unless File.directory?(root)
+  begin
+    print QuintDriver::Targets.report(root, top: options[:top])
+  rescue ArgumentError => e
+    abort e.message
+  end
 when "outline"
   abort usage unless path
   begin

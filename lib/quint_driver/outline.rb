@@ -23,6 +23,8 @@ module QuintDriver
         "    end",
         "  end",
         "",
+        "  # A variable the system does not keep, such as a pick the spec",
+        "  # remembers, goes in ignore: instead of here.",
         "  def state",
         "    {",
         *variables.map { "      #{_1['name'].dump} => nil, # #{shape(_1['typeAnnotation'])}" },
