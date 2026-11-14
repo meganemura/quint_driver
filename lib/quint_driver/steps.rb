@@ -39,10 +39,58 @@ module QuintDriver
     ran
   end
 
+  # Takes steps out of a failure while the same expectations still break,
+  # and returns the shortest list it found as the text under steps:, to
+  # paste into replay_steps. The block runs one list of steps, as
+  # [action, picks] from init, and raises what replay_steps raises: it
+  # builds the driver and rolls the database back each time, since a list
+  # that keeps the failure is only known by running it. A list the spec
+  # does not allow (Mismatch), one whose step raises (StepRaised), or one
+  # that breaks other expectations does not keep the failure. Quint's first
+  # trace that breaks an expectation is seldom the shortest; Hegel shrinks
+  # its own.
+  def self.shrink_steps(steps, &run)
+    steps = Steps.parse(steps) if steps.is_a?(String)
+    steps = steps.map { |action, picks| [ action.to_s, (picks || {}).transform_keys(&:to_s) ] }
+    steps.shift if steps.first&.first == "init"
+    first = Steps.violated(steps, &run) or raise ArgumentError, "quint: shrink_steps needs steps that raise Violated; these do not"
+
+    expectations = first.expectations.sort
+    best = Steps.after_init(first.steps)
+    # Runs of steps come out together, longest first, since a step often
+    # needs the one before it: a save cannot go without its load.
+    loop do
+      shorter = best.size.downto(1).lazy.flat_map do |size|
+        (0..best.size - size).lazy.filter_map do |start|
+          candidate = best.dup.tap { _1.slice!(start, size) }
+          broken = Steps.violated(candidate, &run)
+          Steps.after_init(broken.steps) if broken && broken.expectations.sort == expectations
+        end
+      end.first
+      break unless shorter
+
+      best = shorter
+    end
+    Agreement.ran([ [ "init", {} ], *best ]) + "\n"
+  end
+
   # Reads the steps: lines of a failure back into [action, picks]. Each line
   # is an action's name and its picks as a failure prints a value: strings,
   # integers, true, false, nil, [lists], {sets} and {hashes with =>}.
   module Steps
+    # The Violated that running +steps+ raises, or nil when they keep every
+    # expectation, the spec refuses one of them, or one of them raises.
+    def self.violated(steps)
+      yield([ [ "init", {} ], *steps ])
+      nil
+    rescue Violated => broken
+      broken
+    rescue Mismatch, StepRaised
+      nil
+    end
+
+    def self.after_init(steps) = steps.first&.first == "init" ? steps.drop(1) : steps
+
     def self.parse(text)
       text.each_line.map(&:strip).reject { _1.empty? || _1 == "steps:" }.map do |line|
         action, picks = line.split(" ", 2)

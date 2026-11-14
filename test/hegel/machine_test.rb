@@ -402,8 +402,8 @@ class MachineTest < Minitest::Test
   end
 
   def test_the_adapter_adds_only_the_machine_to_quint_driver
-    # replay_steps is the core's; the adapter adds the machine and nothing else.
-    assert_equal %i[machine replay_steps], QuintDriver.singleton_methods.sort
+    # replay_steps and shrink_steps are the core's; the adapter adds the machine and nothing else.
+    assert_equal %i[machine replay_steps shrink_steps], QuintDriver.singleton_methods.sort
   end
 
   def self.unlimited = @unlimited ||= QuintDriver::Spec.new(File.expand_path("../unlimited.qnt", __dir__), main: "unlimited")

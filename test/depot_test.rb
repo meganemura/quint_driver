@@ -36,6 +36,7 @@ class DepotTest < Minitest::Test
   REPLAY = "does what the spec says on every trace Quint writes"
   MACHINE = "keeps every expectation on the sequences Hegel chooses"
   PINNED = "keeps free_compartment_has_no_code when a release times out"
+  SHRUNK = "keeps free_compartment_has_no_code on the shortest steps of Quint's first break"
 
   # One rspec run of the app: its examples as rspec's JSON report holds them,
   # and what rspec printed.
@@ -108,7 +109,7 @@ class DepotTest < Minitest::Test
       assert_equal "QuintDriver::Violated", failure["class"], failure["message"]
       assert_includes failure["message"], "the system agreed with the spec at every step, and the expectation `#{expectation}` does not hold"
     end
-    found_a_bug = PLANTED.keys.map { hunt(_1) } << MACHINE << PINNED
+    found_a_bug = PLANTED.keys.map { hunt(_1) } << MACHINE << PINNED << SHRUNK
     assert_equal found_a_bug.sort, @planted.failed.map { _1["description"] }.sort, @planted.printed
     assert_equal [ "QuintDriver::Violated" ], @planted.failed.map { _1.dig("exception", "class") }.uniq, @planted.printed
   end
@@ -125,6 +126,17 @@ class DepotTest < Minitest::Test
     traced = @planted.example(hunt("free_compartment_has_no_code")).dig("exception", "message")
     pinned = @planted.example(PINNED).dig("exception", "message")
     assert_equal traced.sub(/\ntrace: .*\z/, ""), pinned
+  end
+
+  # The shortest list breaks the same expectation in no more steps than the
+  # trace Quint wrote. With seed 1, Quint's first break is already short.
+  def test_shrink_steps_breaks_the_same_expectation_in_no_more_steps
+    traced = @planted.example(hunt("free_compartment_has_no_code")).dig("exception", "message")
+    shrunk = @planted.example(SHRUNK)["exception"]
+    assert_equal "QuintDriver::Violated", shrunk["class"], shrunk["message"]
+    assert_includes shrunk["message"], "the expectation `free_compartment_has_no_code` does not hold"
+    steps = ->(message) { message[/^steps:\n(.*?)^state:/m, 1].lines.size }
+    assert_operator steps.(shrunk["message"]), :<=, steps.(traced)
   end
 
   def test_the_machine_raises_violated_and_shrinks_it_to_one_move

@@ -64,6 +64,21 @@ RSpec.describe "The depot, held to depot.qnt", type: :request do
     STEPS
   end
 
+  # Quint's first trace that breaks an expectation holds steps the failure
+  # does not need. shrink_steps takes them out, and the example raises the
+  # Violated of the shortest list it found.
+  it "keeps free_compartment_has_no_code on the shortest steps of Quint's first break" do
+    expectation = "free_compartment_has_no_code"
+    QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+      rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
+    rescue QuintDriver::Violated => broken
+      shortest = QuintDriver.shrink_steps(broken.steps) do |steps|
+        rolled_back { QuintDriver.replay_steps(spec, driver, steps, invariants: [ expectation ], ignore:) }
+      end
+      QuintDriver.replay_steps(spec, driver, shortest, invariants: [ expectation ], ignore:)
+    end
+  end
+
   it "keeps every expectation on the sequences Hegel chooses" do
     machine = QuintDriver.machine(spec, driver: -> { driver }, invariants: expectations, ignore:)
     Hegel.test(test_cases: 50, seed: 1, suppress_health_check: %i[filter_too_much too_slow]) do |tc|

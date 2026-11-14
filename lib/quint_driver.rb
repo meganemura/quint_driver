@@ -47,6 +47,15 @@ module QuintDriver
   # the steps from init, and the state where it broke.
   class Violated < StandardError
     include NamedTrace
+
+    # The names of the expectations that broke, and the steps from init, as
+    # [action, picks], that reached the state.
+    attr_reader :expectations, :steps
+
+    def initialize(message = nil, expectations: [], steps: [])
+      super(message)
+      @expectations, @steps = expectations, steps
+    end
   end
 
   # A step raised: the driver's code, or the system's beneath it, while it
@@ -102,9 +111,11 @@ module QuintDriver
     def self.violated!(after, broken, steps:, state:)
       expectations = "#{broken.one? ? 'expectation' : 'expectations'} #{broken.map { "`#{_1}`" }.join(' and ')}"
       variables = state.sort_by(&:first).map { |name, value| "  #{name}: #{show(value)}" }
-      raise Violated, "quint: the system agreed with the spec at every step, and the #{expectations} " \
-                      "#{broken.one? ? 'does' : 'do'} not hold after #{after}\n#{ran(steps)}\nstate:\n#{variables.join("\n")}",
-            outside(caller_locations)
+      error = Violated.new("quint: the system agreed with the spec at every step, and the #{expectations} " \
+                           "#{broken.one? ? 'does' : 'do'} not hold after #{after}\n#{ran(steps)}\nstate:\n#{variables.join("\n")}",
+                           expectations: broken.dup, steps: steps.map { |action, picks| [ action, picks.dup ] })
+      error.set_backtrace(outside(caller_locations))
+      raise error
     end
 
     # A name +ignore+ holds that +names+ lacks is refused, so a misspelt name

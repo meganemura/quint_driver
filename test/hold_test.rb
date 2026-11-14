@@ -123,6 +123,49 @@ class HoldTest < Minitest::Test
     TEXT
   end
 
+  # Quint's traces reach the lost update with steps it does not need, such
+  # as a whole reservation before the two that cross. shrink_steps takes
+  # them out while the same expectation breaks.
+  def test_shrink_steps_takes_out_what_the_failure_does_not_need
+    spec = QuintDriver::Spec.new(ShelfDriver::SPEC, main: "shelf")
+    long = <<~STEPS
+      init {}
+      load {"r" => "r2"}
+      save {"r" => "r2"}
+      load {"r" => "r1"}
+      load {"r" => "r2"}
+      save {"r" => "r2"}
+      save {"r" => "r1"}
+      load {"r" => "r1"}
+    STEPS
+
+    shortest = QuintDriver.shrink_steps(long) do |steps|
+      QuintDriver.replay_steps(spec, ShelfDriver.new, steps, invariants: %w[every_reservation_takes_one])
+    end
+
+    assert_equal <<~TEXT, shortest
+      steps:
+        init {}
+        load {"r" => "r1"}
+        load {"r" => "r2"}
+        save {"r" => "r2"}
+        save {"r" => "r1"}
+    TEXT
+    error = assert_raises(QuintDriver::Violated) { QuintDriver.replay_steps(spec, ShelfDriver.new, shortest, invariants: %w[every_reservation_takes_one]) }
+    assert_equal %w[every_reservation_takes_one], error.expectations
+  end
+
+  def test_shrink_steps_refuses_steps_that_break_nothing
+    spec = QuintDriver::Spec.new(ShelfDriver::SPEC, main: "shelf")
+
+    error = assert_raises(ArgumentError) do
+      QuintDriver.shrink_steps([ [ "load", { "r" => "r1" } ], [ "save", { "r" => "r1" } ] ]) do |steps|
+        QuintDriver.replay_steps(spec, ShelfDriver.new, steps, invariants: %w[every_reservation_takes_one])
+      end
+    end
+    assert_equal "quint: shrink_steps needs steps that raise Violated; these do not", error.message
+  end
+
   private
     def lost_update
       spec = QuintDriver::Spec.new(ShelfDriver::SPEC, main: "shelf")

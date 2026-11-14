@@ -190,7 +190,20 @@ Read a `Violated` as a bug suspect: the parcel is collected, the compartment is 
 
 `replay_steps(spec, driver, steps, step: "step", observe: [], ignore: [], invariants: [])` takes the pasted text or a list of `[action, picks]`, and the `init` line may be left out. A step the spec does not allow raises a `Mismatch` that names it, such as `quint: the model refused borrow {"b" => "b1", "m" => "m2"}, at step 2 ...`. It returns the steps it ran, and it stops at the step where an expectation breaks: to show what a user sees after that step, such as a refusal the next request gets, pin the longer list in a second example without `invariants:`, and check what the driver reports. The pinned example stays red until the bug is fixed, which is how it tells the fix worked.
 
-Quint's first trace that breaks an expectation is not the shortest. Take its steps out one at a time while `replay_steps` still raises the same `Violated`, or let the Hegel machine shrink it. The machine stops at the first expectation that breaks on the sequences it tries, which is the shallowest suspect, so it reports that one on every run. Once a suspect is pinned, leave its expectation out of `invariants:` (or change the action in the spec to the fixed behavior) and run the machine again to reach the next one. The machine needs the same stop rule as Quint: a bug that needs two requests to cross, as a lost update does, can stay hidden at 100 test cases. In one hunt, the machine found no such break at `test_cases: 100` and found it at 1000, in 10 seconds. When the machine finds nothing, run it again with ten times the test cases before you stop.
+Quint's first trace that breaks an expectation is not the shortest. `QuintDriver.shrink_steps(steps) { |steps| ... }` takes steps out while the same expectations still break and returns the shortest list it found, as the text to paste into `replay_steps`. The block runs one list on a clean database and raises what `replay_steps` raises; a driver whose `init` resets it can be the same object each time. A `Violated` carries the steps it ran as `steps` and the names that broke as `expectations`:
+
+```ruby
+    QuintDriver::Quint.simulate(qnt, traces: 200, max_steps: 12, seed: "1", violate: expectation) do |path|
+      rolled_back { QuintDriver::Trace.replay(path, driver, spec:, invariants: [ expectation ], ignore:) }
+    rescue QuintDriver::Violated => broken
+      shortest = QuintDriver.shrink_steps(broken.steps) do |steps|
+        rolled_back { QuintDriver.replay_steps(spec, driver, steps, invariants: [ expectation ], ignore:) }
+      end
+      QuintDriver.replay_steps(spec, driver, shortest, invariants: [ expectation ], ignore:)
+    end
+```
+
+On the depot, it cut the longest trace of each expectation from 7, 10, 8 and 10 steps, `init` counted, to 2, 6, 4 and 6, in 2 seconds or less each. A list that the spec refuses, or whose step raises, does not count as keeping the failure. It only takes steps out and never changes a pick, so a shorter failure with other picks can still exist: the Hegel machine changes picks too. The machine stops at the first expectation that breaks on the sequences it tries, which is the shallowest suspect, so it reports that one on every run. Once a suspect is pinned, leave its expectation out of `invariants:` (or change the action in the spec to the fixed behavior) and run the machine again to reach the next one. The machine needs the same stop rule as Quint: a bug that needs two requests to cross, as a lost update does, can stay hidden at 100 test cases. In one hunt, the machine found no such break at `test_cases: 100` and found it at 1000, in 10 seconds. When the machine finds nothing, run it again with ten times the test cases before you stop.
 
 To confirm a suspect, show the state to the operator: the pinned example is the steps that reach it. If the operator agrees that the state is wrong, the suspect is a bug; fix the code, change the action in the spec to the fixed behavior, and run the hunt again. If the operator says the state is fine, the expectation was wrong; change the `val`.
 
