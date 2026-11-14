@@ -35,6 +35,7 @@ quint_driver には Ruby 3.3 以降が必要です。
 仕様がその変更を確かめるからです。
 そのようなコミットは `git log --oneline -- app/models` で一覧できます。
 いくつもの入り口にまたがるバグを探すなら、[バグを探す](#バグを探す)を見てください。
+`bundle exec quint_driver targets` は、アプリの中で探す価値が高いファイルを順に並べます。
 
 下の手順では `Loan` を使います。
 新しいローンは `"pending"` で、`Loan#approve(officer)` はそれを `"approved"` にします。

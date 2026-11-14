@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `quint_driver targets [APP] [--top N]` ranks the files of an app's `app/` and `lib/` where a hunt pays. It marks each line that matches a kind of place where the bugs a hunt finds sat (a transaction, a rescue, a save without `!`, a method that answers `false`, a call that drops what such a method answers, a write that skips callbacks, a counter write, a retry, an outside call) and ranks the files by how many kinds meet in each. `QuintDriver::Targets.scan(root)` returns the hits.
 - The model reads a `val` inside an action only when the action needs it, as Quint does, so a `val c = m.get(r)` above the guard that makes `r` a key no longer raises `Unsupported` on a move Hegel tries and the spec does not allow. A `def` with parameters inside an action or a def is a local operator the model calls; it raised `` quint: no evaluation for operator <name> ``.
 - An `Unsupported` the model raises starts its backtrace at the caller's line, with no frame of quint_driver, as a `Mismatch` does.
 - `Spec.new(path)` reads the module named after the file when `main:` is left out, as `Quint.simulate` does.

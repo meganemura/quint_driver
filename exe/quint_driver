@@ -1,22 +1,34 @@
 #!/usr/bin/env ruby
-# The quint_driver command. `quint_driver outline SPEC.qnt` prints a driver to
-# start from: the actions with their picks, the variables state reports with
-# the shape of each value, and the expectations. It exits 1 with the reason
-# when the spec does not compile or its step action cannot be driven.
+# The quint_driver command.
+# `quint_driver targets [APP]` ranks the files of an app where a hunt pays,
+# with the lines to read first. `quint_driver outline SPEC.qnt` prints a
+# driver to start from: the actions with their picks, the variables state
+# reports with the shape of each value, and the expectations. It exits 1
+# with the reason when the spec does not compile or its step action cannot
+# be driven.
 require "optparse"
 require_relative "../lib/quint_driver"
 
-usage = "usage: quint_driver outline SPEC.qnt [--main MODULE] [--step ACTION]"
-options = { step: "step" }
+usage = <<~USAGE
+  usage: quint_driver targets [APP] [--top N]
+         quint_driver outline SPEC.qnt [--main MODULE] [--step ACTION]
+USAGE
+options = { step: "step", top: 10 }
 parser = OptionParser.new(usage) do |o|
-  o.on("--main MODULE", "the module to read; the file's name by default") { options[:main] = _1 }
-  o.on("--step ACTION", "the step action; step by default") { options[:step] = _1 }
+  o.on("--main MODULE", "outline: the module to read; the file's name by default") { options[:main] = _1 }
+  o.on("--step ACTION", "outline: the step action; step by default") { options[:step] = _1 }
+  o.on("--top N", Integer, "targets: how many files to show; 10 by default") { options[:top] = _1 }
 end
 command, path = parser.parse(ARGV)
-abort usage unless command == "outline" && path
 
-begin
-  print QuintDriver::Spec.new(path, main: options[:main] || File.basename(path, ".qnt")).outline(options[:step])
-rescue QuintDriver::Unsupported, QuintDriver::QuintFailed, ArgumentError => e
-  abort e.message
+case command
+when "targets" then print QuintDriver::Targets.report(path || ".", top: options[:top])
+when "outline"
+  abort usage unless path
+  begin
+    print QuintDriver::Spec.new(path, main: options[:main] || File.basename(path, ".qnt")).outline(options[:step])
+  rescue QuintDriver::Unsupported, QuintDriver::QuintFailed, ArgumentError => e
+    abort e.message
+  end
+else abort usage
 end

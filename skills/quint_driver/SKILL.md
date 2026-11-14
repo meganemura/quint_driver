@@ -43,6 +43,37 @@ To find bugs, model code where two places must change together and something can
 - A job that can raise half-way and run again on retry.
 - A row the code saves and whose return value it does not check, or a record another entry point can delete.
 
+`quint_driver targets` lists those places in an app. It reads the source of `app/` and `lib/` (not `spec/` or `test/`), marks each line that matches one kind of place, and ranks the files by how many kinds meet in each, since the bugs sat where several kinds meet:
+
+```sh
+bundle exec quint_driver targets test/fixture/depot --top 3
+```
+
+```text
+app/jobs/intake_job.rb: retry, outside, unchecked-save, answers-false, transaction
+  6  retry  retry_on LockerApi::TimedOut, wait: 1.minute, attempts: 10
+  6  outside  retry_on LockerApi::TimedOut, wait: 1.minute, attempts: 10
+  10  unchecked-save  row.update(status: assign(row.parcel) ? "done" : "failed")
+  18  answers-false  return false unless parcel&.waiting? && compartment
+  20  transaction  Parcel.transaction { parcel.assign_to!(compartment) }
+
+app/controllers/assignments_controller.rb: transaction, rescue, outside
+  8  transaction  Parcel.transaction do
+  11  rescue  rescue LockerApi::TimedOut
+  11  outside  rescue LockerApi::TimedOut
+
+app/controllers/releases_controller.rb: transaction, rescue, outside
+  7  transaction  Parcel.transaction do
+  10  rescue  rescue LockerApi::TimedOut
+  10  outside  rescue LockerApi::TimedOut
+
+3 more files with fewer kinds; pass --top N to see them.
+```
+
+The depot's four planted bugs sit in these three files. The kinds are `transaction`, `rescue`, `unchecked-save` (a save or update without `!` as a statement), `answers-false` (a method that answers `false` on failure), `dropped-result` (a call, as a statement, of a method with one of the two before it), `skips-callbacks` (`update_all`, `delete_all` and the like), `counter-write`, `retry`, and `outside` (an HTTP client, a class named Api or Client, a broadcast). A hit is a line to read, not a bug. Read the top files and ask of each: which entry points reach it, what do they write, and what can fail between two of the writes. Each answer that names two writes and a failure between them is an action with a pick, and the state after the failure is an expectation.
+
+On another test app with four planted bugs, the command listed seven files: six of them hold part of a bug, the seventh is the payment client, and each bug's line where the failure is dropped is a hit. On a real app whose every write goes through one locked aggregate, no file gathered more than three kinds, and the three in the top file were the lock, its version counter and the broadcast after it. When no file brings together a failure (`rescue`, `answers-false`, `retry`, `outside`) and two writes, the hunt pays less: model the aggregate's commands and the promises the README makes about them, or spend the time elsewhere.
+
 A status column on one model is a poor first target for a hunt: its transitions sit in one method, a reviewer reads them in a minute, and a spec of them holds no expectation the code could break. It is a good first target to learn the tool on, as the README's Quick start does.
 
 ## Hunt for bugs

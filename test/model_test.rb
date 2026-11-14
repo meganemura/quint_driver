@@ -241,7 +241,7 @@ def test_the_model_names_no_definition_for_a_node_it_is_handed_directly
 
   def test_checking_states_is_not_part_of_the_api
     refute_respond_to QuintDriver, :compare!
-    assert_equal %i[Hold Mismatch Model Quint QuintFailed Spec StepRaised Trace Unsupported VERSION Violated], QuintDriver.constants.sort
+    assert_equal %i[Hold Mismatch Model Quint QuintFailed Spec StepRaised Targets Trace Unsupported VERSION Violated], QuintDriver.constants.sort
   end
 
   def test_which_trace_a_simulate_block_is_yielding_is_not_part_of_the_api

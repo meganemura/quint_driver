@@ -22,7 +22,7 @@ quint_driver needs Ruby 3.3 or later. It calls the `quint` command that `QUINT` 
 
 ### Pick a first model
 
-Pick a model with a status column, such as `state` or `status`, and a method that changes it, such as `Order#cancel` or `Loan#approve`. A model whose status a recent commit changed is a good start, because the spec then checks that change: `git log --oneline -- app/models` lists those commits. To hunt for bugs across several entry points instead, see [Hunt for bugs](#hunt-for-bugs).
+Pick a model with a status column, such as `state` or `status`, and a method that changes it, such as `Order#cancel` or `Loan#approve`. A model whose status a recent commit changed is a good start, because the spec then checks that change: `git log --oneline -- app/models` lists those commits. To hunt for bugs across several entry points instead, see [Hunt for bugs](#hunt-for-bugs); `bundle exec quint_driver targets` ranks the files of your app where a hunt pays.
 
 The steps below use `Loan`. A new loan is `"pending"`, and `Loan#approve(officer)` makes it `"approved"`. Replace `Loan`, the record that the driver's `init` creates, the method, and the state names with yours.
 
