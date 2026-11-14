@@ -4,7 +4,7 @@ module QuintDriver
   interface _Machine
     def start_driver: () -> void
 
-    def move!: (String action, picks picks, state after) -> void
+    def move!: (String action, Hash[String, Model::value] picks, Hash[String, Model::value] after) -> void
   end
 
   # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,

@@ -13,7 +13,7 @@ module QuintDriver
   # @rbs!
   #   interface _Machine
   #     def start_driver: () -> void
-  #     def move!: (String action, picks picks, state after) -> void
+  #     def move!: (String action, Hash[String, Model::value] picks, Hash[String, Model::value] after) -> void
   #   end
 
   # Hegel's own file, which holds the method, is where its frames are.
@@ -63,7 +63,8 @@ module QuintDriver
     agreed = Set.new #: Set[Array[step]]
     # A fixed domain (Spec::Rule#fixed) is the same list in every test case,
     # so it is evaluated and sorted once per machine, not once per draw.
-    fixed = {}.compare_by_identity # steep:ignore UnannotatedEmptyCollection
+    fixed = {} #: Hash[ir, Array[Model::value]]
+    fixed.compare_by_identity
 
     no_picks = {} #: picks
     init = [ "init", no_picks ].freeze #: step
@@ -137,9 +138,9 @@ module QuintDriver
         @model.enter(after)
         @moves << [ action, Model.plain(picks) ]
         @numbers << @step
-        # A return in a block given to define_method leaves that method, which
-        # Steep reads as a return from machine.
-        return if agreed.include?(@moves) # steep:ignore ReturnTypeMismatch
+        # next leaves the method define_method made of this block, as return
+        # would; Steep reads a return here as one from machine.
+        next if agreed.include?(@moves)
 
         start_driver unless @driver
         # Every move the driver has not run yet, which is more than the last
@@ -163,7 +164,8 @@ module QuintDriver
             # @type ivar @model: Model
             # @type ivar @step: Integer
             @step += 1
-            picks = rule.domains.each_with_object({}) do |(name, domain), chosen| # steep:ignore UnannotatedEmptyCollection
+            none = {} #: Hash[String, Model::value]
+            picks = rule.domains.each_with_object(none) do |(name, domain), chosen|
               choices = fixed.fetch(domain) do
                 sorted = @model.value(domain, chosen).to_a.sort_by(&:to_s).freeze
                 rule.fixed.include?(name) ? fixed[domain] = sorted : sorted

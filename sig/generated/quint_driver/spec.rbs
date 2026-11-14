@@ -99,6 +99,9 @@ module QuintDriver
     # @rbs return: Array[String]
     def observable: () -> Array[String]
 
+    # The effect quint gives an expression that reads no variable.
+    READS_NONE: Hash[String, json]
+
     # Quint's effect of a set says which variables it reads, and a pick is
     # not a variable, so a set also has to name no earlier pick. A lambda
     # parameter that shadows a pick counts as the pick: one evaluation too
@@ -108,12 +111,12 @@ module QuintDriver
     # @rbs return: Set[String]
     def fixed: (Hash[String, ir] domains) -> Set[String]
 
-    # @rbs node: untyped
+    # @rbs node: json
     # @rbs return: Array[Integer]
-    def ids_in: (untyped node) -> Array[Integer]
+    def ids_in: (json node) -> Array[Integer]
 
-    # @rbs node: untyped
+    # @rbs node: json
     # @rbs return: Array[String]
-    def names_in: (untyped node) -> Array[String]
+    def names_in: (json node) -> Array[String]
   end
 end

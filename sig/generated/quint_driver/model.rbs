@@ -8,56 +8,73 @@ module QuintDriver
   # protocol too, which is how it is held to Quint: replay Quint's own traces
   # through it.
   class Model
+    # A value the model holds: a Quint value, where a sum type's value is
+    # a Variant and an operator a Closure. None is a Variant too, so no
+    # value is nil.
+    type value = bool | Integer | String | Set[value] | Array[value] | Hash[value, value] | Variant | Closure
+
+    # What an environment binds a name to: a value, or a `val` inside an
+    # action that is evaluated on its first read.
+    type env = Hash[String, value | Deferred]
+
     # A value of a sum type: its tag, and what it carries.
-    class Variant < Struct[String | untyped]
+    class Variant < Struct[String | value]
       attr_accessor tag(): String
 
-      attr_accessor value(): untyped
+      attr_accessor value(): value
 
-      def self.new: (?String tag, ?untyped value) -> instance
-                  | (?tag: String, ?value: untyped) -> instance
+      def self.new: (?String tag, ?value value) -> instance
+                  | (?tag: String, ?value: value) -> instance
     end
 
     BOOL: Set[bool]
 
+    # What a case of a sum type with no value carries: quint gives it the
+    # empty tuple.
+    UNIT: Array[value]
+
     # +within+ names the definition that holds the lambda, so an operator its
     # body cannot evaluate is reported where the spec writes it.
-    class Closure < Struct[Array[String] | ir | Hash[String, untyped] | String?]
+    class Closure < Struct[Array[String] | ir | env | String?]
       attr_accessor params(): Array[String]
 
       attr_accessor body(): ir
 
-      attr_accessor env(): Hash[String, untyped]
+      attr_accessor env(): env
 
       attr_accessor within(): String?
 
-      def self.new: (?Array[String] params, ?ir body, ?Hash[String, untyped] env, ?String? within) -> instance
-                  | (?params: Array[String], ?body: ir, ?env: Hash[String, untyped], ?within: String?) -> instance
+      def self.new: (?Array[String] params, ?ir body, ?env env, ?String? within) -> instance
+                  | (?params: Array[String], ?body: ir, ?env: env, ?within: String?) -> instance
     end
 
     # A `val` inside an action, evaluated on its first read. Quint's
     # evaluator reads one only when the action needs it, so a `val c =
     # m.get(r)` above the guard that makes `r` a key is fine in Quint, and
     # an eager model would refuse the disabled move Hegel tries.
-    class Deferred < Struct[^() -> untyped]
-      attr_accessor compute(): ^() -> untyped
+    class Deferred < Struct[^() -> value]
+      attr_accessor compute(): ^() -> value
 
-      def self.new: (?^() -> untyped compute) -> instance
-                  | (?compute: ^() -> untyped) -> instance
+      def self.new: (?^() -> value compute) -> instance
+                  | (?compute: ^() -> value) -> instance
     end
 
+    # The class is opened again rather than given a block: Steep reads a def
+    # in a block as one of the class around the block.
     class Deferred
-      @value: untyped
-      def value: () -> untyped
+      @value: value
+
+      # @rbs return: value
+      def value: () -> value
     end
 
     @within: String?
 
-    @constant: Hash[String, untyped]
+    @constant: Hash[String, value]
 
-    @next: Hash[String, untyped]
+    @next: Hash[String, value]
 
-    @state: Hash[String, untyped]
+    @state: Hash[String, value]
 
     @rules: Hash[String, Spec::Rule]
 
@@ -81,73 +98,73 @@ module QuintDriver
     #
     # @rbs action: String
     # @rbs picks: picks
-    # @rbs return: Hash[String, untyped]
-    def step: (String action, picks picks) -> Hash[String, untyped]
+    # @rbs return: Hash[String, value]
+    def step: (String action, picks picks) -> Hash[String, value]
 
-    # @rbs return: state
-    def state: () -> state
+    # @rbs return: Hash[String, plain]
+    def state: () -> Hash[String, plain]
 
     # The state the action would reach, or nil when it is disabled. The model
     # stays where it is, so a caller can ask which actions are enabled.
     #
     # @rbs name: String
-    # @rbs args: Array[untyped]
-    # @rbs return: Hash[String, untyped]?
-    def try: (String name, ?Array[untyped] args) -> Hash[String, untyped]?
+    # @rbs args: Array[value]
+    # @rbs return: Hash[String, value]?
+    def try: (String name, ?Array[value] args) -> Hash[String, value]?
 
-    # @rbs state: Hash[String, untyped]
-    # @rbs return: Hash[String, untyped]
-    def enter: (Hash[String, untyped] state) -> Hash[String, untyped]
+    # @rbs state: Hash[String, value]
+    # @rbs return: Hash[String, value]
+    def enter: (Hash[String, value] state) -> Hash[String, value]
 
     # Every [action, picks, next state] that +rule+, a Spec::Rule, allows
     # now, in a fixed order, so the same draw means the same move from the
     # same state.
     #
     # @rbs rule: Spec::Rule
-    # @rbs return: Array[[String, Hash[String, untyped], Hash[String, untyped]]]
-    def moves: (Spec::Rule rule) -> Array[[ String, Hash[String, untyped], Hash[String, untyped] ]]
+    # @rbs return: Array[[String, Hash[String, value], Hash[String, value]]]
+    def moves: (Spec::Rule rule) -> Array[[ String, Hash[String, value], Hash[String, value] ]]
 
     # A refusal names the definition that writes +node_or_name+, such as the
     # action a domain or an argument of a rule is written in, or says the node
     # is outside any definition when no definition of the spec holds it.
     #
     # @rbs node_or_name: ir | String
-    # @rbs env: Hash[String, untyped]
-    # @rbs return: untyped
-    def value: (ir | String node_or_name, ?Hash[String, untyped] env) -> untyped
+    # @rbs env: env
+    # @rbs return: value
+    def value: (ir | String node_or_name, ?env env) -> value
 
     # Each definition +names+ names, by name, as a plain value.
     #
     # @rbs names: Array[String]
-    # @rbs return: state
-    def observe: (Array[String] names) -> state
+    # @rbs return: Hash[String, plain]
+    def observe: (Array[String] names) -> Hash[String, plain]
 
     # A value as Trace.decode gives it, so a driver reads an Option the same
     # on a replay and under the machine: nil for None, the value for Some.
     #
-    # @rbs value: untyped
-    # @rbs return: untyped
-    def self.plain: (untyped value) -> untyped
+    # @rbs value: value
+    # @rbs return: plain
+    def self.plain: (value value) -> plain
 
     private
 
     # @rbs rule: Spec::Rule
     # @rbs domains: Array[[String, ir]]
-    # @rbs picks: Hash[String, untyped]
-    # @rbs return: Array[Hash[String, untyped]]
-    def picks_of: (Spec::Rule rule, Array[[ String, ir ]] domains, Hash[String, untyped] picks) -> Array[Hash[String, untyped]]
+    # @rbs picks: Hash[String, value]
+    # @rbs return: Array[Hash[String, value]]
+    def picks_of: (Spec::Rule rule, Array[[ String, ir ]] domains, Hash[String, value] picks) -> Array[Hash[String, value]]
 
     # @rbs node: ir
-    # @rbs env: Hash[String, untyped]
-    # @rbs return: untyped
-    def eval: (ir node, Hash[String, untyped] env) -> untyped
+    # @rbs env: env
+    # @rbs return: value
+    def eval: (ir node, env env) -> value
 
     # Quint reserves Bool, Int and Nat, so no definition shadows them.
     #
     # @rbs name: String
-    # @rbs env: Hash[String, untyped]
-    # @rbs return: untyped
-    def lookup: (String name, Hash[String, untyped] env) -> untyped
+    # @rbs env: env
+    # @rbs return: value
+    def lookup: (String name, env env) -> value
 
     # A pure val or pure def reads no variable, and a lambda reads none
     # until it is called, so their value is the same in every state and is
@@ -155,13 +172,13 @@ module QuintDriver
     #
     # @rbs name: String
     # @rbs &missing: (String) -> bot
-    # @rbs return: untyped
-    def defined: (String name) { (String) -> bot } -> untyped
+    # @rbs return: value
+    def defined: (String name) { (String) -> bot } -> value
 
     # @rbs closure: Closure
-    # @rbs args: Array[untyped]
-    # @rbs return: untyped
-    def call: (Closure closure, Array[untyped] args) -> untyped
+    # @rbs args: Array[value]
+    # @rbs return: value
+    def call: (Closure closure, Array[value] args) -> value
 
     # @rbs [T] (String? name) { () -> T } -> T
     def inside: [T] (String? name) { () -> T } -> T
@@ -179,22 +196,22 @@ module QuintDriver
     # @rbs return: bot
     def undefined: (String what) -> bot
 
-    # @rbs list: Array[untyped]
+    # @rbs list: Array[value]
     # @rbs i: Integer
     # @rbs op: String
     # @rbs return: Integer
-    def index!: (Array[untyped] list, Integer i, String op) -> Integer
+    def index!: (Array[value] list, Integer i, String op) -> Integer
 
-    # @rbs list: Array[untyped]
+    # @rbs list: Array[value]
     # @rbs op: String
-    # @rbs return: Array[untyped]
-    def nonempty!: (Array[untyped] list, String op) -> Array[untyped]
+    # @rbs return: Array[value]
+    def nonempty!: (Array[value] list, String op) -> Array[value]
 
-    # @rbs map: Hash[untyped, untyped]
-    # @rbs key: untyped
+    # @rbs map: Hash[value, value]
+    # @rbs key: value
     # @rbs op: String
     # @rbs return: bool
-    def keyed!: (Hash[untyped, untyped] map, untyped key, String op) -> bool
+    def keyed!: (Hash[value, value] map, value key, String op) -> bool
 
     # Quint documents no rounding: its evaluators truncate / and % toward
     # zero, and Ruby's Integer#/ and #% floor, so only operands where the
@@ -208,17 +225,18 @@ module QuintDriver
 
     # @rbs op: String
     # @rbs args: Array[ir]
-    # @rbs env: Hash[String, untyped]
-    # @rbs return: untyped
-    def apply: (String op, Array[ir] args, Hash[String, untyped] env) -> untyped
+    # @rbs env: env
+    # @rbs return: value
+    def apply: (String op, Array[ir] args, env env) -> value
 
     # Every other operator reads all of its arguments, so they are evaluated
-    # once, before it runs. The values are untyped: each operator reads its
-    # own shape, as quint's type checker already made sure.
+    # once, before it runs. The operands are untyped: each operator reads
+    # its own shape, as quint's type checker already made sure, and a case
+    # on the operator's name cannot narrow them.
     #
     # @rbs op: String
-    # @rbs values: Array[untyped]
-    # @rbs return: untyped
-    def operate: (String op, Array[untyped] values) -> untyped
+    # @rbs values: Array[value]
+    # @rbs return: value
+    def operate: (String op, Array[value] values) -> value
   end
 end

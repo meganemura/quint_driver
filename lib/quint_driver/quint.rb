@@ -137,7 +137,8 @@ module QuintDriver
       modules = ir.fetch("modules").to_h { [ _1["name"], _1["declarations"] ] }
       named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }
       shown = lambda do |name|
-        declarations = modules.fetch(name, []) # steep:ignore UnannotatedEmptyCollection
+        none = [] #: Array[ir]
+        declarations = modules.fetch(name, none)
         aliases = declarations.select { _1["kind"] == "import" }.to_h { [ _1["qualifiedName"], _1["protoName"] ] }
         declarations.flat_map do |declaration|
           case declaration["kind"]
@@ -218,7 +219,8 @@ module QuintDriver
                         "--n-traces", traces, "--seed", seed, "--step", step, "--out-itf", "#{dir}/trace_{seq}.itf.json", "--verbosity", 0 ]
           arguments += [ "--main", main ] if main
           # quint ends a trace where its invariant breaks, and exits 1 then.
-          arguments += [ "--invariant", reach ? "not(#{reach})" : violate ] if reach || violate
+          invariant = reach ? "not(#{reach})" : violate
+          arguments += [ "--invariant", invariant ] if invariant
           output, status = capture(*arguments)
           refuse_unfound.(output)
           failed "quint run failed:\n#{output}" unless status.success? || (reach || violate) && output.match?(/^error: invariant violated$/i)
@@ -368,7 +370,7 @@ module QuintDriver
     # @rbs method: String
     # @rbs path: String
     # @rbs *names: String
-    # @rbs **options: untyped
+    # @rbs **options: (String | Integer)?
     # @rbs return: String
     def self.call(method, path, *names, **options)
       arguments = [ Agreement.relative(File.expand_path(path)), *names ].map(&:inspect)
@@ -389,7 +391,8 @@ module QuintDriver
         @written[trace] = { seed:, written_by: }
         yield trace
       rescue NamedTrace => failure
-        name_trace(failure, trace)
+        named = failure #: named
+        name_trace(named, trace)
         raise
       ensure
         @written.delete(trace)
@@ -405,11 +408,9 @@ module QuintDriver
     # a block that rescues a replay's failure reads what the caller of
     # simulate reads.
     #
-    # +failure+ is untyped for the reason Agreement.lead_outside gives.
-    #
-    # @rbs failure: untyped
+    # @rbs failure: named
     # @rbs trace: String
-    # @rbs return: untyped
+    # @rbs return: named
     def self.name_trace(failure, trace)
       failure.send(:name_trace, trace, **@written[trace].to_h) unless failure.trace
       Agreement.lead_outside(failure)
@@ -419,6 +420,20 @@ module QuintDriver
     # Its stdin format is not a documented interface, so the gem reads only
     # this version's.
     EVALUATOR_VERSION = "v0.7.0" #: String
+
+    # @rbs!
+    #   # An IR node the gem writes for the evaluator, keyed by symbols.
+    #   type written_node = Hash[Symbol, Integer | String | bool | Array[written_node]]
+    #
+    #   # What the evaluator reads on stdin, as this version's quint sends it.
+    #   type evaluator_input = {
+    #     parsed: {
+    #       modules: Array[ir], table: Hash[String, ir], main: String, init: ir, step: ir,
+    #       invariants: Array[written_node], witnesses: Array[bot]
+    #     },
+    #     source: String, nruns: Integer, nsteps: Integer, ntraces: Integer, nthreads: Integer,
+    #     seed: Integer, mbt: bool, verbosity: Integer
+    #   }
 
     # The Rust evaluator simulate runs, without node: QUINT_EVALUATOR names
     # it, and an empty QUINT_EVALUATOR means `quint run`. Unset, it is the copy
@@ -446,7 +461,7 @@ module QuintDriver
     # @rbs step: String
     # @rbs reach: String?
     # @rbs violate: String?
-    # @rbs return: Hash[Symbol, untyped]?
+    # @rbs return: evaluator_input?
     def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:, violate:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
@@ -460,7 +475,7 @@ module QuintDriver
         { "id" => id, "kind" => "name", "name" => action }
       end
       invariant = if reach || violate
-                    name = reach || violate
+                    name = reach || violate #: String
                     table[(id += 1).to_s] = declarations.find { _1["kind"] == "def" && _1["name"] == name } || return
                     reach ? { id: id + 1, kind: "app", opcode: "not", args: [ { id:, kind: "name", name: } ] } : { id:, kind: "name", name: }
                   else
@@ -468,7 +483,7 @@ module QuintDriver
                   end
       number = Integer(seed.to_s, exception: false) or failed "quint: the seed #{seed.inspect} is not an integer"
       { parsed: { modules: ir["modules"], table:, main: ir["main"], init: named[0], step: named[1],
-                  invariants: [ invariant ], witnesses: [] }, # steep:ignore UnannotatedEmptyCollection
+                  invariants: [ invariant ], witnesses: [] },
         source: path, nruns: traces, nsteps: max_steps, ntraces: traces, nthreads: [ traces, Etc.nprocessors ].min,
         seed: number, mbt: true, verbosity: 0 }
     end
@@ -477,7 +492,7 @@ module QuintDriver
     # onwards, in the order it returns them.
     #
     # @rbs evaluator: String
-    # @rbs input: Hash[Symbol, untyped]
+    # @rbs input: evaluator_input
     # @rbs dir: String
     # @rbs return: void
     def self.write_traces(evaluator, input, dir)
@@ -510,15 +525,15 @@ module QuintDriver
     # through a shell, and each word after it is quoted: an app's folder can
     # have a space in its name. +stdout+ is a file quint's output goes into.
     #
-    # The words are untyped: they are strings and numbers, such as
-    # --max-steps 20, and Shellwords.join turns each into a string, which
-    # its RBS does not allow for.
+    # The words are strings and numbers, such as --max-steps 20. Shellwords
+    # turns each into a string itself, which its RBS does not allow for, so
+    # they are made strings here first.
     #
-    # @rbs *words: untyped
+    # @rbs *words: String | Integer
     # @rbs stdout: String?
     # @rbs return: [String, Process::Status]
     def self.capture(*words, stdout: nil)
-      line = "#{command} #{Shellwords.join(words)}#{" > #{Shellwords.escape(stdout)}" if stdout}"
+      line = "#{command} #{Shellwords.join(words.map(&:to_s))}#{" > #{Shellwords.escape(stdout)}" if stdout}"
       output, status = Open3.capture2e(line)
       # Only npm prefixes its lines with "npm error", so these mean npx did
       # not get as far as running quint.

@@ -35,15 +35,15 @@ module QuintDriver
     # it, None when it did not. Only that wrapper is taken off, so a pick the
     # move made of the spec's own None is nil and still present.
     #
-    # @rbs picks: Hash[String, untyped]
+    # @rbs picks: Hash[String, Hash[String, json]]
     # @rbs return: picks
-    def self.made: (Hash[String, untyped] picks) -> picks
+    def self.made: (Hash[String, Hash[String, json]] picks) -> picks
 
-    # @rbs values: Hash[String, untyped]
+    # @rbs values: Hash[String, plain]
     # @rbs path: Array[String]
     # @rbs index: Integer
-    # @rbs return: untyped
-    def self.at: (Hash[String, untyped] values, Array[String] path, Integer index) -> untyped
+    # @rbs return: plain
+    def self.at: (Hash[String, plain] values, Array[String] path, Integer index) -> plain
 
     # +log+, an IO such as $stdout, gets each step before the driver runs it.
     # +state+ and +action+ are paths into each state, as Trace.steps reads them.
@@ -81,24 +81,30 @@ module QuintDriver
     # @rbs spec: Spec?
     # @rbs observe: Array[String]
     # @rbs invariants: Array[String]
-    # @rbs return: Array[state] | Hash[Integer, state]
-    def self.evaluated: (String path, Spec? spec, observe: Array[String], invariants: Array[String]) -> (Array[state] | Hash[Integer, state])
+    # @rbs return: Array[Hash[String, plain]] | Hash[Integer, Hash[String, plain]]
+    def self.evaluated: (String path, Spec? spec, observe: Array[String], invariants: Array[String]) -> (Array[Hash[String, plain]] | Hash[Integer, Hash[String, plain]])
 
     # The spec's variables in state +index+ of the trace, as plain values.
     #
     # @rbs path: String
     # @rbs index: Integer
-    # @rbs return: state
-    def self.variables: (String path, Integer index) -> state
+    # @rbs return: Hash[String, plain]
+    def self.variables: (String path, Integer index) -> Hash[String, plain]
+
+    # What decode gives: a plain value without a block, and the model's
+    # value with one. Steep checks a body against each overload, and the
+    # one body holds both cases, so each caller says which it reads.
+    type decoded = nil | bool | Integer | String | Set[decoded] | Array[decoded] | Hash[decoded, decoded] | Model::Variant | Model::Closure
 
     # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
     # An Option is nil for None and its value for Some, as Model.plain gives one.
     # With a block, a sum type's value is what the block makes of its tag and
-    # its decoded value, as the model holds one.
+    # its decoded value, as the model holds one. An ITF value names its shape
+    # by its keys, such as "#set", so each is read as the shape its key names.
     #
-    # @rbs value: untyped
-    # @rbs &variant: ? (String tag, untyped inner) -> untyped
-    # @rbs return: untyped
-    def self.decode: (untyped value) ?{ (String tag, untyped inner) -> untyped } -> untyped
+    # @rbs value: json
+    # @rbs &variant: ? (String tag, Model::value inner) -> Model::value
+    # @rbs return: decoded
+    def self.decode: (json value) ?{ (String tag, Model::value inner) -> Model::value } -> decoded
   end
 end

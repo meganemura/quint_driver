@@ -25,12 +25,14 @@ module QuintDriver
     # @rbs return: Array[Step]
     def self.steps(path, state: [], action: nil)
       JSON.parse(File.read(path)).fetch("states").each_with_index.map do |itf, index|
-        values = decode(itf)
+        # An ITF state is a record, by the name of each variable.
+        values = decode(itf) #: Hash[String, plain]
         taken, picks = if action
-                         at(values, action, index).then do
-                           no_picks = {} #: picks
-                           _1.is_a?(String) ? [ _1, no_picks ] : _1
-                         end
+                         # The variable is a sum type: a tag, or a tag and the
+                         # record of its picks.
+                         recorded = at(values, action, index) #: String | [String, picks]
+                         no_picks = {} #: picks
+                         recorded.is_a?(String) ? [ recorded, no_picks ] : recorded
                        else
                          [ values.fetch("mbt::actionTaken") { raise Unsupported, "quint: state #{index} of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it" },
                            made(itf.fetch("mbt::nondetPicks")) ]
@@ -48,19 +50,21 @@ module QuintDriver
     # it, None when it did not. Only that wrapper is taken off, so a pick the
     # move made of the spec's own None is nil and still present.
     #
-    # @rbs picks: Hash[String, untyped]
+    # @rbs picks: Hash[String, Hash[String, json]]
     # @rbs return: picks
     def self.made(picks)
-      picks.filter_map { |name, pick| [ name, decode(pick["value"]) ] if pick["tag"] == "Some" }.to_h
+      # decode gives plain values without a block.
+      picks.filter_map { |name, pick| [ name, decode(pick["value"]) ] if pick["tag"] == "Some" }.to_h #: picks
     end
     private_class_method :made
 
-    # @rbs values: Hash[String, untyped]
+    # @rbs values: Hash[String, plain]
     # @rbs path: Array[String]
     # @rbs index: Integer
-    # @rbs return: untyped
+    # @rbs return: plain
     def self.at(values, path, index)
-      path.each_with_index.reduce(values) do |value, (key, depth)|
+      start = values #: plain
+      path.each_with_index.reduce(start) do |value, (key, depth)|
         next value[key] if value.is_a?(Hash) && value.key?(key)
 
         within = path.take(depth).join(".")
@@ -131,10 +135,10 @@ module QuintDriver
     # @rbs spec: Spec?
     # @rbs observe: Array[String]
     # @rbs invariants: Array[String]
-    # @rbs return: Array[state] | Hash[Integer, state]
+    # @rbs return: Array[Hash[String, plain]] | Hash[Integer, Hash[String, plain]]
     def self.evaluated(path, spec, observe:, invariants:)
       names = observe | invariants
-      none = {} #: state
+      none = {} #: Hash[String, plain]
       return Hash.new(none) if names.empty?
 
       { "observe" => observe, "invariants" => invariants }.each do |argument, named|
@@ -146,7 +150,9 @@ module QuintDriver
       spec.predicates!(invariants, "invariants")
       model = spec.model(nil)
       JSON.parse(File.read(path)).fetch("states").map do |values|
-        model.enter(decode(values) { |tag, inner| Model::Variant.new(tag, inner) })
+        # An ITF state is a record, and with a block decode gives the model's values.
+        state = decode(values) { |tag, inner| Model::Variant.new(tag, inner) } #: Hash[String, Model::value]
+        model.enter(state)
         model.observe(names)
       end
     end
@@ -156,40 +162,63 @@ module QuintDriver
     #
     # @rbs path: String
     # @rbs index: Integer
-    # @rbs return: state
+    # @rbs return: Hash[String, plain]
     def self.variables(path, index)
-      decode(JSON.parse(File.read(path)).fetch("states").fetch(index)).reject { |name, _| name.start_with?("mbt::") }
+      # An ITF state is a record, by the name of each variable.
+      values = decode(JSON.parse(File.read(path)).fetch("states").fetch(index)) #: Hash[String, plain]
+      values.reject { |name, _| name.start_with?("mbt::") }
     end
     private_class_method :variables
+
+    # @rbs!
+    #   # What decode gives: a plain value without a block, and the model's
+    #   # value with one. Steep checks a body against each overload, and the
+    #   # one body holds both cases, so each caller says which it reads.
+    #   type decoded = nil | bool | Integer | String | Set[decoded] | Array[decoded] | Hash[decoded, decoded] | Model::Variant | Model::Closure
 
     # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
     # An Option is nil for None and its value for Some, as Model.plain gives one.
     # With a block, a sum type's value is what the block makes of its tag and
-    # its decoded value, as the model holds one.
+    # its decoded value, as the model holds one. An ITF value names its shape
+    # by its keys, such as "#set", so each is read as the shape its key names.
     #
-    # @rbs value: untyped
-    # @rbs &variant: ? (String tag, untyped inner) -> untyped
-    # @rbs return: untyped
+    # @rbs value: json
+    # @rbs &variant: ? (String tag, Model::value inner) -> Model::value
+    # @rbs return: decoded
     def self.decode(value, &variant)
       case value
       when Array then value.map { decode(_1, &variant) }
       when Hash
-        if value.key?("#set") then value["#set"].to_set { decode(_1, &variant) }
-        elsif value.key?("#map") then value["#map"].to_h { |k, v| [ decode(k, &variant), decode(v, &variant) ] }
-        elsif value.key?("#tup") then value["#tup"].map { decode(_1, &variant) }
-        elsif value.key?("#bigint") then value["#bigint"].to_i
+        if value.key?("#set")
+          elements = value["#set"] #: Array[json]
+          elements.to_set { decode(_1, &variant) }
+        elsif value.key?("#map")
+          pairs = value["#map"] #: Array[[json, json]]
+          pairs.to_h { |k, v| [ decode(k, &variant), decode(v, &variant) ] }
+        elsif value.key?("#tup")
+          elements = value["#tup"] #: Array[json]
+          elements.map { decode(_1, &variant) }
+        elsif value.key?("#bigint")
+          digits = value["#bigint"] #: String
+          digits.to_i
         elsif value.key?("tag") && value.key?("value")
+          tag = value["tag"] #: String
           inner = decode(value["value"], &variant)
-          return variant.(value["tag"], inner) if variant
+          if variant
+            held = inner #: Model::value
+            return variant.(tag, held)
+          end
 
-          case value["tag"]
+          case tag
           when "None" then nil
           when "Some" then inner
-          else inner == [] ? value["tag"] : [ value["tag"], inner ] # steep:ignore UnannotatedEmptyCollection
+          else inner == Model::UNIT ? tag : [ tag, inner ]
           end
         else value.except("#meta").transform_values { decode(_1, &variant) }
         end
-      else value
+      else
+        # ITF writes no float: a number past an Integer's JSON is a #bigint.
+        value #: nil | bool | Integer | String
       end
     end
   end

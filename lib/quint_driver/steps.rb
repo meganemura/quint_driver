@@ -15,7 +15,7 @@ module QuintDriver
   #
   # @rbs spec: Spec
   # @rbs driver: _Driver
-  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, plain]?]]
   # @rbs step: String
   # @rbs observe: Array[String | Symbol]
   # @rbs ignore: Array[String | Symbol]
@@ -25,7 +25,8 @@ module QuintDriver
     observe, ignore, invariants = observe.map(&:to_s), ignore.map(&:to_s), invariants.map(&:to_s)
     steps = Steps.parse(steps) if steps.is_a?(String)
     steps = steps.map do |action, picks|
-      given = picks || {} # steep:ignore UnannotatedEmptyCollection
+      none = {} #: Hash[String | Symbol, plain]
+      given = picks || none
       [ action.to_s, given.transform_keys(&:to_s) ] #: step
     end
     steps.unshift([ "init", {} ]) unless steps.first&.first == "init"
@@ -64,13 +65,14 @@ module QuintDriver
   # trace that breaks an expectation is seldom the shortest; Hegel shrinks
   # its own.
   #
-  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, plain]?]]
   # @rbs &run: (Array[step] steps) -> void
   # @rbs return: String
   def self.shrink_steps(steps, &run)
     steps = Steps.parse(steps) if steps.is_a?(String)
     steps = steps.map do |action, picks|
-      given = picks || {} # steep:ignore UnannotatedEmptyCollection
+      none = {} #: Hash[String | Symbol, plain]
+      given = picks || none
       [ action.to_s, given.transform_keys(&:to_s) ] #: step
     end
     steps.shift if steps.first&.first == "init"
@@ -145,7 +147,7 @@ module QuintDriver
       # @rbs return: bool
       def done? = (skip; @at == @text.size)
 
-      # @rbs return: untyped
+      # @rbs return: plain
       def value
         skip
         case @text[@at]
@@ -181,7 +183,8 @@ module QuintDriver
         # @rbs return: bool | Integer | nil
         def word
           # @at is never past the end, so the rest is a string, empty at the end.
-          token = @text[@at..][/\A[^,\]\}\s]+/] or raise ArgumentError, "quint: replay_steps cannot read `#{@text[@at..]}`" # steep:ignore NoMethod
+          rest = @text[@at..] #: String
+          token = rest[/\A[^,\]\}\s]+/] or raise ArgumentError, "quint: replay_steps cannot read `#{rest}`"
           @at += token.size
           case token
           when "true" then true
@@ -192,9 +195,9 @@ module QuintDriver
           end
         end
 
-        # @rbs return: Array[untyped]
+        # @rbs return: Array[plain]
         def list
-          items = [] #: Array[untyped]
+          items = [] #: Array[plain]
           skip
           until @text[@at] == "]"
             raise ArgumentError, "quint: replay_steps expected ] at the end of `#{@text}`" if @at >= @text.size
@@ -208,17 +211,17 @@ module QuintDriver
           items
         end
 
-        # @rbs return: Hash[untyped, untyped] | Set[untyped]
+        # @rbs return: Hash[plain, plain] | Set[plain]
         def braces
           take("{")
           skip
-          return (@at += 1; {}) if @text[@at] == "}" # steep:ignore UnannotatedEmptyCollection
+          hash = {} #: Hash[plain, plain]
+          return (@at += 1; hash) if @text[@at] == "}"
 
           first = value
           skip
           return set_from(first) unless @text[@at, 2] == "=>"
 
-          hash = {} #: Hash[untyped, untyped]
           key = first
           loop do
             take("=>")
@@ -232,10 +235,10 @@ module QuintDriver
           hash
         end
 
-        # @rbs first: untyped
-        # @rbs return: Set[untyped]
+        # @rbs first: plain
+        # @rbs return: Set[plain]
         def set_from(first)
-          items = [ first ]
+          items = [ first ] #: Array[plain]
           until @text[@at] == "}"
             take(",")
             items << value

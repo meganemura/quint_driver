@@ -1,0 +1,8 @@
+# Ruby's Exception#set_backtrace takes strings or Locations, and RBS gives
+# each kind an overload of its own, which Steep cannot choose from a union.
+# Agreement.outside returns that union: Locations from Ruby 3.4 on, strings
+# before. The gem does not ship this file.
+class Exception
+  def set_backtrace: (Array[String] | Array[Thread::Backtrace::Location]) -> (Array[String] | Array[Thread::Backtrace::Location])
+                   | ...
+end

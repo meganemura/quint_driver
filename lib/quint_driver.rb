@@ -16,29 +16,49 @@ require "set"
 # is nil or its value.
 module QuintDriver
   # @rbs!
+  #   # A value as JSON.parse reads it.
+  #   type json = nil | bool | Integer | Float | String | Array[json] | Hash[String, json]
+  #
   #   # A node, a declaration, or a whole module of quint's JSON IR, as
-  #   # JSON.parse reads it.
+  #   # JSON.parse reads it. Its values stay untyped: each key holds the
+  #   # shape its node kind gives it, such as "args" an Array of nodes on an
+  #   # "app", which quint's own IR guarantees and a union could not say.
   #   type ir = Hash[String, untyped]
   #
+  #   # A Quint value as a driver reports it and a failure prints it: a set
+  #   # is a Set, a map a Hash, a tuple or a list an Array, a record a Hash
+  #   # with string keys, a sum type its tag or [tag, value], and None nil.
+  #   type plain = nil | bool | Integer | String | Set[plain] | Array[plain] | Hash[plain, plain]
+  #
   #   # The values a move picked, by the name of each nondet pick.
-  #   type picks = Hash[String, untyped]
+  #   type picks = Hash[String, plain]
   #
   #   # A state as plain values, by the name of each variable or definition.
-  #   type state = Hash[String, untyped]
+  #   # A replay given state: holds the driver to the record or map that
+  #   # path names, and a map's keys are any plain values.
+  #   type state = Hash[plain, plain]
   #
   #   # One step a failure names: an action and its picks.
   #   type step = [String, picks]
   #
+  #   # The errors that include NamedTrace, which a rescue of NamedTrace
+  #   # narrows to: RBS gives a rescued module its module type, which is no
+  #   # Exception.
+  #   type named = Mismatch | Violated | StepRaised
+  #
+  #   # A backtrace: Locations, or strings for an error raised with them.
+  #   type frames = Array[Thread::Backtrace::Location] | Array[String]
+  #
   #   # The driver protocol: run the action on the system, then report its
   #   # state as plain values.
   #   interface _Driver
-  #     def step: (String action, picks picks) -> untyped
+  #     def step: (String action, picks picks) -> void
   #     def state: () -> state
   #   end
   #
   #   # Where a replay writes each step before it runs it, such as $stdout.
   #   interface _Log
-  #     def puts: (*untyped) -> untyped
+  #     def puts: (String line) -> void
   #   end
 
   # The trace a failure happened on. On a replay, +trace+ is its path. Under
@@ -164,7 +184,7 @@ module QuintDriver
     # @rbs after: String
     # @rbs broken: Array[String]
     # @rbs steps: Array[step]
-    # @rbs state: state
+    # @rbs state: Hash[String, plain]
     # @rbs return: bot
     def self.violated!(after, broken, steps:, state:)
       expectations = "#{broken.one? ? 'expectation' : 'expectations'} #{broken.map { "`#{_1}`" }.join(' and ')}"
@@ -180,7 +200,7 @@ module QuintDriver
     # reads as one rather than as its variable left out.
     #
     # @rbs ignore: Array[String]
-    # @rbs names: Array[String]
+    # @rbs names: Array[plain]
     # @rbs within: String
     # @rbs return: void
     def self.ignorable!(ignore, names, within)
@@ -190,9 +210,9 @@ module QuintDriver
       refuse "quint: ignore names #{unknown.join(', ')}, which #{unknown.one? ? 'is' : 'are'} not in #{within}; it has #{names.sort.join(', ')}"
     end
 
-    # @rbs name: String
-    # @rbs reported: untyped
-    # @rbs names: Array[String]
+    # @rbs name: plain
+    # @rbs reported: plain
+    # @rbs names: Array[plain]
     # @rbs by: String
     # @rbs spec: Spec?
     # @rbs return: String
@@ -213,7 +233,8 @@ module QuintDriver
     def self.drive(at, steps:)
       yield
     rescue NamedTrace => failure
-      raise lead_outside(failure)
+      named = failure #: named
+      raise lead_outside(named)
     rescue Unsupported, QuintFailed => failure
       raise lead_outside(failure)
     rescue StandardError => error
@@ -230,13 +251,12 @@ module QuintDriver
     # own <internal:...> frames go too: on 3.4 a Kernel method written in
     # Ruby, between Hegel's frames and the test's, would lead otherwise.
     #
-    # The frames are untyped: they are Locations or strings, and nil for an
-    # error never raised, while set_backtrace takes each kind through an
-    # overload of its own, which Steep cannot choose from a union.
-    #
-    # @rbs frames: untyped
-    # @rbs return: untyped
+    # @rbs frames: frames?
+    # @rbs return: frames
     def self.outside(frames)
+      # Every caller passes the frames of a raised error or caller_locations;
+      # RBS allows nil for an error never raised.
+      frames = frames #: frames
       kept = frames.reject { _1.to_s.start_with?(*@hidden, "<internal:") }
       kept = frames if kept.empty?
       RUBY_VERSION >= "3.4" ? kept : kept.map(&:to_s)
@@ -257,12 +277,7 @@ module QuintDriver
     end
 
     # A failure the driver or a caller's block raised, its backtrace +outside+.
-    #
-    # +failure+ is untyped because a rescue of NamedTrace gives the module
-    # type, which RBS cannot make a subtype of Exception.
-    #
-    # @rbs failure: untyped
-    # @rbs return: untyped
+    # @rbs [E < Exception] (E failure) -> E
     def self.lead_outside(failure)
       failure.tap { _1.set_backtrace(outside(_1.backtrace_locations || _1.backtrace)) }
     end
@@ -330,7 +345,7 @@ module QuintDriver
     # keys sorted, so the spec's side and the driver's side, and a replay and
     # the machine, print the same value the same way on every Ruby.
     #
-    # @rbs value: untyped
+    # @rbs value: plain
     # @rbs return: String
     def self.show(value)
       case value

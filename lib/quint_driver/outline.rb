@@ -43,16 +43,16 @@ module QuintDriver
 
     private
       # The Ruby value a driver reports for a Quint type, as `state` and the
-      # picks take them: see "Write the driver" in the skill.
+      # picks take them: see "Write the driver" in the skill. +type+ is nil
+      # where the IR holds no type.
       #
-      # +type+ is untyped: it is nil where the IR holds no type, and Steep
-      # cannot narrow it through the case on its kind.
-      #
-      # @rbs type: untyped
+      # @rbs type: ir?
       # @rbs seen: Set[String]
       # @rbs return: String
       def shape(type, seen = Set.new)
-        case type&.fetch("kind")
+        return "any value" unless type
+
+        case type.fetch("kind")
         when "int" then "Integer"
         when "str" then "String"
         when "bool" then "true or false"
@@ -65,7 +65,7 @@ module QuintDriver
         when "const"
           typedef = declarations.find { _1["kind"] == "typedef" && _1["name"] == type["name"] && _1["type"] }
           typedef && !seen.include?(type["name"]) ? shape(typedef["type"], seen | [ type["name"] ]) : type["name"]
-        else type ? type["kind"] : "any value"
+        else type["kind"]
         end
       end
 

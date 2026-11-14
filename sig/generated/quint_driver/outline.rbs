@@ -17,15 +17,13 @@ module QuintDriver
     private
 
     # The Ruby value a driver reports for a Quint type, as `state` and the
-    # picks take them: see "Write the driver" in the skill.
+    # picks take them: see "Write the driver" in the skill. +type+ is nil
+    # where the IR holds no type.
     #
-    # +type+ is untyped: it is nil where the IR holds no type, and Steep
-    # cannot narrow it through the case on its kind.
-    #
-    # @rbs type: untyped
+    # @rbs type: ir?
     # @rbs seen: Set[String]
     # @rbs return: String
-    def shape: (untyped type, ?Set[String] seen) -> String
+    def shape: (ir? type, ?Set[String] seen) -> String
 
     # @rbs fields: Array[ir]
     # @rbs seen: Set[String]

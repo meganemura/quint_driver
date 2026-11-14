@@ -92,7 +92,8 @@ module QuintDriver
     #
     # @rbs return: Hash[Integer, String]
     def owners
-      @owners ||= declarations.each_with_object({}) do |declaration, owners| # steep:ignore UnannotatedEmptyCollection
+      none = {} #: Hash[Integer, String]
+      @owners ||= declarations.each_with_object(none) do |declaration, owners|
         ids_in(declaration["expr"]).each { owners[_1] = declaration["name"] } if declaration["kind"] == "def"
       end.freeze
     end
@@ -115,7 +116,8 @@ module QuintDriver
         elsif node["kind"] == "app" && node["opcode"] == "actionAll" && node["args"].size == 1
           walk.(node["args"].first, domains, within)
         elsif node["kind"] == "let" && node["opdef"]["qualifier"] == "nondet" && node["opdef"]["expr"]["opcode"] == "oneOf"
-          walk.(node["expr"], domains.merge(node["opdef"]["name"] => node["opdef"]["expr"]["args"].first), within) # steep:ignore UnannotatedEmptyCollection
+          domain = node["opdef"]["expr"]["args"].first #: ir
+          walk.(node["expr"], domains.merge({ node["opdef"]["name"] => domain }), within)
         elsif actions.key?(node["name"])
           body = actions[node["name"]]["expr"]
           choice.(body) ? walk.(body, domains, node["name"]) : [ Rule.new(node["name"], [], domains, fixed(domains)) ]
@@ -138,6 +140,13 @@ module QuintDriver
         end.map { _1["name"] }
       end
 
+      # The effect quint gives an expression that reads no variable.
+      READS_NONE = {
+        "kind" => "concrete",
+        "components" => [] #: Array[json]
+      }.freeze #: Hash[String, json]
+      private_constant :READS_NONE
+
       # Quint's effect of a set says which variables it reads, and a pick is
       # not a variable, so a set also has to name no earlier pick. A lambda
       # parameter that shadows a pick counts as the pick: one evaluation too
@@ -147,26 +156,30 @@ module QuintDriver
       # @rbs return: Set[String]
       def fixed(domains)
         domains.each_with_index.filter_map do |(name, domain), index|
-          reads_none = @effects.dig(domain["id"].to_s, "effect") == { "kind" => "concrete", "components" => [] } # steep:ignore UnannotatedEmptyCollection
+          reads_none = @effects.dig(domain["id"].to_s, "effect") == READS_NONE
           name if reads_none && !names_in(domain).intersect?(domains.keys.take(index))
         end.to_set
       end
 
-      # @rbs node: untyped
+      # @rbs node: json
       # @rbs return: Array[Integer]
       def ids_in(node)
         case node
-        when Hash then [ node["id"], *node.each_value.flat_map { ids_in(_1) } ].compact
+        when Hash
+          id = node["id"] #: Integer?
+          [ id, *node.each_value.flat_map { ids_in(_1) } ].compact
         when Array then node.flat_map { ids_in(_1) }
         else []
         end
       end
 
-      # @rbs node: untyped
+      # @rbs node: json
       # @rbs return: Array[String]
       def names_in(node)
         case node
-        when Hash then [ node["kind"] == "name" ? node["name"] : node["opcode"], *node.each_value.flat_map { names_in(_1) } ].compact
+        when Hash
+          name = node["kind"] == "name" ? node["name"] : node["opcode"] #: String?
+          [ name, *node.each_value.flat_map { names_in(_1) } ].compact
         when Array then node.flat_map { names_in(_1) }
         else []
         end

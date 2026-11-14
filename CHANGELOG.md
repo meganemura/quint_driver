@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- The gem ships RBS signatures for its API under `sig/`, so Steep and other RBS tools check a caller's code against them.
+- The gem ships RBS signatures for its API under `sig/`, so Steep and other RBS tools check a caller's code against them. A plain value is `QuintDriver::plain`, the picks and the state a driver gets and reports are made of it, and `QuintDriver::Hold[N]` takes the type of its names.
 - `quint_driver outline` and `Spec#outline` name the driver class of a module whose name starts with an underscore, such as `_counter`; they raised `NoMethodError`.
 
 ## [0.2.0] - 2026-11-14

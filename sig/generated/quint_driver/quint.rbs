@@ -34,11 +34,11 @@ module QuintDriver
     # @rbs return: ir
     def self.compile: (String path, ?main: String?, ?flat: bool) -> ir
 
-    self.@locking: Thread::Mutex
+    self.@compiled: Hash[Array[String?], [ Hash[String, String]?, ir ]]
 
     self.@locks: Hash[Array[String?], Thread::Mutex]
 
-    self.@compiled: Hash[Array[String?], [ Hash[String, String]?, ir ]]
+    self.@locking: Thread::Mutex
 
     # The text of +path+ and of each file it imports, directly or through
     # another, by path. Quint resolves `from "name"` against the directory of
@@ -193,9 +193,9 @@ module QuintDriver
     # @rbs method: String
     # @rbs path: String
     # @rbs *names: String
-    # @rbs **options: untyped
+    # @rbs **options: (String | Integer)?
     # @rbs return: String
-    def self.call: (String method, String path, *String names, **untyped options) -> String
+    def self.call: (String method, String path, *String names, **(String | Integer)? options) -> String
 
     # The trace files go with their directory, so a replay's failure names
     # its trace by +seed+ and +written_by+, the call that writes it again,
@@ -217,17 +217,21 @@ module QuintDriver
     # a block that rescues a replay's failure reads what the caller of
     # simulate reads.
     #
-    # +failure+ is untyped for the reason Agreement.lead_outside gives.
-    #
-    # @rbs failure: untyped
+    # @rbs failure: named
     # @rbs trace: String
-    # @rbs return: untyped
-    def self.name_trace: (untyped failure, String trace) -> untyped
+    # @rbs return: named
+    def self.name_trace: (named failure, String trace) -> named
 
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
     # Its stdin format is not a documented interface, so the gem reads only
     # this version's.
     EVALUATOR_VERSION: String
+
+    # An IR node the gem writes for the evaluator, keyed by symbols.
+    type written_node = Hash[Symbol, Integer | String | bool | Array[written_node]]
+
+    # What the evaluator reads on stdin, as this version's quint sends it.
+    type evaluator_input = { parsed: { modules: Array[ir], table: Hash[String, ir], main: String, init: ir, step: ir, invariants: Array[written_node], witnesses: Array[bot] }, source: String, nruns: Integer, nsteps: Integer, ntraces: Integer, nthreads: Integer, seed: Integer, mbt: bool, verbosity: Integer }
 
     # The Rust evaluator simulate runs, without node: QUINT_EVALUATOR names
     # it, and an empty QUINT_EVALUATOR means `quint run`. Unset, it is the copy
@@ -249,30 +253,30 @@ module QuintDriver
     # @rbs step: String
     # @rbs reach: String?
     # @rbs violate: String?
-    # @rbs return: Hash[Symbol, untyped]?
-    def self.evaluator_input: (String path, traces: Integer, max_steps: Integer, seed: String | Integer, main: String?, step: String, reach: String?, violate: String?) -> Hash[Symbol, untyped]?
+    # @rbs return: evaluator_input?
+    def self.evaluator_input: (String path, traces: Integer, max_steps: Integer, seed: String | Integer, main: String?, step: String, reach: String?, violate: String?) -> evaluator_input?
 
     # Writes each trace the evaluator returns as quint would: trace_0.itf.json
     # onwards, in the order it returns them.
     #
     # @rbs evaluator: String
-    # @rbs input: Hash[Symbol, untyped]
+    # @rbs input: evaluator_input
     # @rbs dir: String
     # @rbs return: void
-    def self.write_traces: (String evaluator, Hash[Symbol, untyped] input, String dir) -> void
+    def self.write_traces: (String evaluator, evaluator_input input, String dir) -> void
 
     # QUINT is a shell command, such as `npx --yes ...`, so the line runs
     # through a shell, and each word after it is quoted: an app's folder can
     # have a space in its name. +stdout+ is a file quint's output goes into.
     #
-    # The words are untyped: they are strings and numbers, such as
-    # --max-steps 20, and Shellwords.join turns each into a string, which
-    # its RBS does not allow for.
+    # The words are strings and numbers, such as --max-steps 20. Shellwords
+    # turns each into a string itself, which its RBS does not allow for, so
+    # they are made strings here first.
     #
-    # @rbs *words: untyped
+    # @rbs *words: String | Integer
     # @rbs stdout: String?
     # @rbs return: [String, Process::Status]
-    def self.capture: (*untyped words, ?stdout: String?) -> [ String, Process::Status ]
+    def self.capture: (*String | Integer words, ?stdout: String?) -> [ String, Process::Status ]
 
     # A failure of quint's, raised from the caller's line: the spec is the
     # caller's, so its frame leads, as a refused argument's does.

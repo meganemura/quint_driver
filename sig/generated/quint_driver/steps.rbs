@@ -15,13 +15,13 @@ module QuintDriver
   #
   # @rbs spec: Spec
   # @rbs driver: _Driver
-  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, plain]?]]
   # @rbs step: String
   # @rbs observe: Array[String | Symbol]
   # @rbs ignore: Array[String | Symbol]
   # @rbs invariants: Array[String | Symbol]
   # @rbs return: Array[step]
-  def self.replay_steps: (Spec spec, _Driver driver, String | Array[[ String | Symbol, Hash[String | Symbol, untyped]? ]] steps, ?step: String, ?observe: Array[String | Symbol], ?ignore: Array[String | Symbol], ?invariants: Array[String | Symbol]) -> Array[step]
+  def self.replay_steps: (Spec spec, _Driver driver, String | Array[[ String | Symbol, Hash[String | Symbol, plain]? ]] steps, ?step: String, ?observe: Array[String | Symbol], ?ignore: Array[String | Symbol], ?invariants: Array[String | Symbol]) -> Array[step]
 
   # Takes steps out of a failure while the same expectations still break,
   # and returns the shortest list it found as the text under steps:, to
@@ -34,10 +34,10 @@ module QuintDriver
   # trace that breaks an expectation is seldom the shortest; Hegel shrinks
   # its own.
   #
-  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, plain]?]]
   # @rbs &run: (Array[step] steps) -> void
   # @rbs return: String
-  def self.shrink_steps: (String | Array[[ String | Symbol, Hash[String | Symbol, untyped]? ]] steps) { (Array[step] steps) -> void } -> String
+  def self.shrink_steps: (String | Array[[ String | Symbol, Hash[String | Symbol, plain]? ]] steps) { (Array[step] steps) -> void } -> String
 
   # Reads the steps: lines of a failure back into [action, picks]. Each line
   # is an action's name and its picks as a failure prints a value: strings,
@@ -73,8 +73,8 @@ module QuintDriver
       # @rbs return: bool
       def done?: () -> bool
 
-      # @rbs return: untyped
-      def value: () -> untyped
+      # @rbs return: plain
+      def value: () -> plain
 
       private
 
@@ -91,15 +91,15 @@ module QuintDriver
       # @rbs return: bool | Integer | nil
       def word: () -> (bool | Integer | nil)
 
-      # @rbs return: Array[untyped]
-      def list: () -> Array[untyped]
+      # @rbs return: Array[plain]
+      def list: () -> Array[plain]
 
-      # @rbs return: Hash[untyped, untyped] | Set[untyped]
-      def braces: () -> (Hash[untyped, untyped] | Set[untyped])
+      # @rbs return: Hash[plain, plain] | Set[plain]
+      def braces: () -> (Hash[plain, plain] | Set[plain])
 
-      # @rbs first: untyped
-      # @rbs return: Set[untyped]
-      def set_from: (untyped first) -> Set[untyped]
+      # @rbs first: plain
+      # @rbs return: Set[plain]
+      def set_from: (plain first) -> Set[plain]
     end
   end
 end
