@@ -73,6 +73,24 @@ class OutlineTest < Minitest::Test
     assert_equal "quint: step assigns n' in an arm that names no action; name every action in step\n", output
   end
 
+  # Quint lets a module name start with an underscore, which splits into an
+  # empty first word.
+  def test_a_module_name_that_starts_with_an_underscore_names_the_driver_class
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "_counter.qnt")
+      File.write(path, <<~QUINT)
+        module _counter {
+          var n: int
+          action init = n' = 0
+          action tick = n' = n + 1
+          action step = any { tick }
+        }
+      QUINT
+
+      assert_includes QuintDriver::Spec.new(path).outline, "\nclass CounterDriver\n"
+    end
+  end
+
   def test_a_spec_with_no_expectation_says_to_write_one
     output, status = Open3.capture2e(RbConfig.ruby, COMMAND, "outline", File.expand_path("recorded.qnt", __dir__))
 

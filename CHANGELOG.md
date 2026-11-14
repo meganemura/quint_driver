@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- `quint_driver outline` and `Spec#outline` name the driver class of a module whose name starts with an underscore, such as `_counter`; they raised `NoMethodError`.
+
 ## [0.2.0] - 2026-11-14
 
 - `quint_driver targets [APP] [--top N]` ranks the files of an app's `app/` and `lib/` where a hunt pays. It marks each line that matches a kind of place where the bugs a hunt finds sat (a transaction, a rescue, a save without `!`, a method that answers `false`, a call that drops what such a method answers, a write that skips callbacks, a counter write, a retry, an outside call) and ranks the files by how many kinds meet in each. `QuintDriver::Targets.scan(root)` returns the hits. It reads each file with Prism, which ships with Ruby, so comments, strings, heredocs, regexps and `=begin` blocks are not matched, and a call drops what a method answers only when the def that holds the save is that method; a method named as many others are, such as `call` or `perform`, counts only where its class is named. `check-then-write` marks a write, or a call of an app method that writes, after an `if` or `unless` that reads stored state, in a method that takes no lock, and an error class of the app's own counts as `outside`. A save the line itself reads, as in `save or raise`, is no `unchecked-save`. When nothing matches, the report names what to read instead. `--top` below 1 and an APP that is no directory exit 1 with the reason.
