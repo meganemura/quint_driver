@@ -61,7 +61,16 @@ jobs:
           bundler-cache: true
       - run: bundle exec rbs-inline --output=sig/generated lib
       - run: git add --intent-to-add sig && git diff --exit-code sig
-      - run: bundle exec steep check
+      - name: Check the types
+        run: |
+          # Steep logs FATAL or ERROR and skips the rest of a method when it
+          # cannot type a node, and still prints "No type error detected".
+          set -o pipefail
+          bundle exec steep check 2>&1 | tee steep.log
+          if grep -E ': (FATAL|ERROR): \[Steep' steep.log; then
+            echo "Steep stopped checking the code on the lines above." >&2
+            exit 1
+          fi
 
   # Trace replay and the model on the core's floor, with no hegeltest installed.
   # The types group holds Steep, which only the types job runs.
