@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 require "prism"
 
 module QuintDriver
@@ -12,13 +14,23 @@ module QuintDriver
   # heredocs and regexps are not matched, and the method a line sits in is
   # the def that holds it, not the def above it.
   module Targets
-    Hit = Data.define(:kind, :file, :line, :code)
+    # @rbs!
+    #   # A file's lines as written, its lines with comments and strings
+    #   # blanked, and its defs.
+    #   type source = [Array[String], Array[String], Array[Def]]
 
-    SAVE = /\A\s*([@\w:.]+\.)?(save|update|create|destroy|update_attribute)([( ].*)?\z/
+    Hit = Data.define(
+      :kind, #: String
+      :file, #: String
+      :line, #: Integer
+      :code #: String
+    )
+
+    SAVE = /\A\s*([@\w:.]+\.)?(save|update|create|destroy|update_attribute)([( ].*)?\z/ #: Regexp
     # A save whose answer the line itself reads, as in `save or raise`.
-    READ = /\s(or|and)\s|\|\||&&/
-    WRITE = /\.(save|update|create|destroy|update_attribute|update_columns?|increment|decrement)!?(\(|\s|\z)|\A\s*(save|update)!?(\(|\s|\z)/
-    LOCK = /\block\b|\bwith_lock\b|\block!/
+    READ = /\s(or|and)\s|\|\||&&/ #: Regexp
+    WRITE = /\.(save|update|create|destroy|update_attribute|update_columns?|increment|decrement)!?(\(|\s|\z)|\A\s*(save|update)!?(\(|\s|\z)/ #: Regexp
+    LOCK = /\block\b|\bwith_lock\b|\block!/ #: Regexp
     KINDS = {
       "transaction" => /\btransaction\b|\bwith_lock\b|\block!/,
       "rescue" => /\A\s*rescue\b/,
@@ -31,19 +43,28 @@ module QuintDriver
       # service that calls out says it can fail.
       "outside" => %r{Net::HTTP|Faraday|HTTParty|RestClient|\bClient\b|Api\b|_api\b|\.(post|get|put|patch|delete)\(\s*["'/]|broadcast|
                       \A\s*class\s+[\w:]+\s*<\s*([\w:]*Error|StandardError|RuntimeError)\b}x
-    }.freeze
+    }.freeze #: Hash[String, Regexp]
     # A method with one of these names is called on many receivers that are
     # not its own, so a call counts only where it names the method's class.
-    COMMON = %w[call perform run process execute save update create destroy].freeze
+    COMMON = %w[call perform run process execute save update create destroy].freeze #: Array[String]
 
     # A def, with the lines of the checks in it that read stored state.
-    Def = Data.define(:name, :owner, :first, :last, :checks)
+    Def = Data.define(
+      :name, #: String
+      :owner, #: String?
+      :first, #: Integer
+      :last, #: Integer
+      :checks #: Array[Integer]
+    )
 
     # Every hit under +root+'s app/ and lib/, the spec and test folders left
     # out, comments and strings skipped, each write after a check in a
     # method that takes no lock, as the kind "check-then-write", and each
     # call that drops the answer of a method that can fail without raising,
     # as the kind "dropped-result".
+    #
+    # @rbs root: String
+    # @rbs return: Array[Hit]
     def self.scan(root)
       files = Dir.glob(%w[app/**/*.rb lib/**/*.rb], base: root)
                  .reject { _1.match?(%r{(\A|/)(spec|test)/}) }.select { File.file?(File.join(root, _1)) }.sort
@@ -62,6 +83,10 @@ module QuintDriver
 
     # The files ranked, each with its hits, as the `quint_driver targets`
     # command prints them.
+    #
+    # @rbs root: String
+    # @rbs top: Integer
+    # @rbs return: String
     def self.report(root, top: 10)
       raise ArgumentError, "quint: top takes 1 or more, not #{top}" if top < 1
 
@@ -76,6 +101,9 @@ module QuintDriver
 
     # The lines of a file as written, the same lines with every comment,
     # string, heredoc and regexp body blanked, and the defs it holds.
+    #
+    # @rbs path: String
+    # @rbs return: source
     def self.read(path)
       source = File.read(path, encoding: "UTF-8").scrub
       code = source.b
@@ -83,18 +111,22 @@ module QuintDriver
         next unless %i[COMMENT EMBDOC_BEGIN EMBDOC_LINE EMBDOC_END STRING_CONTENT HEREDOC_END __END__].include?(token.type)
 
         range = token.location.start_offset...token.location.end_offset
-        code[range] = code[range].gsub(/[^\n]/n, " ")
+        blanked = code[range] #: String
+        code[range] = blanked.gsub(/[^\n]/n, " ")
       end
       [ source.lines(chomp: true), code.force_encoding("UTF-8").scrub.lines(chomp: true), defs(Prism.parse(source).value) ]
     end
 
+    # @rbs node: Prism::Node
+    # @rbs owner: String?
+    # @rbs return: Array[Def]
     def self.defs(node, owner = nil)
       case node
       when Prism::ClassNode, Prism::ModuleNode
         name = node.constant_path.slice.split("::").last
         node.compact_child_nodes.flat_map { defs(_1, name) }
       when Prism::DefNode
-        writes = within(node).grep(Prism::LocalVariableWriteNode)
+        writes = within(node).grep(Prism::LocalVariableWriteNode) #: Array[Prism::LocalVariableWriteNode]
         loaded = 2.times.reduce([]) { |known, _| writes.select { stored?(_1.value, known) }.map(&:name) }
         checks = within(node).filter_map { _1.predicate if _1.is_a?(Prism::IfNode) || _1.is_a?(Prism::UnlessNode) }
                              .select { stored?(_1, loaded) }.map { _1.location.start_line }
@@ -105,6 +137,9 @@ module QuintDriver
     end
 
     # Every node of a def, its nested defs left out.
+    #
+    # @rbs node: Prism::Node
+    # @rbs return: Array[Prism::Node]
     def self.within(node)
       node.compact_child_nodes.flat_map { _1.is_a?(Prism::DefNode) ? [] : [ _1, *within(_1) ] }
     end
@@ -114,6 +149,10 @@ module QuintDriver
     # a local the def loaded from one of those. A check of an argument alone
     # cannot go stale between the read and the write, so it is no sign of a
     # race.
+    #
+    # @rbs node: Prism::Node
+    # @rbs loaded: Array[Symbol]
+    # @rbs return: bool
     def self.stored?(node, loaded)
       case node
       when Prism::InstanceVariableReadNode, Prism::ConstantReadNode, Prism::ConstantPathNode then true
@@ -126,10 +165,17 @@ module QuintDriver
     end
 
     # The innermost def that holds +line+.
+    #
+    # @rbs defs: Array[Def]
+    # @rbs line: Integer
+    # @rbs return: Def?
     def self.around(defs, line) = defs.select { _1.first <= line && line <= _1.last }.min_by { _1.last - _1.first }
 
     # A write is a save, an update, a create or a destroy, or a call of a
     # method of the app that holds one, such as `parcel.assign_to!(...)`.
+    #
+    # @rbs sources: Hash[String, source]
+    # @rbs return: Array[Hit]
     def self.checked(sources)
       writers = sources.values.flat_map do |_, code, defs|
         defs.select { |method| (method.first..method.last).any? { code[_1 - 1].to_s.match?(WRITE) } }.map(&:name)
@@ -138,7 +184,7 @@ module QuintDriver
       sources.flat_map do |file, (lines, code, defs)|
         defs.flat_map do |method|
           check = method.checks.min or next []
-          body = (method.first - 1...method.last).map { [ _1 + 1, code[_1].to_s ] }
+          body = (method.first - 1...method.last).map { [ _1 + 1, code[_1].to_s ] } #: Array[[Integer, String]]
           next [] if body.any? { |_, text| text.match?(LOCK) }
 
           body.select { |line, _| line > check }
@@ -147,6 +193,9 @@ module QuintDriver
       end
     end
 
+    # @rbs hits: Array[Hit]
+    # @rbs sources: Hash[String, source]
+    # @rbs return: Array[Hit]
     def self.dropped(hits, sources)
       methods = hits.select { %w[unchecked-save answers-false].include?(_1.kind) }.filter_map { around(sources[_1.file][2], _1.line) }.uniq
       return [] if methods.empty?
@@ -164,6 +213,8 @@ module QuintDriver
       end
     end
 
+    # @rbs root: String
+    # @rbs return: String
     def self.none(root)
       <<~TEXT
         No hit under #{root}/app or #{root}/lib.

@@ -1,0 +1,119 @@
+# Generated from lib/quint_driver/spec.rb with RBS::Inline
+
+module QuintDriver
+  # One module of a compiled Quint spec, and the rules a step action offers.
+  class Spec
+    # A move the step action can take: +action+ called with +args+ (IR nodes),
+    # whose free names are the nondet picks drawn from +domains+ (name => IR
+    # node of a set), in order, since a later set may read an earlier pick.
+    # +fixed+ names the domains that are the same set in every state and
+    # after every earlier pick, so a caller can evaluate each of them once.
+    class Rule < Struct[String | Array[ir] | Hash[String, ir] | Set[String]]
+      attr_accessor action(): String
+
+      attr_accessor args(): Array[ir]
+
+      attr_accessor domains(): Hash[String, ir]
+
+      attr_accessor fixed(): Set[String]
+
+      def self.new: (?String action, ?Array[ir] args, ?Hash[String, ir] domains, ?Set[String] fixed) -> instance
+                  | (?action: String, ?args: Array[ir], ?domains: Hash[String, ir], ?fixed: Set[String]) -> instance
+    end
+
+    @observable: Array[String]
+
+    @owners: Hash[Integer, String]
+
+    @kinds: Hash[String, String]
+
+    @main: String
+
+    @types: Hash[String, ir]
+
+    @effects: Hash[String, ir]
+
+    attr_reader declarations: Array[ir]
+
+    # The q:: definitions are what quint adds for --main, so only the module
+    # a file compiled for first would have them. A module that imports reads
+    # quint's flattened copy, where what it imports is its own. Without
+    # +main+ the module is the one named after the file, as Quint.simulate
+    # reads it, so the two agree when both leave it out.
+    #
+    # @rbs path: String
+    # @rbs main: String
+    # @rbs return: void
+    def initialize: (String path, ?main: String) -> void
+
+    # With +step+ nil, the model holds no rules: it evaluates definitions on
+    # a state it is given, and takes no step.
+    #
+    # @rbs step: String?
+    # @rbs return: Model
+    def model: (?String? step) -> Model
+
+    # Raises ArgumentError unless each of +names+ is a definition the model
+    # can read in a state: a val or a def without parameters, not an action,
+    # and not a sum type's case, which quint declares as a val too.
+    #
+    # @rbs names: Array[String]
+    # @rbs return: void
+    def observable!: (Array[String] names) -> void
+
+    # Raises ArgumentError unless each of +names+ is a predicate, a boolean
+    # val or def without parameters, as +argument+, such as invariants,
+    # takes one. A name of another kind would read as an expectation that
+    # never holds, or that the model cannot evaluate.
+    #
+    # @rbs names: Array[String]
+    # @rbs argument: String
+    # @rbs return: void
+    def predicates!: (Array[String] names, String argument) -> void
+
+    # The names invariants: and violate: take: every boolean val or def
+    # without parameters, in the order the module declares them, so a hunt
+    # that reads this list runs a val added later too.
+    #
+    # @rbs return: Array[String]
+    def expectations: () -> Array[String]
+
+    # The definition that writes each IR node, by node id, so the model names
+    # where a node is written when it cannot evaluate it.
+    #
+    # @rbs return: Hash[Integer, String]
+    def owners: () -> Hash[Integer, String]
+
+    # Walks +step+: `any` splits into rules, `nondet x = S.oneOf()` adds a
+    # domain, and a call of a declared action ends a rule. A parameterless
+    # action made of `any` (such as `step` inside a wider step) opens in place.
+    # An `all` of one action is that action, as in `all { nondet x = ...
+    # any { ... } }`; an `all` of more holds a condition no rule can carry.
+    #
+    # @rbs step: String
+    # @rbs return: Array[Rule]
+    def rules: (String step) -> Array[Rule]
+
+    private
+
+    # @rbs return: Array[String]
+    def observable: () -> Array[String]
+
+    # Quint's effect of a set says which variables it reads, and a pick is
+    # not a variable, so a set also has to name no earlier pick. A lambda
+    # parameter that shadows a pick counts as the pick: one evaluation too
+    # many is only slower.
+    #
+    # @rbs domains: Hash[String, ir]
+    # @rbs return: Set[String]
+    def fixed: (Hash[String, ir] domains) -> Set[String]
+
+    # @rbs node: untyped
+    # @rbs return: Array[Integer]
+    def ids_in: (untyped node) -> Array[Integer]
+
+    # @rbs node: untyped
+    # @rbs return: Array[String]
+    def names_in: (untyped node) -> Array[String]
+  end
+end

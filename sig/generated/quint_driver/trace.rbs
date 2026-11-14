@@ -1,0 +1,104 @@
+# Generated from lib/quint_driver/trace.rb with RBS::Inline
+
+module QuintDriver
+  # A trace `quint run --mbt` wrote. Each state names the action the
+  # simulator took and the values it picked, so a driver can run the same
+  # command and be held to the next state.
+  module Trace
+    class Step < Struct[String | picks | state | Integer]
+      attr_accessor action(): String
+
+      attr_accessor picks(): picks
+
+      attr_accessor expected(): state
+
+      attr_accessor index(): Integer
+
+      def self.new: (?String action, ?picks picks, ?state expected, ?Integer index) -> instance
+                  | (?action: String, ?picks: picks, ?expected: state, ?index: Integer) -> instance
+    end
+
+    # +state+ is the path to the record or map a driver is held to, such as
+    # %w[choreo::s system] in a Choreo spec, which keeps the whole state in
+    # one variable. +action+ is the path to a variable the spec records the
+    # action in, as a sum type whose tag names the action and whose record
+    # holds its picks; without it, the action is quint's mbt::actionTaken,
+    # which `quint run --mbt` writes and quint test does not.
+    #
+    # @rbs path: String
+    # @rbs state: Array[String]
+    # @rbs action: Array[String]?
+    # @rbs return: Array[Step]
+    def self.steps: (String path, ?state: Array[String], ?action: Array[String]?) -> Array[Step]
+
+    # quint wraps each pick in an Option of its own: Some when the move made
+    # it, None when it did not. Only that wrapper is taken off, so a pick the
+    # move made of the spec's own None is nil and still present.
+    #
+    # @rbs picks: Hash[String, untyped]
+    # @rbs return: picks
+    def self.made: (Hash[String, untyped] picks) -> picks
+
+    # @rbs values: Hash[String, untyped]
+    # @rbs path: Array[String]
+    # @rbs index: Integer
+    # @rbs return: untyped
+    def self.at: (Hash[String, untyped] values, Array[String] path, Integer index) -> untyped
+
+    # +log+, an IO such as $stdout, gets each step before the driver runs it.
+    # +state+ and +action+ are paths into each state, as Trace.steps reads them.
+    # +observe+ names definitions of +spec+, a Spec, that derive a value from
+    # the variables, such as a total no variable holds: the driver reports
+    # each one in its state by name, and is held to the value the spec's
+    # definition has in the trace's state. +ignore+ names variables the
+    # driver does not report, such as what a remote service answers, which
+    # the spec models and the driver only reads to set the system up; the
+    # driver reports every other variable. +invariants+ names predicates of
+    # +spec+, expectations that have to hold in every state: once the driver
+    # agrees at a step, one that is false in that step's state raises
+    # Violated. Returns the steps it ran, so a caller can count the actions
+    # and states its traces reached.
+    #
+    # @rbs path: String
+    # @rbs driver: _Driver
+    # @rbs log: _Log?
+    # @rbs state: Array[String]
+    # @rbs action: Array[String]?
+    # @rbs spec: Spec?
+    # @rbs observe: Array[String | Symbol]
+    # @rbs ignore: Array[String | Symbol]
+    # @rbs invariants: Array[String | Symbol]
+    # @rbs return: Array[Step]
+    def self.replay: (String path, _Driver driver, ?log: _Log?, ?state: Array[String], ?action: Array[String]?, ?spec: Spec?, ?observe: Array[String | Symbol], ?ignore: Array[String | Symbol], ?invariants: Array[String | Symbol]) -> Array[Step]
+
+    # The value of each definition +observe+ and +invariants+ name, in each
+    # state of the trace, so a name refused or one the model cannot
+    # evaluate fails before the driver runs a step. The model reads the
+    # state as quint wrote it, so the driver's steps never pass through the
+    # model; it reads only the spec's variables, so the mbt:: entries stay.
+    #
+    # @rbs path: String
+    # @rbs spec: Spec?
+    # @rbs observe: Array[String]
+    # @rbs invariants: Array[String]
+    # @rbs return: Array[state] | Hash[Integer, state]
+    def self.evaluated: (String path, Spec? spec, observe: Array[String], invariants: Array[String]) -> (Array[state] | Hash[Integer, state])
+
+    # The spec's variables in state +index+ of the trace, as plain values.
+    #
+    # @rbs path: String
+    # @rbs index: Integer
+    # @rbs return: state
+    def self.variables: (String path, Integer index) -> state
+
+    # ITF (https://apalache-mc.org/docs/adr/015adr-trace.html) to plain values.
+    # An Option is nil for None and its value for Some, as Model.plain gives one.
+    # With a block, a sum type's value is what the block makes of its tag and
+    # its decoded value, as the model holds one.
+    #
+    # @rbs value: untyped
+    # @rbs &variant: ? (String tag, untyped inner) -> untyped
+    # @rbs return: untyped
+    def self.decode: (untyped value) ?{ (String tag, untyped inner) -> untyped } -> untyped
+  end
+end

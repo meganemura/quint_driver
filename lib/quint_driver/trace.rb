@@ -1,9 +1,16 @@
+# rbs_inline: enabled
+
 module QuintDriver
   # A trace `quint run --mbt` wrote. Each state names the action the
   # simulator took and the values it picked, so a driver can run the same
   # command and be held to the next state.
   module Trace
-    Step = Struct.new(:action, :picks, :expected, :index)
+    Step = Struct.new(
+      :action, #: String
+      :picks, #: picks
+      :expected, #: state
+      :index #: Integer
+    )
 
     # +state+ is the path to the record or map a driver is held to, such as
     # %w[choreo::s system] in a Choreo spec, which keeps the whole state in
@@ -11,11 +18,19 @@ module QuintDriver
     # action in, as a sum type whose tag names the action and whose record
     # holds its picks; without it, the action is quint's mbt::actionTaken,
     # which `quint run --mbt` writes and quint test does not.
+    #
+    # @rbs path: String
+    # @rbs state: Array[String]
+    # @rbs action: Array[String]?
+    # @rbs return: Array[Step]
     def self.steps(path, state: [], action: nil)
       JSON.parse(File.read(path)).fetch("states").each_with_index.map do |itf, index|
         values = decode(itf)
         taken, picks = if action
-                         at(values, action, index).then { _1.is_a?(String) ? [ _1, {} ] : _1 }
+                         at(values, action, index).then do
+                           no_picks = {} #: picks
+                           _1.is_a?(String) ? [ _1, no_picks ] : _1
+                         end
                        else
                          [ values.fetch("mbt::actionTaken") { raise Unsupported, "quint: state #{index} of the trace names no action taken; quint test writes no mbt::actionTaken, so pass action: the path to a variable that records it" },
                            made(itf.fetch("mbt::nondetPicks")) ]
@@ -32,11 +47,18 @@ module QuintDriver
     # quint wraps each pick in an Option of its own: Some when the move made
     # it, None when it did not. Only that wrapper is taken off, so a pick the
     # move made of the spec's own None is nil and still present.
+    #
+    # @rbs picks: Hash[String, untyped]
+    # @rbs return: picks
     def self.made(picks)
       picks.filter_map { |name, pick| [ name, decode(pick["value"]) ] if pick["tag"] == "Some" }.to_h
     end
     private_class_method :made
 
+    # @rbs values: Hash[String, untyped]
+    # @rbs path: Array[String]
+    # @rbs index: Integer
+    # @rbs return: untyped
     def self.at(values, path, index)
       path.each_with_index.reduce(values) do |value, (key, depth)|
         next value[key] if value.is_a?(Hash) && value.key?(key)
@@ -61,10 +83,21 @@ module QuintDriver
     # agrees at a step, one that is false in that step's state raises
     # Violated. Returns the steps it ran, so a caller can count the actions
     # and states its traces reached.
+    #
+    # @rbs path: String
+    # @rbs driver: _Driver
+    # @rbs log: _Log?
+    # @rbs state: Array[String]
+    # @rbs action: Array[String]?
+    # @rbs spec: Spec?
+    # @rbs observe: Array[String | Symbol]
+    # @rbs ignore: Array[String | Symbol]
+    # @rbs invariants: Array[String | Symbol]
+    # @rbs return: Array[Step]
     def self.replay(path, driver, log: nil, state: [], action: nil, spec: nil, observe: [], ignore: [], invariants: [])
       observe, ignore, invariants = observe.map(&:to_s), ignore.map(&:to_s), invariants.map(&:to_s)
       evaluated = evaluated(path, spec, observe:, invariants:)
-      ran = []
+      ran = [] #: Array[step]
       steps = steps(path, state:, action:)
       Agreement.ignorable!(ignore, steps.first.expected.keys, "the trace's state") if steps.any?
       steps.each do |step|
@@ -93,13 +126,22 @@ module QuintDriver
     # evaluate fails before the driver runs a step. The model reads the
     # state as quint wrote it, so the driver's steps never pass through the
     # model; it reads only the spec's variables, so the mbt:: entries stay.
+    #
+    # @rbs path: String
+    # @rbs spec: Spec?
+    # @rbs observe: Array[String]
+    # @rbs invariants: Array[String]
+    # @rbs return: Array[state] | Hash[Integer, state]
     def self.evaluated(path, spec, observe:, invariants:)
       names = observe | invariants
-      return Hash.new({}) if names.empty?
+      none = {} #: state
+      return Hash.new(none) if names.empty?
 
       { "observe" => observe, "invariants" => invariants }.each do |argument, named|
         Agreement.refuse "quint: #{argument} needs spec:, the Spec that evaluates #{named.join(', ')}" if named.any? && !spec
       end
+      # The loop above refused a nil spec, as names is not empty.
+      spec = spec #: Spec
       spec.observable!(observe)
       spec.predicates!(invariants, "invariants")
       model = spec.model(nil)
@@ -111,6 +153,10 @@ module QuintDriver
     private_class_method :evaluated
 
     # The spec's variables in state +index+ of the trace, as plain values.
+    #
+    # @rbs path: String
+    # @rbs index: Integer
+    # @rbs return: state
     def self.variables(path, index)
       decode(JSON.parse(File.read(path)).fetch("states").fetch(index)).reject { |name, _| name.start_with?("mbt::") }
     end
@@ -120,6 +166,10 @@ module QuintDriver
     # An Option is nil for None and its value for Some, as Model.plain gives one.
     # With a block, a sum type's value is what the block makes of its tag and
     # its decoded value, as the model holds one.
+    #
+    # @rbs value: untyped
+    # @rbs &variant: ? (String tag, untyped inner) -> untyped
+    # @rbs return: untyped
     def self.decode(value, &variant)
       case value
       when Array then value.map { decode(_1, &variant) }
@@ -135,7 +185,7 @@ module QuintDriver
           case value["tag"]
           when "None" then nil
           when "Some" then inner
-          else inner == [] ? value["tag"] : [ value["tag"], inner ]
+          else inner == [] ? value["tag"] : [ value["tag"], inner ] # steep:ignore UnannotatedEmptyCollection
           end
         else value.except("#meta").transform_values { decode(_1, &variant) }
         end

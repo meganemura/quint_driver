@@ -1,10 +1,24 @@
+# rbs_inline: enabled
+
 # The Hegel adapter. It is the one file that loads hegeltest, which needs
 # Ruby 3.4, so trace replay and the model run without it.
 require "hegel"
 require_relative "../quint_driver"
 
 module QuintDriver
-  Agreement.hide(File.dirname(Hegel::Stateful.method(:run).source_location.first))
+  # The methods the machine below defines on its class with define_method,
+  # which Steep cannot see, so each block of the class names them as its
+  # self type.
+  #
+  # @rbs!
+  #   interface _Machine
+  #     def start_driver: () -> void
+  #     def move!: (String action, picks picks, state after) -> void
+  #   end
+
+  # Hegel's own file, which holds the method, is where its frames are.
+  hegel = Hegel::Stateful.method(:run).source_location #: [String, Integer]
+  Agreement.hide(File.dirname(hegel.first))
 
   # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,
   # the model takes it, the driver runs the same command on the system, and
@@ -24,6 +38,15 @@ module QuintDriver
   # takes them. +invariants+ names predicates of the spec, expectations
   # that have to hold in every state, as Trace.replay takes them: one that
   # is false where the system agreed raises Violated.
+  #
+  # @rbs spec: Spec
+  # @rbs driver: ^() -> _Driver
+  # @rbs step: String
+  # @rbs invariants: Array[String | Symbol]
+  # @rbs choose: :rule | :rotate
+  # @rbs observe: Array[String | Symbol]
+  # @rbs ignore: Array[String | Symbol]
+  # @rbs return: singleton(Hegel::StateMachine)
   def self.machine(spec, driver:, step: "step", invariants: [], choose: :rule, observe: [], ignore: [])
     rules = spec.rules(step)
     observe, ignore, invariants = observe.map(&:to_s), ignore.map(&:to_s), invariants.map(&:to_s)
@@ -37,27 +60,48 @@ module QuintDriver
     # time, which the shrinker assumes too. A disagreement is never kept: it
     # runs on the system every time, so the failure reported is one it
     # reproduced.
-    agreed = Set.new
+    agreed = Set.new #: Set[Array[step]]
     # A fixed domain (Spec::Rule#fixed) is the same list in every test case,
     # so it is evaluated and sorted once per machine, not once per draw.
-    fixed = {}.compare_by_identity
+    fixed = {}.compare_by_identity # steep:ignore UnannotatedEmptyCollection
 
-    init = [ "init", {} ].freeze
+    no_picks = {} #: picks
+    init = [ "init", no_picks ].freeze #: step
     # A replay names a step by its index in the trace, init being step 0; the
     # machine names a move by the number Hegel's report gives it.
-    at = ->(number, (action, picks)) { "step #{number} `#{action}` #{Agreement.show(picks)}" }
+    at = ->(number, (action, picks)) { "step #{number} `#{action}` #{Agreement.show(picks)}" } #: ^(Integer, step) -> String
 
+    # Steep reads each block below with the self it would have outside
+    # Class.new, so each one names its self and the instance variables it
+    # reads, which are these:
+    #   @model: Model, the spec's side
+    #   @start: state, the model's state at init
+    #   @moves: Array[step], every move Hegel took
+    #   @numbers: Array[Integer], the Hegel step of each move
+    #   @step: Integer, every rule Hegel ran
+    #   @ran: Integer, how many of @moves the driver has run
+    #   @driver: _Driver?, the system's side, started on the first move it runs
     Class.new(Hegel::StateMachine) do
+      # @type self: singleton(Hegel::StateMachine)
+
       # The driver starts with the machine, before Hegel's first step, so a
       # failure at init is reported with no step Hegel took. Once init agreed,
       # the empty sequence is kept like any other, and a later machine starts
       # its driver only on a move that is not.
       define_method(:initialize) do
+        # @type self: Hegel::StateMachine & _Machine
+        # @type ivar @model: Model
+        # @type ivar @start: state
+        # @type ivar @moves: Array[step]
+        # @type ivar @numbers: Array[Integer]
+        # @type ivar @step: Integer
+        # @type ivar @ran: Integer
         @model = spec.model(step)
         @model.step(*init)
         @start = @model.state.merge(@model.observe(observe))
-        @moves = []
-        @numbers = [] # the Hegel step of each move
+        @moves = [] #: Array[step]
+        # The Hegel step of each move.
+        @numbers = [] #: Array[Integer]
         @step = 0 # every rule Hegel ran, a rejected one too, as its report counts
         @ran = 0 # how many of @moves the driver has run
         next if agreed.include?(@moves)
@@ -71,6 +115,9 @@ module QuintDriver
       # earlier test case unless the driver's init deletes them, and without
       # this check the first move would take the blame for them.
       define_method(:start_driver) do
+        # @type self: Hegel::StateMachine & _Machine
+        # @type ivar @start: state
+        # @type ivar @driver: _Driver?
         actual = Agreement.drive(at.(0, init), steps: [ init ]) do
           @driver = driver.call
           @driver.step(*init)
@@ -80,10 +127,19 @@ module QuintDriver
       end
 
       define_method(:move!) do |action, picks, after|
+        # @type self: Hegel::StateMachine & _Machine
+        # @type ivar @model: Model
+        # @type ivar @moves: Array[step]
+        # @type ivar @numbers: Array[Integer]
+        # @type ivar @step: Integer
+        # @type ivar @ran: Integer
+        # @type ivar @driver: _Driver?
         @model.enter(after)
         @moves << [ action, Model.plain(picks) ]
         @numbers << @step
-        return if agreed.include?(@moves)
+        # A return in a block given to define_method leaves that method, which
+        # Steep reads as a return from machine.
+        return if agreed.include?(@moves) # steep:ignore ReturnTypeMismatch
 
         start_driver unless @driver
         # Every move the driver has not run yet, which is more than the last
@@ -103,8 +159,11 @@ module QuintDriver
       when :rule
         rules.each do |rule|
           rule(rule.action) do |tc|
+            # @type self: Hegel::StateMachine & _Machine
+            # @type ivar @model: Model
+            # @type ivar @step: Integer
             @step += 1
-            picks = rule.domains.each_with_object({}) do |(name, domain), chosen|
+            picks = rule.domains.each_with_object({}) do |(name, domain), chosen| # steep:ignore UnannotatedEmptyCollection
               choices = fixed.fetch(domain) do
                 sorted = @model.value(domain, chosen).to_a.sort_by(&:to_s).freeze
                 rule.fixed.include?(name) ? fixed[domain] = sorted : sorted
@@ -121,6 +180,9 @@ module QuintDriver
         end
       when :rotate
         rule(step) do |tc|
+          # @type self: Hegel::StateMachine & _Machine
+          # @type ivar @model: Model
+          # @type ivar @step: Integer
           @step += 1
           start = tc.draw(integers(min_value: 0, max_value: rules.size - 1), label: "rule")
           moves = rules.rotate(start).lazy.map { @model.moves(_1) }.find(&:any?)
@@ -140,6 +202,10 @@ module QuintDriver
       # state are named together, as on a replay.
       unless invariants.empty?
         invariant("invariants", always_run: true) do
+          # @type self: Hegel::StateMachine & _Machine
+          # @type ivar @model: Model
+          # @type ivar @moves: Array[step]
+          # @type ivar @numbers: Array[Integer]
           broken = invariants.reject { @model.value(_1) }
           next if broken.empty?
 
@@ -147,6 +213,6 @@ module QuintDriver
           Agreement.violated!(last, broken, steps: [ init, *@moves ], state: @model.state)
         end
       end
-    end
+    end #: singleton(Hegel::StateMachine)
   end
 end

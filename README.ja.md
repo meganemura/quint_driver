@@ -929,12 +929,21 @@ bundle exec rspec       # RSpec
 ```
 
 Hegel のテストは `test/hegel/` と `spec/hegel/` にあります。
-Ruby 3.3 では hegeltest を除き、残りを動かします。
+Ruby 3.3 では hegeltest と Steep を除き、残りを動かします。
 
 ```sh
-BUNDLE_WITHOUT=hegel bundle install
-BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb
-BUNDLE_WITHOUT=hegel bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
+BUNDLE_WITHOUT=hegel:types bundle install
+BUNDLE_WITHOUT=hegel:types bundle exec bin/test test/*_test.rb
+BUNDLE_WITHOUT=hegel:types bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
+```
+
+`lib/` の型は、コードに書いた rbs-inline のコメントです。
+`sig/generated/` はそのコメントから書き出したもので、gem に含まれます。
+`lib/` を変えたら、書き出し直してから、コードをその型で確かめます。
+
+```sh
+bundle exec rbs-inline --output=sig/generated lib
+bundle exec steep check
 ```
 
 テストは `quint` を実行します。

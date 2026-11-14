@@ -1,0 +1,38 @@
+# Generated from lib/quint_driver/hegel.rb with RBS::Inline
+
+module QuintDriver
+  interface _Machine
+    def start_driver: () -> void
+
+    def move!: (String action, picks picks, state after) -> void
+  end
+
+  # A Hegel::StateMachine for +spec+'s +step+ action. Hegel picks each move,
+  # the model takes it, the driver runs the same command on the system, and
+  # the two states have to be equal afterwards. Hegel owns every choice, so a
+  # failure shrinks to a short sequence of commands.
+  #
+  # +choose+ is how a move is drawn:
+  # - :rule, Hegel picks a rule and a disabled one is rejected (tc.assume).
+  #   Shrinks to the shortest sequence; deep states take more test cases.
+  # - :rotate, a disabled rule passes the turn to the next enabled one.
+  #   Nothing is rejected, so deep states come sooner; shrinking leaves extra
+  #   moves, because a draw means a different rule once the state differs.
+  #
+  # +observe+ names definitions of the spec, as Trace.replay takes them: the
+  # driver reports each one in its state, held to the model's value.
+  # +ignore+ names variables the driver does not report, as Trace.replay
+  # takes them. +invariants+ names predicates of the spec, expectations
+  # that have to hold in every state, as Trace.replay takes them: one that
+  # is false where the system agreed raises Violated.
+  #
+  # @rbs spec: Spec
+  # @rbs driver: ^() -> _Driver
+  # @rbs step: String
+  # @rbs invariants: Array[String | Symbol]
+  # @rbs choose: :rule | :rotate
+  # @rbs observe: Array[String | Symbol]
+  # @rbs ignore: Array[String | Symbol]
+  # @rbs return: singleton(Hegel::StateMachine)
+  def self.machine: (Spec spec, driver: ^() -> _Driver, ?step: String, ?invariants: Array[String | Symbol], ?choose: :rule | :rotate, ?observe: Array[String | Symbol], ?ignore: Array[String | Symbol]) -> singleton(Hegel::StateMachine)
+end

@@ -1,0 +1,141 @@
+# Generated from lib/quint_driver/targets.rb with RBS::Inline
+
+module QuintDriver
+  # The places in a Ruby app where a hunt pays: code where two writes must
+  # agree and something can fail between them. It reads the source only, so
+  # it names lines to read, never bugs: each hit is a pattern the bugs a hunt
+  # finds have had, such as a rescue inside a transaction or a save whose
+  # answer nobody reads. Files are ranked by how many kinds of hit they hold,
+  # since the bugs sat where several kinds meet.
+  #
+  # Prism, which ships with Ruby, reads each file, so comments, strings,
+  # heredocs and regexps are not matched, and the method a line sits in is
+  # the def that holds it, not the def above it.
+  module Targets
+    # A file's lines as written, its lines with comments and strings
+    # blanked, and its defs.
+    type source = [ Array[String], Array[String], Array[Def] ]
+
+    class Hit < Data
+      attr_reader kind(): String
+
+      attr_reader file(): String
+
+      attr_reader line(): Integer
+
+      attr_reader code(): String
+
+      def self.new: (String kind, String file, Integer line, String code) -> instance
+                  | (kind: String, file: String, line: Integer, code: String) -> instance
+
+      def self.members: () -> [ :kind, :file, :line, :code ]
+
+      def members: () -> [ :kind, :file, :line, :code ]
+    end
+
+    SAVE: Regexp
+
+    # A save whose answer the line itself reads, as in `save or raise`.
+    READ: Regexp
+
+    WRITE: Regexp
+
+    LOCK: Regexp
+
+    KINDS: Hash[String, Regexp]
+
+    # A method with one of these names is called on many receivers that are
+    # not its own, so a call counts only where it names the method's class.
+    COMMON: Array[String]
+
+    # A def, with the lines of the checks in it that read stored state.
+    class Def < Data
+      attr_reader name(): String
+
+      attr_reader owner(): String?
+
+      attr_reader first(): Integer
+
+      attr_reader last(): Integer
+
+      attr_reader checks(): Array[Integer]
+
+      def self.new: (String name, String? owner, Integer first, Integer last, Array[Integer] checks) -> instance
+                  | (name: String, owner: String?, first: Integer, last: Integer, checks: Array[Integer]) -> instance
+
+      def self.members: () -> [ :name, :owner, :first, :last, :checks ]
+
+      def members: () -> [ :name, :owner, :first, :last, :checks ]
+    end
+
+    # Every hit under +root+'s app/ and lib/, the spec and test folders left
+    # out, comments and strings skipped, each write after a check in a
+    # method that takes no lock, as the kind "check-then-write", and each
+    # call that drops the answer of a method that can fail without raising,
+    # as the kind "dropped-result".
+    #
+    # @rbs root: String
+    # @rbs return: Array[Hit]
+    def self.scan: (String root) -> Array[Hit]
+
+    # The files ranked, each with its hits, as the `quint_driver targets`
+    # command prints them.
+    #
+    # @rbs root: String
+    # @rbs top: Integer
+    # @rbs return: String
+    def self.report: (String root, ?top: Integer) -> String
+
+    # The lines of a file as written, the same lines with every comment,
+    # string, heredoc and regexp body blanked, and the defs it holds.
+    #
+    # @rbs path: String
+    # @rbs return: source
+    def self.read: (String path) -> source
+
+    # @rbs node: Prism::Node
+    # @rbs owner: String?
+    # @rbs return: Array[Def]
+    def self.defs: (Prism::Node node, ?String? owner) -> Array[Def]
+
+    # Every node of a def, its nested defs left out.
+    #
+    # @rbs node: Prism::Node
+    # @rbs return: Array[Prism::Node]
+    def self.within: (Prism::Node node) -> Array[Prism::Node]
+
+    # Whether a condition reads what the app stored, not only the method's
+    # arguments: an attribute, an instance variable, a query on a class, or
+    # a local the def loaded from one of those. A check of an argument alone
+    # cannot go stale between the read and the write, so it is no sign of a
+    # race.
+    #
+    # @rbs node: Prism::Node
+    # @rbs loaded: Array[Symbol]
+    # @rbs return: bool
+    def self.stored?: (Prism::Node node, Array[Symbol] loaded) -> bool
+
+    # The innermost def that holds +line+.
+    #
+    # @rbs defs: Array[Def]
+    # @rbs line: Integer
+    # @rbs return: Def?
+    def self.around: (Array[Def] defs, Integer line) -> Def?
+
+    # A write is a save, an update, a create or a destroy, or a call of a
+    # method of the app that holds one, such as `parcel.assign_to!(...)`.
+    #
+    # @rbs sources: Hash[String, source]
+    # @rbs return: Array[Hit]
+    def self.checked: (Hash[String, source] sources) -> Array[Hit]
+
+    # @rbs hits: Array[Hit]
+    # @rbs sources: Hash[String, source]
+    # @rbs return: Array[Hit]
+    def self.dropped: (Array[Hit] hits, Hash[String, source] sources) -> Array[Hit]
+
+    # @rbs root: String
+    # @rbs return: String
+    def self.none: (String root) -> String
+  end
+end

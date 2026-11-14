@@ -1,0 +1,284 @@
+# Generated from lib/quint_driver/quint.rb with RBS::Inline
+
+module QuintDriver
+  # The `quint` command line: the one place this library runs another process.
+  module Quint
+    # Read on every call, so a caller can set QUINT after requiring the gem.
+    #
+    # @rbs return: String
+    def self.command: () -> String
+
+    # The spec's JSON IR, frozen. +main+ names the module quint checks;
+    # without it, quint checks the module named after the file, and fails when
+    # none is. A file compiles once per process and quint command, until its
+    # text or the text of a file it imports changes: one compile costs a
+    # second or two of node, and every Spec.new asks for one. Its other
+    # modules reuse that compile: quint typechecks every module of the file
+    # whichever is main, and --main only sets "main" and adds q::init and
+    # q::step, which nothing here reads. They are `true` here: quint names
+    # init and step there by default, and fails a module that lacks either,
+    # though a caller can pass step: another action. Threads that ask for one
+    # file at once wait for one compile; other files compile beside it.
+    #
+    # With +flat+, the IR holds only +main+, with each definition it imports
+    # among its own declarations, as quint flattens a module before it runs
+    # it. That is one compile per module, so only a module that imports asks
+    # for it. quint drops each imported definition that neither q::init, nor
+    # q::step, nor a declaration of +main+ reaches, so q::step there names
+    # every one it can (imported_names): a module needs no action named step
+    # to compile, and a definition only the caller reads stays.
+    #
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs flat: bool
+    # @rbs return: ir
+    def self.compile: (String path, ?main: String?, ?flat: bool) -> ir
+
+    self.@locking: Thread::Mutex
+
+    self.@locks: Hash[Array[String?], Thread::Mutex]
+
+    self.@compiled: Hash[Array[String?], [ Hash[String, String]?, ir ]]
+
+    # The text of +path+ and of each file it imports, directly or through
+    # another, by path. Quint resolves `from "name"` against the directory of
+    # the file that writes it, and adds .qnt to the name, also to one that
+    # ends in .qnt, so `from "start.qnt"` reads start.qnt.qnt. A name in
+    # a comment reads as an import too, which costs only a file read.
+    #
+    # @rbs path: String
+    # @rbs read: Hash[String, String]
+    # @rbs return: Hash[String, String]
+    def self.sources: (String path, ?Hash[String, String] read) -> Hash[String, String]
+
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs flat: bool
+    # @rbs return: ir
+    def self.compile_now: (String path, String? main, bool flat) -> ir
+
+    # Each name +main+ imports, so a flat compile whose --step is `and` of
+    # them keeps every definition +main+ imports, not only the ones its own
+    # declarations reach. quint 0.33.0 resolves the names of --step there
+    # and checks no type, so a value, a run, or a def with parameters stands
+    # in it as an action does. An instance adds no name: its definitions
+    # would bring its variables, which a trace of `quint run` lacks when
+    # nothing of +main+ reaches them, and init would leave them unassigned.
+    # An export can name a module by what an import of it calls it, such as
+    # A in `import base as A` and `export A.*`.
+    #
+    # @rbs ir: ir
+    # @rbs main: String?
+    # @rbs return: Array[String]
+    def self.imported_names: (ir ir, String? main) -> Array[String]
+
+    # @rbs declaration: ir
+    # @rbs import: ir
+    # @rbs return: ir
+    def self.renamed: (ir declaration, ir import) -> ir
+
+    # What a simulation ran: +traces+ is how many traces quint ran, and
+    # +violated+, when simulate was asked to violate a definition, how many
+    # of them broke it, each of which simulate yielded. Without violate it
+    # is nil. +actions+ counts the steps each action took across every trace
+    # quint ran, init left out, and +never+ lists the actions of the step
+    # action that no trace took, so a run that found nothing tells what it
+    # never tried. +never+ is nil when the step action has a shape the
+    # driver protocol cannot run.
+    class Simulation < Data
+      attr_reader traces(): Integer
+
+      attr_reader violated(): Integer?
+
+      attr_reader actions(): Hash[String, Integer]
+
+      attr_reader never(): Array[String]?
+
+      def self.new: (Integer traces, Integer? violated, Hash[String, Integer] actions, Array[String]? never) -> instance
+                  | (traces: Integer, violated: Integer?, actions: Hash[String, Integer], never: Array[String]?) -> instance
+
+      def self.members: () -> [ :traces, :violated, :actions, :never ]
+
+      def members: () -> [ :traces, :violated, :actions, :never ]
+    end
+
+    # Writes +traces+ traces of the spec's +step+ action, yields each file,
+    # and returns a Simulation. +main+ names the module to run; without it,
+    # quint runs the module named after the file. +reach+ names a definition
+    # of the module that holds at the state a test is after: each trace then
+    # ends at the first state where it holds, and only the traces that get
+    # there are yielded. +violate+ names an expectation, a definition that
+    # should hold in every state: each trace then ends at the first state
+    # where it is false, and only the traces that break it are yielded, none
+    # when every trace keeps it.
+    #
+    # @rbs path: String
+    # @rbs traces: Integer
+    # @rbs max_steps: Integer
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs backend: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs &: (String trace) -> void
+    # @rbs return: Simulation
+    def self.simulate: (String path, traces: Integer, max_steps: Integer, seed: String | Integer, ?main: String?, ?step: String, ?backend: String, ?reach: String?, ?violate: String?) { (String trace) -> void } -> Simulation
+
+    # Raises ArgumentError when +step+ names no action without parameters, or
+    # +reach+ or +violate+ no predicate. quint finds that out only while it
+    # runs, and its two evaluators each say "Expected boolean" in words of
+    # their own. A name the module does not declare may be one it imports,
+    # which this IR does not hold, so the check it returns reads quint's
+    # output for a name quint did not find either.
+    #
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs return: ^(String output) -> void
+    def self.runnable!: (String path, main: String?, step: String, reach: String?, violate: String?) -> ^(String output) -> void
+
+    # What an argument that names a declaration of +kind+ takes, in words.
+    TAKES: Hash[String, String]
+
+    # Raises ArgumentError: +argument+ names +name+, which is +what+, and
+    # takes a declaration of +kind+. +kinds+ holds the kind of each name of
+    # the module, so the message lists the names that fit.
+    #
+    # @rbs argument: String
+    # @rbs name: String?
+    # @rbs what: String
+    # @rbs kind: String
+    # @rbs kinds: Hash[String, String]
+    # @rbs return: bot
+    def self.misnamed: (String argument, String? name, String what, String kind, Hash[String, String] kinds) -> bot
+
+    # Quint's own --init could name another action, but a trace names its
+    # first step after that action, the model and the machine step through
+    # init, and a driver reads init: one name keeps the four alike.
+    #
+    # @rbs main: String
+    # @rbs return: String
+    def self.without_init: (String main) -> String
+
+    # What a declaration is, as a step, a reach, a violate, or an invariant
+    # has to tell: a variant quint declares as a val, or as a def when it
+    # carries a value. A val and a def without parameters both read as a
+    # value: the keyword changes nothing any of them needs.
+    #
+    # @rbs declaration: ir
+    # @rbs types: Hash[String, ir]
+    # @rbs return: String
+    def self.kind_of: (ir declaration, Hash[String, ir] types) -> String
+
+    # Writes the trace of the run named +name+, such as
+    # `run lendTest = init.then(...)`, and yields its file. +main+ names the
+    # module that holds the run. quint test writes no mbt::actionTaken, so
+    # replay it with Trace.replay's +action+: the spec has to record the
+    # action each step took, as a Choreo spec does.
+    #
+    # @rbs path: String
+    # @rbs name: String
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs &: (String trace) -> void
+    # @rbs return: Array[String]
+    def self.test: (String path, String name, seed: String | Integer, ?main: String?) { (String trace) -> void } -> Array[String]
+
+    # The call that writes the same traces again, with the spec named as
+    # raised in names a frame.
+    #
+    # @rbs method: String
+    # @rbs path: String
+    # @rbs *names: String
+    # @rbs **options: untyped
+    # @rbs return: String
+    def self.call: (String method, String path, *String names, **untyped options) -> String
+
+    # The trace files go with their directory, so a replay's failure names
+    # its trace by +seed+ and +written_by+, the call that writes it again,
+    # instead of by its path.
+    #
+    # @rbs traces: Array[String]
+    # @rbs seed: String | Integer
+    # @rbs written_by: String
+    # @rbs &: (String trace) -> void
+    # @rbs return: Array[String]
+    def self.yield_traces: (Array[String] traces, seed: String | Integer, written_by: String) { (String trace) -> void } -> Array[String]
+
+    self.@written: Hash[String, { seed: String | Integer, written_by: String }]
+
+    # Names +trace+ on a +failure+ that names none and, while a simulate or
+    # test block is yielding it, the seed and the call that write it again.
+    # It keeps its class and cause, and leaves quint_driver's frames out of its
+    # backtrace, as Agreement.outside says. Trace.replay calls it too, so
+    # a block that rescues a replay's failure reads what the caller of
+    # simulate reads.
+    #
+    # +failure+ is untyped for the reason Agreement.lead_outside gives.
+    #
+    # @rbs failure: untyped
+    # @rbs trace: String
+    # @rbs return: untyped
+    def self.name_trace: (untyped failure, String trace) -> untyped
+
+    # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
+    # Its stdin format is not a documented interface, so the gem reads only
+    # this version's.
+    EVALUATOR_VERSION: String
+
+    # The Rust evaluator simulate runs, without node: QUINT_EVALUATOR names
+    # it, and an empty QUINT_EVALUATOR means `quint run`. Unset, it is the copy
+    # quint downloaded into QUINT_HOME (~/.quint by default), or `quint run`
+    # when there is none.
+    #
+    # @rbs return: String?
+    def self.evaluator: () -> String?
+
+    # What `quint run --mbt` sends the evaluator for this call, or nil when
+    # +step+ is no action of the module or +reach+ or +violate+ no definition
+    # of it, so `quint run` reports it.
+    #
+    # @rbs path: String
+    # @rbs traces: Integer
+    # @rbs max_steps: Integer
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs return: Hash[Symbol, untyped]?
+    def self.evaluator_input: (String path, traces: Integer, max_steps: Integer, seed: String | Integer, main: String?, step: String, reach: String?, violate: String?) -> Hash[Symbol, untyped]?
+
+    # Writes each trace the evaluator returns as quint would: trace_0.itf.json
+    # onwards, in the order it returns them.
+    #
+    # @rbs evaluator: String
+    # @rbs input: Hash[Symbol, untyped]
+    # @rbs dir: String
+    # @rbs return: void
+    def self.write_traces: (String evaluator, Hash[Symbol, untyped] input, String dir) -> void
+
+    # QUINT is a shell command, such as `npx --yes ...`, so the line runs
+    # through a shell, and each word after it is quoted: an app's folder can
+    # have a space in its name. +stdout+ is a file quint's output goes into.
+    #
+    # The words are untyped: they are strings and numbers, such as
+    # --max-steps 20, and Shellwords.join turns each into a string, which
+    # its RBS does not allow for.
+    #
+    # @rbs *words: untyped
+    # @rbs stdout: String?
+    # @rbs return: [String, Process::Status]
+    def self.capture: (*untyped words, ?stdout: String?) -> [ String, Process::Status ]
+
+    # A failure of quint's, raised from the caller's line: the spec is the
+    # caller's, so its frame leads, as a refused argument's does.
+    #
+    # @rbs message: String
+    # @rbs return: bot
+    def self.failed: (String message) -> bot
+  end
+end

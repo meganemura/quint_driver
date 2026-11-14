@@ -1,0 +1,105 @@
+# Generated from lib/quint_driver/steps.rb with RBS::Inline
+
+# Runs a list of steps, such as the steps: lines a failure printed, on a
+# driver and on the spec's model side by side, and checks them as a replay
+# checks a trace. It needs no quint command and no Hegel, so a failure found
+# by either is pinned as one plain example.
+module QuintDriver
+  # Runs +steps+ on +driver+ and on +spec+'s model, from init, and holds the
+  # driver to the model after each one: a disagreement raises Mismatch, and
+  # an expectation +invariants+ names that is false where the two agreed
+  # raises Violated, as Trace.replay does. +steps+ is the text under steps:
+  # of a failure, pasted as it is, or a list of [action, picks]; a first
+  # step named init may be left out. +step+ names the spec's step action, as
+  # QuintDriver.machine takes it. Returns the steps it ran.
+  #
+  # @rbs spec: Spec
+  # @rbs driver: _Driver
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs step: String
+  # @rbs observe: Array[String | Symbol]
+  # @rbs ignore: Array[String | Symbol]
+  # @rbs invariants: Array[String | Symbol]
+  # @rbs return: Array[step]
+  def self.replay_steps: (Spec spec, _Driver driver, String | Array[[ String | Symbol, Hash[String | Symbol, untyped]? ]] steps, ?step: String, ?observe: Array[String | Symbol], ?ignore: Array[String | Symbol], ?invariants: Array[String | Symbol]) -> Array[step]
+
+  # Takes steps out of a failure while the same expectations still break,
+  # and returns the shortest list it found as the text under steps:, to
+  # paste into replay_steps. The block runs one list of steps, as
+  # [action, picks] from init, and raises what replay_steps raises: it
+  # builds the driver and rolls the database back each time, since a list
+  # that keeps the failure is only known by running it. A list the spec
+  # does not allow (Mismatch), one whose step raises (StepRaised), or one
+  # that breaks other expectations does not keep the failure. Quint's first
+  # trace that breaks an expectation is seldom the shortest; Hegel shrinks
+  # its own.
+  #
+  # @rbs steps: String | Array[[String | Symbol, Hash[String | Symbol, untyped]?]]
+  # @rbs &run: (Array[step] steps) -> void
+  # @rbs return: String
+  def self.shrink_steps: (String | Array[[ String | Symbol, Hash[String | Symbol, untyped]? ]] steps) { (Array[step] steps) -> void } -> String
+
+  # Reads the steps: lines of a failure back into [action, picks]. Each line
+  # is an action's name and its picks as a failure prints a value: strings,
+  # integers, true, false, nil, [lists], {sets} and {hashes with =>}.
+  module Steps
+    # The Violated that running +steps+ raises, or nil when they keep every
+    # expectation, the spec refuses one of them, or one of them raises.
+    #
+    # @rbs steps: Array[step]
+    # @rbs &: (Array[step] steps) -> void
+    # @rbs return: Violated?
+    def self.violated: (Array[step] steps) { (Array[step] steps) -> void } -> Violated?
+
+    # @rbs steps: Array[step]
+    # @rbs return: Array[step]
+    def self.after_init: (Array[step] steps) -> Array[step]
+
+    # @rbs text: String
+    # @rbs return: Array[step]
+    def self.parse: (String text) -> Array[step]
+
+    # A small reader of Agreement.show's output; a set and a hash share
+    # braces and tell apart by the => after the first element.
+    class Reader
+      @text: String
+
+      @at: Integer
+
+      # @rbs text: String
+      # @rbs return: void
+      def initialize: (String text) -> void
+
+      # @rbs return: bool
+      def done?: () -> bool
+
+      # @rbs return: untyped
+      def value: () -> untyped
+
+      private
+
+      # @rbs return: nil
+      def skip: () -> nil
+
+      # @rbs token: String
+      # @rbs return: Integer
+      def take: (String token) -> Integer
+
+      # @rbs return: String
+      def string: () -> String
+
+      # @rbs return: bool | Integer | nil
+      def word: () -> (bool | Integer | nil)
+
+      # @rbs return: Array[untyped]
+      def list: () -> Array[untyped]
+
+      # @rbs return: Hash[untyped, untyped] | Set[untyped]
+      def braces: () -> (Hash[untyped, untyped] | Set[untyped])
+
+      # @rbs first: untyped
+      # @rbs return: Set[untyped]
+      def set_from: (untyped first) -> Set[untyped]
+    end
+  end
+end

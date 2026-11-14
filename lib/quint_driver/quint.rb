@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 require "etc"
 require "json"
 require "open3"
@@ -8,6 +10,8 @@ module QuintDriver
   # The `quint` command line: the one place this library runs another process.
   module Quint
     # Read on every call, so a caller can set QUINT after requiring the gem.
+    #
+    # @rbs return: String
     def self.command = ENV.fetch("QUINT", "npx --yes @informalsystems/quint@0.33.0")
 
     # The spec's JSON IR, frozen. +main+ names the module quint checks;
@@ -29,6 +33,11 @@ module QuintDriver
     # q::step, nor a declaration of +main+ reaches, so q::step there names
     # every one it can (imported_names): a module needs no action named step
     # to compile, and a definition only the caller reads stays.
+    #
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs flat: bool
+    # @rbs return: ir
     def self.compile(path, main: nil, flat: false)
       key = [ command, File.expand_path(path), (main if flat) ]
       wanted = main || File.basename(path, ".qnt")
@@ -44,6 +53,9 @@ module QuintDriver
         ir
       end
     end
+    # @rbs self.@compiled: Hash[Array[String?], [Hash[String, String]?, ir]]
+    # @rbs self.@locks: Hash[Array[String?], Thread::Mutex]
+    # @rbs self.@locking: Thread::Mutex
     @compiled = {}
     @locks = {}
     @locking = Mutex.new
@@ -53,6 +65,10 @@ module QuintDriver
     # the file that writes it, and adds .qnt to the name, also to one that
     # ends in .qnt, so `from "start.qnt"` reads start.qnt.qnt. A name in
     # a comment reads as an import too, which costs only a file read.
+    #
+    # @rbs path: String
+    # @rbs read: Hash[String, String]
+    # @rbs return: Hash[String, String]
     def self.sources(path, read = {})
       path = File.expand_path(path)
       return read if read.key?(path) || !File.file?(path)
@@ -64,6 +80,10 @@ module QuintDriver
       read
     end
 
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs flat: bool
+    # @rbs return: ir
     def self.compile_now(path, main, flat)
       Dir.mktmpdir("quint") do |dir|
         # Into a file: through a pipe, quint exits before its 64 KB of JSON is
@@ -71,14 +91,14 @@ module QuintDriver
         # stdout it prints the main module flattened. The shell makes that file
         # before quint runs, so a flat compile that fails leaves it empty.
         out = File.join(dir, "ir.json")
-        words = [ "compile", "--target", "json", path, *([ "--main", main ] if main), "--init", "true" ]
+        words = [ "compile", "--target", "json", path, *([ "--main", main ] if main), "--init", "true" ] #: Array[String]
         output, status = if flat
                            capture(*words, "--step", "and(true, #{imported_names(compile(path, main:), main).join(', ')})", stdout: out)
                          else
                            capture(*words, "--step", "true", "--out", out)
                          end
         ir = begin
-          File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {}
+          File.size?(out) ? JSON.parse(File.read(out), freeze: true) : {} #: ir
         rescue JSON::ParserError
           # A flat compile that fails to flatten prints the module text
           # instead, and its error with the stack of quint's own code.
@@ -109,23 +129,30 @@ module QuintDriver
     # nothing of +main+ reaches them, and init would leave them unassigned.
     # An export can name a module by what an import of it calls it, such as
     # A in `import base as A` and `export A.*`.
+    #
+    # @rbs ir: ir
+    # @rbs main: String?
+    # @rbs return: Array[String]
     def self.imported_names(ir, main)
       modules = ir.fetch("modules").to_h { [ _1["name"], _1["declarations"] ] }
       named = ->(declarations, by) { declarations.select { [ nil, "*", _1["name"] ].include?(by["defName"]) }.map { renamed(_1, by) } }
       shown = lambda do |name|
-        declarations = modules.fetch(name, [])
+        declarations = modules.fetch(name, []) # steep:ignore UnannotatedEmptyCollection
         aliases = declarations.select { _1["kind"] == "import" }.to_h { [ _1["qualifiedName"], _1["protoName"] ] }
         declarations.flat_map do |declaration|
           case declaration["kind"]
           when "def" then [ declaration ]
           when "export" then named.(shown.(aliases.fetch(declaration["protoName"], declaration["protoName"])), declaration)
-          else []
+          else [] #: Array[ir]
           end
         end
       end
       modules.fetch(main).select { _1["kind"] == "import" }.flat_map { named.(shown.(_1["protoName"]), _1) }.map { _1["name"] }
     end
 
+    # @rbs declaration: ir
+    # @rbs import: ir
+    # @rbs return: ir
     def self.renamed(declaration, import)
       import["qualifiedName"] ? declaration.merge("name" => "#{import['qualifiedName']}::#{declaration['name']}") : declaration
     end
@@ -138,7 +165,12 @@ module QuintDriver
     # action that no trace took, so a run that found nothing tells what it
     # never tried. +never+ is nil when the step action has a shape the
     # driver protocol cannot run.
-    Simulation = Data.define(:traces, :violated, :actions, :never)
+    Simulation = Data.define(
+      :traces, #: Integer
+      :violated, #: Integer?
+      :actions, #: Hash[String, Integer]
+      :never #: Array[String]?
+    )
 
     # Writes +traces+ traces of the spec's +step+ action, yields each file,
     # and returns a Simulation. +main+ names the module to run; without it,
@@ -149,6 +181,18 @@ module QuintDriver
     # should hold in every state: each trace then ends at the first state
     # where it is false, and only the traces that break it are yielded, none
     # when every trace keeps it.
+    #
+    # @rbs path: String
+    # @rbs traces: Integer
+    # @rbs max_steps: Integer
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs backend: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs &: (String trace) -> void
+    # @rbs return: Simulation
     def self.simulate(path, traces:, max_steps:, seed:, main: nil, step: "step", backend: "rust", reach: nil, violate: nil)
       if reach && violate
         Agreement.refuse "quint: simulate takes reach or violate, not both; each ends a trace where quint's one invariant breaks, " \
@@ -166,6 +210,8 @@ module QuintDriver
         evaluator = self.evaluator if backend == "rust"
         input = evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:, violate:) if evaluator
         if input
+          # There is input only when there is an evaluator.
+          evaluator = evaluator #: String
           write_traces(evaluator, input, dir)
         else
           arguments = [ "run", path, "--mbt", "--backend", backend, "--max-steps", max_steps, "--max-samples", traces,
@@ -208,11 +254,18 @@ module QuintDriver
     # their own. A name the module does not declare may be one it imports,
     # which this IR does not hold, so the check it returns reads quint's
     # output for a name quint did not find either.
+    #
+    # @rbs path: String
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs return: ^(String output) -> void
     def self.runnable!(path, main:, step:, reach:, violate:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }.fetch("declarations")
       kinds = declarations.select { _1["name"] }.to_h { [ _1["name"], kind_of(_1, ir.fetch("types")) ] }
-      wanted = { "step" => [ step, "an action" ], "reach" => [ reach, "a predicate" ], "violate" => [ violate, "a predicate" ] }
+      wanted = { "step" => [ step, "an action" ], "reach" => [ reach, "a predicate" ], "violate" => [ violate, "a predicate" ] } #: Hash[String, [String?, String]]
       wanted.each do |argument, (name, kind)|
         misnamed(argument, name, "#{kinds[name]} of #{ir['main']}", kind, kinds) if kinds.key?(name) && kinds[name] != kind
       end
@@ -225,12 +278,19 @@ module QuintDriver
     end
 
     # What an argument that names a declaration of +kind+ takes, in words.
-    TAKES = { "an action" => "an action without parameters", "a predicate" => "a predicate, a boolean val or def without parameters" }.freeze
+    TAKES = { "an action" => "an action without parameters", "a predicate" => "a predicate, a boolean val or def without parameters" }.freeze #: Hash[String, String]
     private_constant :TAKES
 
     # Raises ArgumentError: +argument+ names +name+, which is +what+, and
     # takes a declaration of +kind+. +kinds+ holds the kind of each name of
     # the module, so the message lists the names that fit.
+    #
+    # @rbs argument: String
+    # @rbs name: String?
+    # @rbs what: String
+    # @rbs kind: String
+    # @rbs kinds: Hash[String, String]
+    # @rbs return: bot
     def self.misnamed(argument, name, what, kind, kinds)
       such_as = kinds.select { |of_name, of| of == kind && of_name != "init" && !of_name.start_with?("q::") }.keys.sort.join(", ")
       Agreement.refuse "quint: #{argument} names #{name}, #{what}; #{argument} takes #{TAKES.fetch(kind)}, such as #{such_as}"
@@ -239,6 +299,9 @@ module QuintDriver
     # Quint's own --init could name another action, but a trace names its
     # first step after that action, the model and the machine step through
     # init, and a driver reads init: one name keeps the four alike.
+    #
+    # @rbs main: String
+    # @rbs return: String
     def self.without_init(main)
       "quint: #{main} neither declares nor imports an action named init; quint_driver starts every trace " \
         "and every model at init, so declare `action init = ...` with what starts #{main}"
@@ -248,6 +311,10 @@ module QuintDriver
     # has to tell: a variant quint declares as a val, or as a def when it
     # carries a value. A val and a def without parameters both read as a
     # value: the keyword changes nothing any of them needs.
+    #
+    # @rbs declaration: ir
+    # @rbs types: Hash[String, ir]
+    # @rbs return: String
     def self.kind_of(declaration, types)
       expr = declaration["expr"] || {}
       lambda = expr["kind"] == "lambda"
@@ -271,6 +338,13 @@ module QuintDriver
     # module that holds the run. quint test writes no mbt::actionTaken, so
     # replay it with Trace.replay's +action+: the spec has to record the
     # action each step took, as a Choreo spec does.
+    #
+    # @rbs path: String
+    # @rbs name: String
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs &: (String trace) -> void
+    # @rbs return: Array[String]
     def self.test(path, name, seed:, main: nil)
       Dir.mktmpdir("quint") do |dir|
         arguments = [ "test", path, "--match", "^#{name}$", "--seed", seed, "--max-samples", 1, "--out-itf", "#{dir}/test_{seq}.itf.json", "--verbosity", 1 ]
@@ -290,6 +364,12 @@ module QuintDriver
 
     # The call that writes the same traces again, with the spec named as
     # raised in names a frame.
+    #
+    # @rbs method: String
+    # @rbs path: String
+    # @rbs *names: String
+    # @rbs **options: untyped
+    # @rbs return: String
     def self.call(method, path, *names, **options)
       arguments = [ Agreement.relative(File.expand_path(path)), *names ].map(&:inspect)
       "Quint.#{method}(#{[ *arguments, *options.compact.map { "#{_1}: #{_2.inspect}" } ].join(', ')})"
@@ -298,6 +378,12 @@ module QuintDriver
     # The trace files go with their directory, so a replay's failure names
     # its trace by +seed+ and +written_by+, the call that writes it again,
     # instead of by its path.
+    #
+    # @rbs traces: Array[String]
+    # @rbs seed: String | Integer
+    # @rbs written_by: String
+    # @rbs &: (String trace) -> void
+    # @rbs return: Array[String]
     def self.yield_traces(traces, seed:, written_by:)
       traces.each do |trace|
         @written[trace] = { seed:, written_by: }
@@ -309,6 +395,7 @@ module QuintDriver
         @written.delete(trace)
       end
     end
+    # @rbs self.@written: Hash[String, { seed: String | Integer, written_by: String }]
     @written = {}
 
     # Names +trace+ on a +failure+ that names none and, while a simulate or
@@ -317,6 +404,12 @@ module QuintDriver
     # backtrace, as Agreement.outside says. Trace.replay calls it too, so
     # a block that rescues a replay's failure reads what the caller of
     # simulate reads.
+    #
+    # +failure+ is untyped for the reason Agreement.lead_outside gives.
+    #
+    # @rbs failure: untyped
+    # @rbs trace: String
+    # @rbs return: untyped
     def self.name_trace(failure, trace)
       failure.send(:name_trace, trace, **@written[trace].to_h) unless failure.trace
       Agreement.lead_outside(failure)
@@ -325,14 +418,16 @@ module QuintDriver
     # The Rust evaluator quint 0.33.0 runs under `quint run --backend rust`.
     # Its stdin format is not a documented interface, so the gem reads only
     # this version's.
-    EVALUATOR_VERSION = "v0.7.0"
+    EVALUATOR_VERSION = "v0.7.0" #: String
 
     # The Rust evaluator simulate runs, without node: QUINT_EVALUATOR names
     # it, and an empty QUINT_EVALUATOR means `quint run`. Unset, it is the copy
     # quint downloaded into QUINT_HOME (~/.quint by default), or `quint run`
     # when there is none.
+    #
+    # @rbs return: String?
     def self.evaluator
-      return ENV["QUINT_EVALUATOR"].then { _1.empty? ? nil : _1 } if ENV.key?("QUINT_EVALUATOR")
+      return ENV.fetch("QUINT_EVALUATOR").then { _1.empty? ? nil : _1 } if ENV.key?("QUINT_EVALUATOR")
 
       home = ENV.fetch("QUINT_HOME") { File.join(Dir.home, ".quint") }
       found = File.join(home, "rust-evaluator-#{EVALUATOR_VERSION}", Gem.win_platform? ? "quint_evaluator.exe" : "quint_evaluator")
@@ -342,6 +437,16 @@ module QuintDriver
     # What `quint run --mbt` sends the evaluator for this call, or nil when
     # +step+ is no action of the module or +reach+ or +violate+ no definition
     # of it, so `quint run` reports it.
+    #
+    # @rbs path: String
+    # @rbs traces: Integer
+    # @rbs max_steps: Integer
+    # @rbs seed: String | Integer
+    # @rbs main: String?
+    # @rbs step: String
+    # @rbs reach: String?
+    # @rbs violate: String?
+    # @rbs return: Hash[Symbol, untyped]?
     def self.evaluator_input(path, traces:, max_steps:, seed:, main:, step:, reach:, violate:)
       ir = compile(path, main:)
       declarations = ir.fetch("modules").find { _1["name"] == ir["main"] }&.fetch("declarations") || []
@@ -363,13 +468,18 @@ module QuintDriver
                   end
       number = Integer(seed.to_s, exception: false) or failed "quint: the seed #{seed.inspect} is not an integer"
       { parsed: { modules: ir["modules"], table:, main: ir["main"], init: named[0], step: named[1],
-                  invariants: [ invariant ], witnesses: [] },
+                  invariants: [ invariant ], witnesses: [] }, # steep:ignore UnannotatedEmptyCollection
         source: path, nruns: traces, nsteps: max_steps, ntraces: traces, nthreads: [ traces, Etc.nprocessors ].min,
         seed: number, mbt: true, verbosity: 0 }
     end
 
     # Writes each trace the evaluator returns as quint would: trace_0.itf.json
     # onwards, in the order it returns them.
+    #
+    # @rbs evaluator: String
+    # @rbs input: Hash[Symbol, untyped]
+    # @rbs dir: String
+    # @rbs return: void
     def self.write_traces(evaluator, input, dir)
       output, errors, status = begin
         Open3.capture3(evaluator, "simulate-from-stdin", stdin_data: JSON.generate(input))
@@ -399,6 +509,14 @@ module QuintDriver
     # QUINT is a shell command, such as `npx --yes ...`, so the line runs
     # through a shell, and each word after it is quoted: an app's folder can
     # have a space in its name. +stdout+ is a file quint's output goes into.
+    #
+    # The words are untyped: they are strings and numbers, such as
+    # --max-steps 20, and Shellwords.join turns each into a string, which
+    # its RBS does not allow for.
+    #
+    # @rbs *words: untyped
+    # @rbs stdout: String?
+    # @rbs return: [String, Process::Status]
     def self.capture(*words, stdout: nil)
       line = "#{command} #{Shellwords.join(words)}#{" > #{Shellwords.escape(stdout)}" if stdout}"
       output, status = Open3.capture2e(line)
@@ -414,6 +532,9 @@ module QuintDriver
 
     # A failure of quint's, raised from the caller's line: the spec is the
     # caller's, so its frame leads, as a refused argument's does.
+    #
+    # @rbs message: String
+    # @rbs return: bot
     def self.failed(message) = Agreement.refuse(message, QuintFailed)
 
     private_class_method :call, :capture, :compile_now, :evaluator_input, :failed, :imported_names, :kind_of, :misnamed, :name_trace, :renamed, :runnable!,

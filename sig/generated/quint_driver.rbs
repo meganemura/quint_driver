@@ -1,0 +1,262 @@
+# Generated from lib/quint_driver.rb with RBS::Inline
+
+# Tests a Ruby system against a Quint spec. Two ways share one driver: replay
+# the traces `quint run --mbt` writes (QuintDriver::Trace.replay), or let Hegel
+# choose the steps from the spec's actions (QuintDriver.machine, which
+# `require "quint_driver/hegel"` adds). A driver answers #step(action, picks)
+# by running that command on the system, and #state with the spec's variables
+# as plain Ruby values.
+#
+# Plain values: a Quint set is a Set, a map a Hash, a tuple or a list an
+# Array, a record a Hash with string keys, a sum type its tag, or
+# [tag, value] when it carries one. An Option, a sum type of None and Some,
+# is nil or its value.
+module QuintDriver
+  # A node, a declaration, or a whole module of quint's JSON IR, as
+  # JSON.parse reads it.
+  type ir = Hash[String, untyped]
+
+  # The values a move picked, by the name of each nondet pick.
+  type picks = Hash[String, untyped]
+
+  # A state as plain values, by the name of each variable or definition.
+  type state = Hash[String, untyped]
+
+  # One step a failure names: an action and its picks.
+  type step = [ String, picks ]
+
+  # The driver protocol: run the action on the system, then report its
+  # state as plain values.
+  interface _Driver
+    def step: (String action, picks picks) -> untyped
+
+    def state: () -> state
+  end
+
+  # Where a replay writes each step before it runs it, such as $stdout.
+  interface _Log
+    def puts: (*untyped) -> untyped
+  end
+
+  # The trace a failure happened on. On a replay, +trace+ is its path. Under
+  # Quint.simulate or Quint.test that file is gone once the block returns, so
+  # +seed+ and +written_by+ hold the seed and the call that write it again,
+  # and the message names the trace by those instead of by its path. The gem
+  # fills these in, so a caller cannot name a trace that disagrees with the
+  # one that ran.
+  #
+  # @rbs module-self Exception
+  module NamedTrace : Exception
+    attr_reader trace: String?
+
+    attr_reader seed: (String | Integer)?
+
+    attr_reader written_by: String?
+
+    # @rbs return: String
+    def to_s: () -> String
+
+    private
+
+    # @rbs trace: String
+    # @rbs seed: (String | Integer)?
+    # @rbs written_by: String?
+    # @rbs return: void
+    def name_trace: (String trace, ?seed: (String | Integer)?, ?written_by: String?) -> void
+  end
+
+  # The system and the spec disagree. A driver or a check of the caller's own
+  # raises one with a message alone, as `raise QuintDriver::Mismatch, "..."`.
+  class Mismatch < StandardError
+    include NamedTrace
+  end
+
+  # The system agreed with the spec at every step, and an expectation, a
+  # predicate of the spec that invariants: names, does not hold: the spec
+  # lets the system reach a state the expectation rules out. That is a bug
+  # suspect, not a disagreement, so it is no Mismatch, and a caller that
+  # rescues Mismatch does not catch it. The message names the expectation,
+  # the steps from init, and the state where it broke.
+  class Violated < StandardError
+    include NamedTrace
+
+    # The names of the expectations that broke, and the steps from init, as
+    # [action, picks], that reached the state.
+    attr_reader expectations: Array[String]
+
+    attr_reader steps: Array[step]
+
+    # @rbs message: String?
+    # @rbs expectations: Array[String]
+    # @rbs steps: Array[step]
+    # @rbs return: void
+    def initialize: (?String? message, ?expectations: Array[String], ?steps: Array[step]) -> void
+  end
+
+  # A step raised: the driver's code, or the system's beneath it, while it
+  # ran a step or reported its state, so the spec and the system were never
+  # compared. The message names the step, the project's frame that raised,
+  # and the steps from init. The backtrace is the error's, and +cause+ is the
+  # error.
+  class StepRaised < StandardError
+    include NamedTrace
+  end
+
+  # The quint command failed. The message holds its output.
+  class QuintFailed < StandardError
+  end
+
+  # The spec uses an operator the model does not evaluate, or a shape no
+  # driver can run, such as a step arm that names no action.
+  class Unsupported < StandardError
+  end
+
+  # The one check Trace.replay and the Hegel machine share. It is private, so
+  # the gem's API stays the driver protocol and the errors.
+  module Agreement
+    # Raises Mismatch naming each variable where +actual+ differs from
+    # +expected+, and the [action, picks] +steps+ the driver ran from init, so
+    # the failure can be run again without the trace file. The driver has to
+    # report every variable but those +ignore+ names, and each definition
+    # +observe+ names: a variable it leaves out would otherwise pass however
+    # wrong the system's copy is. The model evaluates an observed definition,
+    # also on a trace's state, so its line names the model. +spec+, when the
+    # caller has one, tells a name the driver reports that is no variable
+    # apart from a definition it forgot to observe.
+    #
+    # @rbs after: String
+    # @rbs expected: state
+    # @rbs actual: state
+    # @rbs by: String
+    # @rbs steps: Array[step]
+    # @rbs observe: Array[String]
+    # @rbs spec: Spec?
+    # @rbs ignore: Array[String]
+    # @rbs return: void
+    def self.check!: (String after, state expected, state actual, by: String, steps: Array[step], ?observe: Array[String], ?spec: Spec?, ?ignore: Array[String]) -> void
+
+    # Raises Violated naming each expectation in +broken+, which is false in
+    # +state+, the spec's variables after +after+, once the driver agreed
+    # with the spec at each of the [action, picks] +steps+ from init, the
+    # last of which is +after+. The state is the spec's, so it holds the
+    # variables ignore: names too, which an expectation can read.
+    #
+    # @rbs after: String
+    # @rbs broken: Array[String]
+    # @rbs steps: Array[step]
+    # @rbs state: state
+    # @rbs return: bot
+    def self.violated!: (String after, Array[String] broken, steps: Array[step], state: state) -> bot
+
+    # A name +ignore+ holds that +names+ lacks is refused, so a misspelt name
+    # reads as one rather than as its variable left out.
+    #
+    # @rbs ignore: Array[String]
+    # @rbs names: Array[String]
+    # @rbs within: String
+    # @rbs return: void
+    def self.ignorable!: (Array[String] ignore, Array[String] names, String within) -> void
+
+    # @rbs name: String
+    # @rbs reported: untyped
+    # @rbs names: Array[String]
+    # @rbs by: String
+    # @rbs spec: Spec?
+    # @rbs return: String
+    def self.unknown: (String name, untyped reported, Array[String] names, by: String, spec: Spec?) -> String
+
+    # Runs the block, the driver's part of the step named +at+, and returns
+    # what it returns. An error the driver's own code raises comes out as
+    # StepRaised with +steps+; the gem's own errors pass through.
+    #
+    # @rbs [T] (String at, steps: Array[step]) { () -> T } -> T
+    def self.drive: [T] (String at, steps: Array[step]) { () -> T } -> T
+
+    # +frames+ without quint_driver's own, nor Hegel's under the machine, so
+    # the first line a test runner prints of a Mismatch or a StepRaised is
+    # the driver's, the system's, or the test's: RSpec hides the frames of an
+    # installed gem, but not of one a Gemfile loads from a path, and Minitest
+    # hides none. Hegel groups the failures it shrinks by the first frame, so
+    # the frames stay Locations where Ruby can set them, from 3.4 on. Ruby's
+    # own <internal:...> frames go too: on 3.4 a Kernel method written in
+    # Ruby, between Hegel's frames and the test's, would lead otherwise.
+    #
+    # The frames are untyped: they are Locations or strings, and nil for an
+    # error never raised, while set_backtrace takes each kind through an
+    # overload of its own, which Steep cannot choose from a union.
+    #
+    # @rbs frames: untyped
+    # @rbs return: untyped
+    def self.outside: (untyped frames) -> untyped
+
+    # Raises +error+ (ArgumentError by default) with +message+ from the line
+    # that called quint_driver: the argument it is about, or the spec quint
+    # failed on, is that caller's. The frames of Ruby's library between two
+    # of quint_driver's, such as Dir.mktmpdir's, go too.
+    #
+    # @rbs message: String
+    # @rbs error: singleton(Exception)
+    # @rbs return: bot
+    def self.refuse: (String message, ?singleton(Exception) error) -> bot
+
+    # A failure the driver or a caller's block raised, its backtrace +outside+.
+    #
+    # +failure+ is untyped because a rescue of NamedTrace gives the module
+    # type, which RBS cannot make a subtype of Exception.
+    #
+    # @rbs failure: untyped
+    # @rbs return: untyped
+    def self.lead_outside: (untyped failure) -> untyped
+
+    # The project's frame nearest the raise, the one to read first: an error
+    # raised inside a gem or Ruby's library names the line that called it.
+    # The frames below quint_driver's are the caller of the replay or the
+    # machine, so they are never the step's. An error with no frames of its
+    # own, such as one raised with a backtrace of strings, names none.
+    #
+    # @rbs error: Exception
+    # @rbs return: String?
+    def self.raised_in: (Exception error) -> String?
+
+    # A path as the project names it, as RSpec prints one, when it is under
+    # the directory the run started in. That is the directory when the gem
+    # loaded, as RSpec reads it once, so a driver that changes directory does
+    # not turn the path absolute.
+    #
+    # @rbs path: String
+    # @rbs return: String
+    def self.relative: (String path) -> String
+
+    STARTED_IN: String
+
+    QUINT_DRIVER: String
+
+    self.@hidden: Array[String]
+
+    # The Hegel adapter hides Hegel's frames too, as it is the one file that
+    # knows where Hegel is.
+    #
+    # @rbs prefix: String
+    # @rbs return: Array[String]
+    def self.hide: (String prefix) -> Array[String]
+
+    LIBRARIES: Array[String]
+
+    # @rbs frame: Thread::Backtrace::Location
+    # @rbs *prefixes: String
+    # @rbs return: bool
+    def self.library?: (Thread::Backtrace::Location frame, *String prefixes) -> bool
+
+    # @rbs steps: Array[step]
+    # @rbs return: String
+    def self.ran: (Array[step] steps) -> String
+
+    # A plain value as a failure prints it: a set's elements and a hash's
+    # keys sorted, so the spec's side and the driver's side, and a replay and
+    # the machine, print the same value the same way on every Ruby.
+    #
+    # @rbs value: untyped
+    # @rbs return: String
+    def self.show: (untyped value) -> String
+  end
+end

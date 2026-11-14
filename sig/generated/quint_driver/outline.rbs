@@ -1,0 +1,35 @@
+# Generated from lib/quint_driver/outline.rb with RBS::Inline
+
+module QuintDriver
+  class Spec
+    # A driver for this module to start from, as Ruby source: one `when` per
+    # action the step action can take, with the picks it receives, and one
+    # key per variable `state` must report, with the Ruby shape of its value.
+    # The expectations, the boolean vals and defs without parameters, are
+    # listed for invariants: and violate:. Raises Unsupported, as a replay
+    # would, when the step action has a shape the driver protocol cannot run,
+    # so the outline is also the check that a driver can be written at all.
+    #
+    # @rbs step: String
+    # @rbs return: String
+    def outline: (?String step) -> String
+
+    private
+
+    # The Ruby value a driver reports for a Quint type, as `state` and the
+    # picks take them: see "Write the driver" in the skill.
+    #
+    # +type+ is untyped: it is nil where the IR holds no type, and Steep
+    # cannot narrow it through the case on its kind.
+    #
+    # @rbs type: untyped
+    # @rbs seen: Set[String]
+    # @rbs return: String
+    def shape: (untyped type, ?Set[String] seen) -> String
+
+    # @rbs fields: Array[ir]
+    # @rbs seen: Set[String]
+    # @rbs return: String
+    def cases: (Array[ir] fields, Set[String] seen) -> String
+  end
+end

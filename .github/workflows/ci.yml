@@ -47,12 +47,29 @@ jobs:
       - run: bundle exec bin/test
       - run: bundle exec rspec
 
+  # The rbs-inline comments in lib/ against the code. sig/generated is what
+  # rbs-inline writes from them, so it has to match the commit, a new file too.
+  types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+      - run: bundle exec rbs-inline --output=sig/generated lib
+      - run: git add --intent-to-add sig && git diff --exit-code sig
+      - run: bundle exec steep check
+
   # Trace replay and the model on the core's floor, with no hegeltest installed.
+  # The types group holds Steep, which only the types job runs.
   core:
     runs-on: ubuntu-latest
     env:
       QUINT: quint
-      BUNDLE_WITHOUT: hegel
+      BUNDLE_WITHOUT: hegel:types
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

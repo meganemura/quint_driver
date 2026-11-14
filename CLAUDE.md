@@ -33,6 +33,7 @@ Do not reference private tools, private repositories, or internal working docume
 - An IR operator the model does not know, or a step shape no driver can run, raises `QuintDriver::Unsupported`. Never guess an operator's meaning. A failed `quint` command raises `QuintDriver::QuintFailed`.
 - Comments say why: the constraint, or the alternative that was refused. Each module starts with its responsibility.
 - Tests prove behavior by running Quint and the example system. A test never greps source.
+- Each file under `lib/` carries rbs-inline type comments. A change to `lib/` keeps `bundle exec steep check` green and regenerates `sig/generated/` in the same commit. Never change what the code does only to satisfy Steep.
 - A release or a change of the repository's visibility is the owner's to run. A commit that changes `lib/quint_driver/version.rb` and lands on `main` starts `.github/workflows/release.yml`, and [docs/releasing.md](docs/releasing.md) has the steps. Every change that a gem user can notice adds a line under `## [Unreleased]` in `CHANGELOG.md`.
 
 ## Commands
@@ -40,6 +41,7 @@ Do not reference private tools, private repositories, or internal working docume
 - `bundle exec bin/test` runs the Minitest suite.
 - `bundle exec rspec` runs the RSpec suite.
 - Both run `quint`. Set `QUINT` to a local command; without it the library runs `npx --yes @informalsystems/quint@0.33.0`.
-- The core (everything but `hegel.rb`) keeps Ruby 3.3 as its floor: `BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb` on Ruby 3.3. The Hegel adapter needs Ruby 3.4, as hegeltest does.
+- The core (everything but `hegel.rb`) keeps Ruby 3.3 as its floor: `BUNDLE_WITHOUT=hegel:types bundle exec bin/test test/*_test.rb` on Ruby 3.3. The Hegel adapter needs Ruby 3.4, as hegeltest does.
+- `bundle exec rbs-inline --output=sig/generated lib` writes `sig/generated/` from the comments in `lib/`, and `bundle exec steep check` checks `lib/` against `sig/` (the `Steepfile`). Steep and rbs-inline are in the Gemfile's `types` group; CI's `types` job runs both on Ruby 3.4 and fails when `sig/generated/` differs from what rbs-inline writes.
 - `test/depot_test.rb` runs the depot's specs on a copy of the app, as committed and with `fixed.patch` applied. It needs the depot's gems, so it skips until `bundle install` has run in `test/fixture/depot`. `QUINT_DRIVER_DEPOT=required` turns that skip into a failure, as CI's `depot` job does.
 - `skills/quint_driver/SKILL.md` is the usage skill for an agent. A change to the API, a spec shape rule, or a failure message changes it in the same commit. Run every command and code block in it before you change it, and paste failure output from a real run.

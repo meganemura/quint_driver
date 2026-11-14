@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 module QuintDriver
   class Spec
     # A driver for this module to start from, as Ruby source: one `when` per
@@ -7,8 +9,12 @@ module QuintDriver
     # listed for invariants: and violate:. Raises Unsupported, as a replay
     # would, when the step action has a shape the driver protocol cannot run,
     # so the outline is also the check that a driver can be written at all.
+    #
+    # @rbs step: String
+    # @rbs return: String
     def outline(step = "step")
-      picks = rules(step).each_with_object({ "init" => {} }) do |rule, actions|
+      start = { "init" => {} } #: Hash[String, Hash[String, String]]
+      picks = rules(step).each_with_object(start) do |rule, actions|
         (actions[rule.action] ||= {}).merge!(rule.domains.transform_values { shape(@types.dig(_1["id"].to_s, "type", "elem")) })
       end
       variables = declarations.sort_by { _1["id"] }.select { _1["kind"] == "var" }
@@ -38,6 +44,13 @@ module QuintDriver
     private
       # The Ruby value a driver reports for a Quint type, as `state` and the
       # picks take them: see "Write the driver" in the skill.
+      #
+      # +type+ is untyped: it is nil where the IR holds no type, and Steep
+      # cannot narrow it through the case on its kind.
+      #
+      # @rbs type: untyped
+      # @rbs seen: Set[String]
+      # @rbs return: String
       def shape(type, seen = Set.new)
         case type&.fetch("kind")
         when "int" then "Integer"
@@ -56,16 +69,21 @@ module QuintDriver
         end
       end
 
+      # @rbs fields: Array[ir]
+      # @rbs seen: Set[String]
+      # @rbs return: String
       def cases(fields, seen)
         tags = fields.map { _1["fieldName"] }
         if tags.sort == %w[None Some]
-          return "nil or #{shape(fields.find { _1['fieldName'] == 'Some' }['fieldType'], seen)}"
+          some = fields.find { _1['fieldName'] == 'Some' } #: ir
+          return "nil or #{shape(some['fieldType'], seen)}"
         end
         each = fields.map do |field|
           empty = field.dig("fieldType", "kind") == "tup" && field.dig("fieldType", "fields", "fields").empty?
           empty ? field["fieldName"].dump : "[#{field['fieldName'].dump}, #{shape(field['fieldType'], seen)}]"
-        end
-        each.size > 1 ? "#{each[0..-2].join(', ')} or #{each[-1]}" : each.first
+        end #: Array[String]
+        # A sum type has at least one case.
+        each.size > 1 ? "#{each.take(each.size - 1).join(', ')} or #{each.last}" : each.first #: String
       end
   end
 end

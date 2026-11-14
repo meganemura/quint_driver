@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 module QuintDriver
   # Stops a call part way and lets it go on in a later step, so a spec can
   # split one request into the step that loads and the step that saves, and
@@ -19,6 +21,11 @@ module QuintDriver
   # inside the held call, such as one Enumerator#next runs, cannot stop the
   # call, so it raises instead of letting the call run through unheld.
   class Hold
+    # @rbs @held: Hash[untyped, Fiber]
+    # @rbs @ours: Set[Fiber]
+    # @rbs @running: untyped
+
+    # @rbs return: void
     def initialize
       @held = {}
       @ours = Set.new
@@ -28,6 +35,11 @@ module QuintDriver
     # Runs the block until it calls #pause, and returns the value given to
     # #pause. When the block ends without a pause, nothing is held and the
     # block's value is returned. An error the block raises comes out here.
+    # A name is any value a Hash can key.
+    #
+    # @rbs name: untyped
+    # @rbs &block: () -> untyped
+    # @rbs return: untyped
     def start(name, &block)
       raise ArgumentError, "quint: #{name.inspect} is already held; finish it first" if held?(name)
 
@@ -39,19 +51,29 @@ module QuintDriver
 
     # Lets the call held as +name+ run to its end, through any later pause,
     # and returns the block's value. An error the call raises comes out here.
+    #
+    # @rbs name: untyped
+    # @rbs return: untyped
     def finish(name)
       fiber = @held[name] or raise ArgumentError, "quint: nothing is held as #{name.inspect}; held: #{held.inspect}"
       value = run(name, fiber) while held?(name)
       value
     end
 
+    # @rbs name: untyped
+    # @rbs return: bool
     def held?(name) = @held.key?(name)
 
     # The names of the calls that are stopped now, in the order they started.
+    #
+    # @rbs return: Array[untyped]
     def held = @held.keys
 
     # Called by the code under test where a held call stops. +value+ is what
     # #start returns, such as the row the call loaded.
+    #
+    # @rbs value: untyped
+    # @rbs return: nil
     def pause(value = nil)
       if @ours.include?(Fiber.current)
         Fiber.yield([ :paused, value ])
@@ -63,6 +85,9 @@ module QuintDriver
     end
 
     private
+      # @rbs name: untyped
+      # @rbs fiber: Fiber
+      # @rbs return: untyped
       def run(name, fiber)
         outer, @running = @running, name
         answer = fiber.resume
@@ -80,6 +105,9 @@ module QuintDriver
         @running = outer
       end
 
+      # @rbs name: untyped
+      # @rbs fiber: Fiber
+      # @rbs return: void
       def forget(name, fiber)
         @held.delete(name)
         @ours.delete(fiber)

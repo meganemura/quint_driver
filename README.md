@@ -664,12 +664,19 @@ bundle exec bin/test    # Minitest
 bundle exec rspec       # RSpec
 ```
 
-The Hegel tests are under `test/hegel/` and `spec/hegel/`. On Ruby 3.3, leave out hegeltest and run the rest:
+The Hegel tests are under `test/hegel/` and `spec/hegel/`. On Ruby 3.3, leave out hegeltest and Steep, and run the rest:
 
 ```sh
-BUNDLE_WITHOUT=hegel bundle install
-BUNDLE_WITHOUT=hegel bundle exec bin/test test/*_test.rb
-BUNDLE_WITHOUT=hegel bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
+BUNDLE_WITHOUT=hegel:types bundle install
+BUNDLE_WITHOUT=hegel:types bundle exec bin/test test/*_test.rb
+BUNDLE_WITHOUT=hegel:types bundle exec rspec --exclude-pattern "spec/hegel/**/*_spec.rb"
+```
+
+The types of `lib/` are rbs-inline comments in the code. `sig/generated/` is written from them, and the gem ships it. After a change to `lib/`, write it again and check the code against it:
+
+```sh
+bundle exec rbs-inline --output=sig/generated lib
+bundle exec steep check
 ```
 
 The tests run `quint`. Set `QUINT` to skip `npx`.

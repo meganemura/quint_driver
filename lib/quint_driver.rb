@@ -1,3 +1,5 @@
+# rbs_inline: enabled
+
 require "rbconfig"
 require "set"
 
@@ -13,15 +15,46 @@ require "set"
 # [tag, value] when it carries one. An Option, a sum type of None and Some,
 # is nil or its value.
 module QuintDriver
+  # @rbs!
+  #   # A node, a declaration, or a whole module of quint's JSON IR, as
+  #   # JSON.parse reads it.
+  #   type ir = Hash[String, untyped]
+  #
+  #   # The values a move picked, by the name of each nondet pick.
+  #   type picks = Hash[String, untyped]
+  #
+  #   # A state as plain values, by the name of each variable or definition.
+  #   type state = Hash[String, untyped]
+  #
+  #   # One step a failure names: an action and its picks.
+  #   type step = [String, picks]
+  #
+  #   # The driver protocol: run the action on the system, then report its
+  #   # state as plain values.
+  #   interface _Driver
+  #     def step: (String action, picks picks) -> untyped
+  #     def state: () -> state
+  #   end
+  #
+  #   # Where a replay writes each step before it runs it, such as $stdout.
+  #   interface _Log
+  #     def puts: (*untyped) -> untyped
+  #   end
+
   # The trace a failure happened on. On a replay, +trace+ is its path. Under
   # Quint.simulate or Quint.test that file is gone once the block returns, so
   # +seed+ and +written_by+ hold the seed and the call that write it again,
   # and the message names the trace by those instead of by its path. The gem
   # fills these in, so a caller cannot name a trace that disagrees with the
   # one that ran.
+  #
+  # @rbs module-self Exception
   module NamedTrace
-    attr_reader :trace, :seed, :written_by
+    attr_reader :trace #: String?
+    attr_reader :seed #: (String | Integer)?
+    attr_reader :written_by #: String?
 
+    # @rbs return: String
     def to_s
       return super unless trace
 
@@ -29,6 +62,10 @@ module QuintDriver
     end
 
     private
+      # @rbs trace: String
+      # @rbs seed: (String | Integer)?
+      # @rbs written_by: String?
+      # @rbs return: void
       def name_trace(trace, seed: nil, written_by: nil) = (@trace, @seed, @written_by = trace, seed, written_by)
   end
   private_constant :NamedTrace
@@ -50,8 +87,13 @@ module QuintDriver
 
     # The names of the expectations that broke, and the steps from init, as
     # [action, picks], that reached the state.
-    attr_reader :expectations, :steps
+    attr_reader :expectations #: Array[String]
+    attr_reader :steps #: Array[step]
 
+    # @rbs message: String?
+    # @rbs expectations: Array[String]
+    # @rbs steps: Array[step]
+    # @rbs return: void
     def initialize(message = nil, expectations: [], steps: [])
       super(message)
       @expectations, @steps = expectations, steps
@@ -86,6 +128,16 @@ module QuintDriver
     # also on a trace's state, so its line names the model. +spec+, when the
     # caller has one, tells a name the driver reports that is no variable
     # apart from a definition it forgot to observe.
+    #
+    # @rbs after: String
+    # @rbs expected: state
+    # @rbs actual: state
+    # @rbs by: String
+    # @rbs steps: Array[step]
+    # @rbs observe: Array[String]
+    # @rbs spec: Spec?
+    # @rbs ignore: Array[String]
+    # @rbs return: void
     def self.check!(after, expected, actual, by:, steps:, observe: [], spec: nil, ignore: [])
       expected, actual = expected.except(*ignore), actual.except(*ignore)
       return if expected == actual
@@ -108,6 +160,12 @@ module QuintDriver
     # with the spec at each of the [action, picks] +steps+ from init, the
     # last of which is +after+. The state is the spec's, so it holds the
     # variables ignore: names too, which an expectation can read.
+    #
+    # @rbs after: String
+    # @rbs broken: Array[String]
+    # @rbs steps: Array[step]
+    # @rbs state: state
+    # @rbs return: bot
     def self.violated!(after, broken, steps:, state:)
       expectations = "#{broken.one? ? 'expectation' : 'expectations'} #{broken.map { "`#{_1}`" }.join(' and ')}"
       variables = state.sort_by(&:first).map { |name, value| "  #{name}: #{show(value)}" }
@@ -120,6 +178,11 @@ module QuintDriver
 
     # A name +ignore+ holds that +names+ lacks is refused, so a misspelt name
     # reads as one rather than as its variable left out.
+    #
+    # @rbs ignore: Array[String]
+    # @rbs names: Array[String]
+    # @rbs within: String
+    # @rbs return: void
     def self.ignorable!(ignore, names, within)
       unknown = ignore - names
       return if unknown.empty?
@@ -127,6 +190,12 @@ module QuintDriver
       refuse "quint: ignore names #{unknown.join(', ')}, which #{unknown.one? ? 'is' : 'are'} not in #{within}; it has #{names.sort.join(', ')}"
     end
 
+    # @rbs name: String
+    # @rbs reported: untyped
+    # @rbs names: Array[String]
+    # @rbs by: String
+    # @rbs spec: Spec?
+    # @rbs return: String
     def self.unknown(name, reported, names, by:, spec:)
       within = by == "trace" ? "the trace's state, which has #{names.sort.join(', ')}" : "the spec's variables, #{names.sort.join(', ')}"
       hint = if spec.nil? then "; to hold the driver to a definition, pass spec: and observe:"
@@ -139,6 +208,8 @@ module QuintDriver
     # Runs the block, the driver's part of the step named +at+, and returns
     # what it returns. An error the driver's own code raises comes out as
     # StepRaised with +steps+; the gem's own errors pass through.
+    #
+    # @rbs [T] (String at, steps: Array[step]) { () -> T } -> T
     def self.drive(at, steps:)
       yield
     rescue NamedTrace => failure
@@ -158,6 +229,13 @@ module QuintDriver
     # the frames stay Locations where Ruby can set them, from 3.4 on. Ruby's
     # own <internal:...> frames go too: on 3.4 a Kernel method written in
     # Ruby, between Hegel's frames and the test's, would lead otherwise.
+    #
+    # The frames are untyped: they are Locations or strings, and nil for an
+    # error never raised, while set_backtrace takes each kind through an
+    # overload of its own, which Steep cannot choose from a union.
+    #
+    # @rbs frames: untyped
+    # @rbs return: untyped
     def self.outside(frames)
       kept = frames.reject { _1.to_s.start_with?(*@hidden, "<internal:") }
       kept = frames if kept.empty?
@@ -168,6 +246,10 @@ module QuintDriver
     # that called quint_driver: the argument it is about, or the spec quint
     # failed on, is that caller's. The frames of Ruby's library between two
     # of quint_driver's, such as Dir.mktmpdir's, go too.
+    #
+    # @rbs message: String
+    # @rbs error: singleton(Exception)
+    # @rbs return: bot
     def self.refuse(message, error = ArgumentError)
       frames = caller_locations
       last = frames.rindex { _1.to_s.start_with?(*@hidden) }
@@ -175,6 +257,12 @@ module QuintDriver
     end
 
     # A failure the driver or a caller's block raised, its backtrace +outside+.
+    #
+    # +failure+ is untyped because a rescue of NamedTrace gives the module
+    # type, which RBS cannot make a subtype of Exception.
+    #
+    # @rbs failure: untyped
+    # @rbs return: untyped
     def self.lead_outside(failure)
       failure.tap { _1.set_backtrace(outside(_1.backtrace_locations || _1.backtrace)) }
     end
@@ -184,6 +272,9 @@ module QuintDriver
     # The frames below quint_driver's are the caller of the replay or the
     # machine, so they are never the step's. An error with no frames of its
     # own, such as one raised with a backtrace of strings, names none.
+    #
+    # @rbs error: Exception
+    # @rbs return: String?
     def self.raised_in(error)
       frames = error.backtrace_locations or return
       frame = frames.take_while { !library?(_1, QUINT_DRIVER) }.find { !library?(_1, *LIBRARIES) }
@@ -196,26 +287,51 @@ module QuintDriver
     # the directory the run started in. That is the directory when the gem
     # loaded, as RSpec reads it once, so a driver that changes directory does
     # not turn the path absolute.
+    #
+    # @rbs path: String
+    # @rbs return: String
     def self.relative(path) = path.delete_prefix(STARTED_IN)
-    STARTED_IN = File.join(Dir.pwd, "")
+    STARTED_IN = File.join(Dir.pwd, "") #: String
 
-    QUINT_DRIVER = File.join(__dir__, "quint_driver")
+    QUINT_DRIVER = File.join(
+      __dir__, #: String
+      "quint_driver"
+    ) #: String
+
+    # @rbs self.@hidden: Array[String]
     @hidden = [ QUINT_DRIVER ]
 
     # The Hegel adapter hides Hegel's frames too, as it is the one file that
     # knows where Hegel is.
+    #
+    # @rbs prefix: String
+    # @rbs return: Array[String]
     def self.hide(prefix) = @hidden << prefix
 
     LIBRARIES = [ QUINT_DRIVER, "<internal:", RbConfig::CONFIG["rubylibprefix"] + File::SEPARATOR,
-                  *(defined?(Gem) ? Gem.path : []).map { File.join(_1, "") } ].freeze
+                  *(defined?(Gem) ? Gem.path : [] #: Array[String]
+                   ).map { File.join(_1, "") } ].freeze #: Array[String]
 
-    def self.library?(frame, *prefixes) = frame.path.start_with?(*prefixes)
+    # @rbs frame: Thread::Backtrace::Location
+    # @rbs *prefixes: String
+    # @rbs return: bool
+    def self.library?(frame, *prefixes)
+      # A frame of a backtrace always has a path; RBS allows nil for a
+      # Location built by hand.
+      path = frame.path #: String
+      path.start_with?(*prefixes)
+    end
 
+    # @rbs steps: Array[step]
+    # @rbs return: String
     def self.ran(steps) = "steps:\n#{steps.map { |action, picks| "  #{action} #{show(picks)}" }.join("\n")}"
 
     # A plain value as a failure prints it: a set's elements and a hash's
     # keys sorted, so the spec's side and the driver's side, and a replay and
     # the machine, print the same value the same way on every Ruby.
+    #
+    # @rbs value: untyped
+    # @rbs return: String
     def self.show(value)
       case value
       when Set then "{#{value.map { show(_1) }.sort.join(', ')}}"
