@@ -155,6 +155,35 @@ class TargetsTest < Minitest::Test
     end
   end
 
+  # A lock on disk is a row too: two runs can both read that no one holds
+  # it before either creates its file.
+  def test_a_file_created_after_a_check_of_what_is_on_disk_is_a_hit
+    Dir.mktmpdir do |app|
+      write(app, "lib/walk_lock.rb", <<~RUBY)
+        module WalkLock
+          def self.take(dir)
+            top = Dir.children(dir).max
+            return :held if top && alive?(File.read(File.join(dir, top)).to_i)
+
+            next_file = File.join(dir, (top.to_i + 1).to_s)
+            :raced unless link_whole(next_file, Process.pid.to_s)
+          end
+
+          def self.link_whole(target, text)
+            File.write("\#{target}.tmp", text)
+            File.link("\#{target}.tmp", target)
+          end
+
+          def self.alive?(pid) = pid.positive?
+        end
+      RUBY
+
+      hits = QuintDriver::Targets.scan(app).select { _1.kind == "check-then-write" }.map { [ _1.file, _1.line, _1.code ] }
+
+      assert_equal [ [ "lib/walk_lock.rb", 7, ":raced unless link_whole(next_file, Process.pid.to_s)" ] ], hits
+    end
+  end
+
   def test_a_directory_named_like_a_ruby_file_is_skipped
     Dir.mktmpdir do |app|
       write(app, "app/a.rb/keep", "")

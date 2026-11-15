@@ -4,6 +4,8 @@
 
 - The gem ships RBS signatures for its API under `sig/`, so Steep and other RBS tools check a caller's code against them. A plain value is `QuintDriver::plain`, the picks and the state a driver gets and reports are made of it, and `QuintDriver::Hold[N]` takes the type of its names.
 - `quint_driver outline` and `Spec#outline` name the driver class of a module whose name starts with an underscore, such as `_counter`; they raised `NoMethodError`.
+- `Hold#resume(name)` runs a held call to its next pause only, for a call that stops more than once. `Hold#drop(name)` forgets a held call without running the rest, as a process killed at that pause would stop.
+- `quint_driver targets` counts a write to a file (`File.write`, `File.link`, `FileUtils.mv` and the like) as a write, and a method of the project called on self as `link_whole(file, text)` too, so a lock taken by creating a file after a check is a `check-then-write`.
 
 ## [0.2.0] - 2026-11-14
 

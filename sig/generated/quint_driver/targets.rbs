@@ -38,6 +38,10 @@ module QuintDriver
     # A save whose answer the line itself reads, as in `save or raise`.
     READ: Regexp
 
+    # A write to a file counts too: a lock or a cache on disk is checked and
+    # written as a row is.
+    FILE_WRITE: Regexp
+
     WRITE: Regexp
 
     LOCK: Regexp

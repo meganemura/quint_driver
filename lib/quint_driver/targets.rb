@@ -29,7 +29,10 @@ module QuintDriver
     SAVE = /\A\s*([@\w:.]+\.)?(save|update|create|destroy|update_attribute)([( ].*)?\z/ #: Regexp
     # A save whose answer the line itself reads, as in `save or raise`.
     READ = /\s(or|and)\s|\|\||&&/ #: Regexp
-    WRITE = /\.(save|update|create|destroy|update_attribute|update_columns?|increment|decrement)!?(\(|\s|\z)|\A\s*(save|update)!?(\(|\s|\z)/ #: Regexp
+    # A write to a file counts too: a lock or a cache on disk is checked and
+    # written as a row is.
+    FILE_WRITE = /\b(File|IO)\.(write|binwrite|link|symlink|rename|unlink|delete|truncate)\b|\bFile::(CREAT|EXCL|WRONLY|APPEND|TRUNC)\b|\bFileUtils\.(mv|move|cp|copy|rm|rm_f|rm_r|rm_rf|remove|touch|ln|ln_s|ln_sf|mkdir|mkdir_p|install)\b|\bDir\.(mkdir|rmdir|unlink|delete)\b/ #: Regexp
+    WRITE = Regexp.union(/\.(save|update|create|destroy|update_attribute|update_columns?|increment|decrement)!?(\(|\s|\z)|\A\s*(save|update)!?(\(|\s|\z)/, FILE_WRITE) #: Regexp
     LOCK = /\block\b|\bwith_lock\b|\block!/ #: Regexp
     KINDS = {
       "transaction" => /\btransaction\b|\bwith_lock\b|\block!/,
@@ -180,7 +183,10 @@ module QuintDriver
       writers = sources.values.flat_map do |_, code, defs|
         defs.select { |method| (method.first..method.last).any? { code[_1 - 1].to_s.match?(WRITE) } }.map(&:name)
       end.uniq - COMMON
-      write = writers.empty? ? WRITE : Regexp.union(WRITE, /\.(#{writers.map { Regexp.escape(_1) }.join('|')})(\(|\s|\z)/)
+      # A writer called on self, as in `next unless link_whole(file, text)`,
+      # needs its parenthesis, so a local of the same name does not count.
+      names = writers.map { Regexp.escape(_1) }.join("|")
+      write = writers.empty? ? WRITE : Regexp.union(WRITE, /\.(#{names})(\(|\s|\z)|(?<![\w.:@$])(#{names})\(/)
       sources.flat_map do |file, (lines, code, defs)|
         defs.flat_map do |method|
           check = method.checks.min or next []
