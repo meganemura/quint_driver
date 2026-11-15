@@ -65,6 +65,30 @@ module QuintDriver
       value
     end
 
+    # Lets the call held as +name+ run to its next pause, and returns the
+    # value given to that pause. When the call ends first, nothing is held
+    # and the block's value is returned; read #held? to tell the two apart.
+    # A spec with several stops in one call, such as a read, a create, and a
+    # read again, takes one step per stop with this.
+    #
+    # @rbs name: N
+    # @rbs return: untyped
+    def resume(name)
+      fiber = @held[name] or raise ArgumentError, "quint: nothing is held as #{name.inspect}; held: #{held.inspect}"
+      run(name, fiber)
+    end
+
+    # Forgets the call held as +name+ without running any more of it, as a
+    # process killed at its pause would stop: its `ensure` blocks never run,
+    # and what it wrote so far stays. The name is free to start again.
+    #
+    # @rbs name: N
+    # @rbs return: void
+    def drop(name)
+      fiber = @held[name] or raise ArgumentError, "quint: nothing is held as #{name.inspect}; held: #{held.inspect}"
+      forget(name, fiber)
+    end
+
     # @rbs name: N
     # @rbs return: bool
     def held?(name) = @held.key?(name)

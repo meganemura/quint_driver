@@ -62,6 +62,39 @@ class HoldTest < Minitest::Test
     assert_equal :end, hold.finish("r1")
   end
 
+  def test_resume_runs_a_held_call_to_its_next_pause_only
+    hold = QuintDriver::Hold.new
+    log = []
+    hold.start("r1") { log << :read; hold.pause(1); log << :create; hold.pause(2); log << :read_again; :taken }
+
+    assert_equal 2, hold.resume("r1")
+    assert_equal %i[read create], log
+    assert hold.held?("r1")
+    assert_equal :taken, hold.resume("r1")
+    refute hold.held?("r1")
+    assert_equal 'quint: nothing is held as "r1"; held: []', assert_raises(ArgumentError) { hold.resume("r1") }.message
+  end
+
+  # A process killed at its pause runs no more of its code, not even an
+  # ensure, and its name can run again.
+  def test_drop_forgets_a_held_call_without_running_the_rest
+    hold = QuintDriver::Hold.new
+    log = []
+    hold.start("r1") do
+      log << :wrote
+      hold.pause
+      log << :after
+    ensure
+      log << :ensure
+    end
+
+    hold.drop("r1")
+    assert_empty hold.held
+    assert_equal %i[wrote], log
+    assert_equal :again, hold.start("r1") { :again }
+    assert_equal 'quint: nothing is held as "r2"; held: []', assert_raises(ArgumentError) { hold.drop("r2") }.message
+  end
+
   def test_an_error_in_a_held_call_comes_out_of_finish_and_frees_the_name
     hold = QuintDriver::Hold.new
     hold.start("r1") { hold.pause; raise "saved nothing" }
