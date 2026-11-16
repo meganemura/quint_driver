@@ -71,6 +71,10 @@ jobs:
           bundle exec steep stats --format=csv |
           awk -F, 'NR > 1 && $3 == "error" { print "Steep did not type check " $2; failed = 1 } END { exit failed }'
         shell: bash
+      # typegap reports where the types and the code disagree. It prints what it
+      # finds and fails the job only when it cannot run.
+      - name: Report gaps between the types and the code
+        run: bundle exec typegap || [ $? -eq 1 ]
 
   # Trace replay and the model on the core's floor, with no hegeltest installed.
   # The types group holds Steep, which only the types job runs.
