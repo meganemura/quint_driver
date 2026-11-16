@@ -6,4 +6,10 @@ target :lib do
   check "lib"
 
   library "etc", "json", "open3", "shellwords", "tmpdir", "prism", "hegeltest"
+
+  # Steep reports a node it cannot type as UnexpectedError and skips the
+  # rest of that node. The default level is hint, so the check would pass.
+  configure_code_diagnostics do |hash|
+    hash[Steep::Diagnostic::Ruby::UnexpectedError] = :error
+  end
 end
