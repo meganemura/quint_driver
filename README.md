@@ -556,6 +556,8 @@ ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/qu
 
 `.claude/skills/` and `.cursor/skills/` work the same way.
 
+**quint_driver 0.3.0 and later** bundle the skill and offer [Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) companion installation. For Rails apps bundling quint_driver, `bin/rails hyperdrive:init` installs it to `.claude/skills/quint_driver/SKILL.md`.
+
 ## Write a driver
 
 A driver runs the spec's actions on your system and reads the system back in the spec's terms. `bundle exec quint_driver outline spec.qnt` prints one to start from: each action with the picks it receives, each variable `state` must report with the Ruby shape of its value, and the expectations. It exits 1 with the reason when no driver can run the step action.

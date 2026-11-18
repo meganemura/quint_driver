@@ -639,6 +639,9 @@ ln -s "$(bundle info --path quint_driver)/skills/quint_driver" .agents/skills/qu
 
 `.claude/skills/` と `.cursor/skills/` でも同じです。
 
+**quint_driver 0.3.0 以降**の gem はスキルを同梱し、[Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) の companion としての導入に対応します。
+quint_driver を bundle している Rails アプリでは、`bin/rails hyperdrive:init` がスキルを `.claude/skills/quint_driver/SKILL.md` に入れます。
+
 ## ドライバーを書く
 
 ドライバーは、仕様のアクションをシステムで動かし、システムの状態を仕様の言葉で読み戻します。
