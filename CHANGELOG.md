@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- `quint_driver targets` marks two more kinds: `cache` (a `Rails.cache` write or delete, page or action caching) and `deferred` (a job or a mail run later, a commit hook, `limits_concurrency` and `set(wait:)`). Each is a copy of a record, or work on it, that every action changing the record must keep in step. The skill says how a driver turns caching on and holds the jobs, which the test environment does not.
 
 - The gem declares itself a [Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) companion in its metadata (`hyperdrive_targets: "*"`, `hyperdrive_artifacts: skill`). In a Rails app that bundles it, `bin/rails hyperdrive:init` installs the skill the gem ships to `.claude/skills/quint_driver/SKILL.md`.
 

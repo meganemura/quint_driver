@@ -42,6 +42,13 @@ module QuintDriver
       "skips-callbacks" => /\b(update_all|update_columns?|delete_all|insert_all|upsert_all|update_counters|increment_counter|decrement_counter)\b/,
       "counter-write" => /\b(increment|decrement)!?\(\s*:\w+|\w+_count\s*[+-]=/,
       "retry" => /\b(retry_on|discard_on)\b|\A\s*retry\b/,
+      # A copy of a record kept apart from it, which every action that
+      # changes or removes the record must refresh or remove too.
+      "cache" => /\bRails\.cache\.(write|fetch|delete|delete_matched|increment|decrement)\b|\b(caches_page|caches_action|cache_page|expire_page|expire_action|expire_fragment)\b/,
+      # Work that runs after the action that asked for it, when the record
+      # may have changed again: a job, a mail, a commit hook, and the limits
+      # and delays that decide when and how often it runs.
+      "deferred" => /\b(perform_later|perform_all_later|deliver_later|limits_concurrency|after_commit|after_create_commit|after_update_commit|after_destroy_commit)\b|\.set\(\s*wait/,
       # An outside call, or an error class of the app's own, which is how a
       # service that calls out says it can fail.
       "outside" => %r{Net::HTTP|Faraday|HTTParty|RestClient|\bClient\b|Api\b|_api\b|\.(post|get|put|patch|delete)\(\s*["'/]|broadcast|

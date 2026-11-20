@@ -184,6 +184,34 @@ class TargetsTest < Minitest::Test
     end
   end
 
+  # A cached page and a job that runs later each hold a copy of a record
+  # that every action changing the record must refresh or remove.
+  def test_a_cache_and_work_that_runs_later_are_hits
+    Dir.mktmpdir do |app|
+      write(app, "app/controllers/posts_controller.rb", <<~RUBY)
+        class PostsController < ApplicationController
+          caches_page :show
+          # Rails.cache.write here is a comment, not a hit
+
+          def update
+            Rails.cache.delete("post-\#{@post.id}")
+            RefreshJob.set(wait: 2.minutes).perform_later(@post)
+          end
+        end
+      RUBY
+      write(app, "app/jobs/refresh_job.rb", <<~RUBY)
+        class RefreshJob < ApplicationJob
+          limits_concurrency to: 1, key: ->(post) { post.id }
+        end
+      RUBY
+
+      hits = QuintDriver::Targets.scan(app).select { %w[cache deferred].include?(_1.kind) }.map { [ _1.kind, _1.file, _1.line ] }.sort
+
+      assert_equal [ [ "cache", "app/controllers/posts_controller.rb", 2 ], [ "cache", "app/controllers/posts_controller.rb", 6 ],
+                     [ "deferred", "app/controllers/posts_controller.rb", 7 ], [ "deferred", "app/jobs/refresh_job.rb", 2 ] ], hits
+    end
+  end
+
   def test_a_directory_named_like_a_ruby_file_is_skipped
     Dir.mktmpdir do |app|
       write(app, "app/a.rb/keep", "")
