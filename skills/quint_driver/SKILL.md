@@ -43,6 +43,7 @@ To find bugs, model code where two places must change together and something can
 - A job that can raise half-way and run again on retry.
 - A row the code saves and whose return value it does not check, or a record another entry point can delete.
 - A copy of a record kept apart from it, such as a cached page or a job scheduled to run later, that every action changing, merging or deleting the record must refresh or remove. The copy is a variable of its own, and each action is a pick of which record it changes and under which path or key; the expectation says no copy shows a state the record has left. Every path that reaches one record (no slug, an old slug, another format) is a key of its own.
+- A page or fragment rendered once and shown to every viewer, with text in it that depends on who views it (the signed-in user, the session, a flash). Which viewer sends each request is a pick, logged out among them; the expectation says no viewer sees text built for another.
 
 `quint_driver targets` lists those places in an app. It reads the source of `app/` and `lib/` (not `spec/` or `test/`), marks each line that matches one kind of place, and ranks the files by how many kinds meet in each, since the bugs sat where several kinds meet:
 
